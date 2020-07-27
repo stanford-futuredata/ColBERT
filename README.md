@@ -8,7 +8,7 @@ This is the reference implementation of the paper **ColBERT: Efficient and Effec
 ColBERT requires Python 3 and Pytorch 1 and uses the [HuggingFace Transformers](https://github.com/huggingface/transformers) library. You can create a conda environment with the required dependencies using the `conda_requirements.txt` file.
 
 ```
-conda create --name <env> --file conda_requirements.txt
+conda create --name <env> --file conda_environment.txt
 ```
 
 ----
