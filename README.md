@@ -2,6 +2,8 @@
 
 This is the reference implementation of the paper **ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT**, to appear at SIGIR'20 ([preprint](https://arxiv.org/abs/2004.12832)).
 
+**UPDATE:** See the new version 0.2 on [this branch](https://github.com/stanford-futuredata/ColBERT/tree/v0.2).
+
 
 ### Dependencies
 
