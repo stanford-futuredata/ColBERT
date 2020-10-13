@@ -1,3 +1,7 @@
 transformers
 ujson
 mlflow
+tensorboard
+tqdm
+torch==1.6.0
+faiss-cpu
