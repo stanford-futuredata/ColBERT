@@ -25,5 +25,5 @@ setuptools.setup(
     url='https://github.com/stanford-futuredata/ColBERT',
     packages=setuptools.find_packages(),
     install_requires=requirements,
-    python_requires='>=3.5',
+    python_requires='>=3.6',
 )
