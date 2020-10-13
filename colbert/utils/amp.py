@@ -1,5 +1,5 @@
 import torch
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 
 PyTorch_over_1_6 = float('.'.join(torch.__version__.split('.')[0:2])) >= 1.6
 
@@ -14,6 +14,21 @@ class MixedPrecisionManager():
             self.scaler = torch.cuda.amp.GradScaler()
 
     def context(self):
+        # see https://stackoverflow.com/a/45187287
+        import sys
+        PY_36 = sys.version_info < (3, 7)
+        if PY_36:
+            class NullContextManager(object):
+                def __init__(self, dummy_resource=None):
+                    self.dummy_resource = dummy_resource
+                def __enter__(self):
+                    return self.dummy_resource
+                def __exit__(self, *args):
+                    pass
+            nullcontext = NullContextManager
+        else:
+            from contextlib import nullcontext
+
         return torch.cuda.amp.autocast() if self.activated else nullcontext()
 
     def backward(self, loss):

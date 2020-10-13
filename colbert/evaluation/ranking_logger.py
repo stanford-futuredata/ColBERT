@@ -1,6 +1,6 @@
 import os
 
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from colbert.utils.utils import print_message
 from colbert.utils.runs import Run
 
@@ -25,14 +25,17 @@ class RankingLogger():
         # see https://stackoverflow.com/a/45187287
         import sys
         PY_36 = sys.version_info < (3, 7)
-
-        class NullContextManager(object):
-            def __init__(self, dummy_resource=None):
-                self.dummy_resource = dummy_resource
-            def __enter__(self):
-                return self.dummy_resource
-            def __exit__(self, *args):
-                pass
+        if PY_36:
+            class NullContextManager(object):
+                def __init__(self, dummy_resource=None):
+                    self.dummy_resource = dummy_resource
+                def __enter__(self):
+                    return self.dummy_resource
+                def __exit__(self, *args):
+                    pass
+            nullcontext = NullContextManager
+        else:
+            from contextlib import nullcontext
 
         with open(filename, 'w') as f:
             self.f = f
