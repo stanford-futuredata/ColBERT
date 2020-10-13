@@ -12,7 +12,7 @@ from colbert.ranking.batch_reranking import batch_rerank
 def main():
     random.seed(12345)
 
-    parser = Arguments(description='Re-ranking over a ColBERT index: high throughput & low memory.')
+    parser = Arguments(description='Re-ranking over a ColBERT index')
 
     parser.add_model_parameters()
     parser.add_model_inference_parameters()

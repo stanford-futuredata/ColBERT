@@ -8,6 +8,7 @@ from collections import defaultdict, OrderedDict
 from colbert.parameters import DEVICE
 from colbert.modeling.colbert import ColBERT
 from colbert.utils.utils import print_message, load_checkpoint
+from colbert.evaluation.load_model import load_model
 from colbert.utils.runs import Run
 
 
@@ -174,18 +175,7 @@ def load_collection(collection_path):
 
 
 def load_colbert(args, do_print=True):
-    colbert = ColBERT.from_pretrained('bert-base-uncased',
-                                      query_maxlen=args.query_maxlen,
-                                      doc_maxlen=args.doc_maxlen,
-                                      dim=args.dim,
-                                      similarity_metric=args.similarity,
-                                      mask_punctuation=args.mask_punctuation)
-    colbert = colbert.to(DEVICE)
-
-    print_message("#> Loading model checkpoint.")
-    checkpoint = load_checkpoint(args.checkpoint, colbert, do_print=do_print)
-
-    colbert.eval()
+    colbert, checkpoint = load_model(args, do_print)
 
     # TODO: If the parameters below were not specified on the command line, their *checkpoint* values should be used.
     # I.e., not their purely (i.e., training) default values.
