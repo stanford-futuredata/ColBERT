@@ -1,4 +1,4 @@
-transformers
+transformers==3.0.2
 ujson
 mlflow
 tensorboard
