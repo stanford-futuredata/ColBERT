@@ -116,7 +116,8 @@ class FaissIndexGPU():
 
         if self.gpu_index.ntotal > 0:
             self._flush_to_cpu(index, nb, offset)
-
+        
+        assert index.ntotal == offset+nb, (index.ntotal, offset+nb, offset, nb)
         print(f"add(.) time: %.3f s \t\t--\t\t index.ntotal = {index.ntotal}" % (time.time() - t0))
 
     def _flush_to_cpu(self, index, nb, offset):
@@ -133,5 +134,3 @@ class FaissIndexGPU():
 
         if self.ngpu > 1:
             self.gpu_index.sync_with_shard_indexes()
-
-        assert index.ntotal == offset+nb, (index.ntotal, offset+nb, offset, nb)
