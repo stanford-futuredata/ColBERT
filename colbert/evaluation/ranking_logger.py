@@ -1,7 +1,7 @@
 import os
 
-from contextlib import contextmanager, nullcontext
-from colbert.utils.utils import print_message
+from contextlib import contextmanager
+from colbert.utils.utils import print_message, NullContextManager
 from colbert.utils.runs import Run
 
 
@@ -24,7 +24,7 @@ class RankingLogger():
 
         with open(filename, 'w') as f:
             self.f = f
-            with (open(filename + '.annotated', 'w') if also_save_annotations else nullcontext()) as g:
+            with (open(filename + '.annotated', 'w') if also_save_annotations else NullContextManager()) as g:
                 self.g = g
                 try:
                     yield self
