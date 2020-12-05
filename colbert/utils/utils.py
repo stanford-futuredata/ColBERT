@@ -1,4 +1,5 @@
 import os
+import sys
 import tqdm
 import torch
 import datetime
@@ -199,3 +200,15 @@ def grouper(iterable, n, fillvalue=None):
 
     args = [iter(iterable)] * n
     return itertools.zip_longest(*args, fillvalue=fillvalue)
+
+
+# see https://stackoverflow.com/a/45187287
+class NullContextManager(object):
+    def __init__(self, dummy_resource=None):
+        self.dummy_resource = dummy_resource
+
+    def __enter__(self):
+        return self.dummy_resource
+
+    def __exit__(self, *args):
+        pass
