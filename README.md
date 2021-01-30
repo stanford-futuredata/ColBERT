@@ -3,6 +3,7 @@
 The new version 0.2 is the recommended branch, with additional functionality and lower latency. It will be merged into master soon.
 
 ----
+----
 
 # ColBERT: Contextualized Late Interaction over BERT
 
