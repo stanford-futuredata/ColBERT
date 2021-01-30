@@ -1,5 +1,7 @@
 ### **UPDATE:** See the new version 0.2 on [this branch](https://github.com/stanford-futuredata/ColBERT/tree/v0.2).
 
+The new version 0.2 is the recommended branch, with additional functionality and lower latency. It will be merged into master soon.
+
 ----
 
 # ColBERT: Contextualized Late Interaction over BERT
