@@ -61,6 +61,10 @@ class FaissIndex():
 
         self.parallel_pool = Pool(16)
 
+    def __del__(self):
+        self.parallel_pool.close()
+        self.parallel_pool.join()
+
     def retrieve(self, faiss_depth, Q, verbose=False):
         embedding_ids = self.queries_to_embedding_ids(faiss_depth, Q, verbose=verbose)
         pids = self.embedding_ids_to_pids(embedding_ids, verbose=verbose)

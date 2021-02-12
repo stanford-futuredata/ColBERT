@@ -28,15 +28,15 @@ class FaissIndex():
     def train(self, train_data):
         print_message(f"#> Training now (using {self.gpu.ngpu} GPUs)...")
 
-        if self.gpu.ngpu > 0:
-            self.gpu.training_initialize(self.index, self.quantizer)
+        # if self.gpu.ngpu > 0:
+        #     self.gpu.training_initialize(self.index, self.quantizer)
 
         s = time.time()
         self.index.train(train_data)
         print(time.time() - s)
 
-        if self.gpu.ngpu > 0:
-            self.gpu.training_finalize()
+        # if self.gpu.ngpu > 0:
+        #     self.gpu.training_finalize()
 
     def add(self, data):
         print_message(f"Add data with shape {data.shape} (offset = {self.offset})..")
