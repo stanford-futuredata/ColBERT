@@ -9,7 +9,7 @@ class QueryTokenizer():
         self.tok = BertTokenizerFast.from_pretrained('bert-base-uncased')
         self.query_maxlen = query_maxlen
 
-        self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.get_vocab()['[unused0]']
+        self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
         self.mask_token, self.mask_token_id = self.tok.mask_token, self.tok.mask_token_id
