@@ -35,7 +35,7 @@ Using ColBERT on a dataset typically involves the following steps.
 
 **Step 0: Preprocess your collection.** At its simplest, ColBERT works with tab-separated (TSV) files: a file (e.g., `collection.tsv`) will contain all passages and another (e.g., `queries.tsv`) will contain a set of queries for searching the collection.
 
-**Step 1: Download or Train a ColBERT model.**  You can [train your own ColBERT model](#training) and [validate performance](#validation) on a suitable development set.
+**Step 1: Train a ColBERT model.**  You can [train your own ColBERT model](#training) and [validate performance](#validation) on a suitable development set.
 
 **Step 2: Index your collection.** Once you're happy with your ColBERT model, you need to [index your collection](#indexing) to permit fast retrieval. This step encodes all passages into matrices, stores them on disk, and builds data structures for efficient search.
 
@@ -77,7 +77,7 @@ You can use one or more GPUs by modifying `CUDA_VISIBLE_DEVICES` and `--nproc_pe
 
 ## Validation
 
-Before indexing into ColBERT, you can compare a few checkpoints by re-ranking a top-k set of documents per query. This will use ColBERT _on-the-fly_: it will compute document representations _during_ query evaluation. For **fast** retrieval, you should use indexing and retrieval below with your best checkpoint.
+Before indexing into ColBERT, you can compare a few checkpoints by re-ranking a top-k set of documents per query. This will use ColBERT _on-the-fly_: it will compute document representations _during_ query evaluation.
 
 This script requires the top-k list per query, provided as a tab-separated file whose every line contains a tuple `queryID \t passageID \t rank`, where rank is {1, 2, 3, ...} for each query. The script also accepts the format of MS MARCO's `top1000.dev` and `top1000.eval` and you can optionally supply relevance judgements (qrels) for evaluation. This is a tab-separated file whose every line has a quadruple _<query ID, 0, passage ID, 1>_, like `qrels.dev.small.tsv`.
 
@@ -95,7 +95,7 @@ python -m colbert.test --amp --doc_maxlen 180 --mask-punctuation \
 
 ## Indexing
 
-For efficient retrieval, indexing precomputes the ColBERT representations of passages.
+For fast retrieval, indexing precomputes the ColBERT representations of passages.
 
 Example command:
 
