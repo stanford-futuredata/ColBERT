@@ -65,7 +65,8 @@ You can supply **full-text** triples, where each line is `query text \t positive
 
 
 ```
-CUDA_VISIBLE_DEVICES="0,1,2,3" python -m torch.distributed.launch --nproc_per_node=4 -m
+CUDA_VISIBLE_DEVICES="0,1,2,3" \
+python -m torch.distributed.launch --nproc_per_node=4 -m \
 colbert.train --amp --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 \
 --triples /path/to/MSMARCO/triples.train.small.tsv \
 --root /root/to/experiments/ --experiment MSMARCO-psg --similarity l2 --run msmarco.psg.l2
@@ -99,7 +100,8 @@ For efficient retrieval, indexing precomputes the ColBERT representations of pas
 Example command:
 
 ```
-CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 python -m torch.distributed.launch --nproc_per_node=4 -m \
+CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 \
+python -m torch.distributed.launch --nproc_per_node=4 -m \
 colbert.index --root /root/to/experiments/ --amp --doc_maxlen 180 --mask-punctuation --bsize 256 \
 --checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert-200000.dnn \
 --collection /path/to/MSMARCO/collection.tsv \
