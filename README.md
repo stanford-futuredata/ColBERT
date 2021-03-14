@@ -26,7 +26,7 @@ conda env create -f conda_env.yml
 conda activate colbert-v0.2
 ```
 
-If you face any problems, please [open a new issue](issues) and we'll help you promptly!
+If you face any problems, please [open a new issue](https://github.com/stanford-futuredata/ColBERT/issues) and we'll help you promptly!
 
 
 ## Overview
