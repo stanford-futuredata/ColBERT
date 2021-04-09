@@ -39,6 +39,10 @@ class CollectionEncoder():
 
         self._load_model()
         self.indexmgr = IndexManager(args.dim)
+        self.iterator = self._initialize_iterator()
+
+    def _initialize_iterator(self):
+        return open(self.collection)
 
     def _saver_thread(self):
         for args in iter(self.saver_queue.get, None):
@@ -59,30 +63,28 @@ class CollectionEncoder():
         t0 = time.time()
         local_docs_processed = 0
 
-        with open(self.collection) as fi:
-            for batch_idx, (offset, lines, owner) in enumerate(self._batch_passages(fi)):
-                if owner != self.process_idx:
-                    continue
+        for batch_idx, (offset, lines, owner) in enumerate(self._batch_passages(self.iterator)):
+            if owner != self.process_idx:
+                continue
 
-                t1 = time.time()
-                batch = self._preprocess_batch(offset, lines)
-                embs, doclens = self._encode_batch(batch_idx, batch)
+            t1 = time.time()
+            batch = self._preprocess_batch(offset, lines)
+            embs, doclens = self._encode_batch(batch_idx, batch)
 
-                t2 = time.time()
-                self.saver_queue.put((batch_idx, embs, offset, doclens))
+            t2 = time.time()
+            self.saver_queue.put((batch_idx, embs, offset, doclens))
 
-                t3 = time.time()
-                local_docs_processed += len(lines)
-                overall_throughput = compute_throughput(local_docs_processed, t0, t3)
-                this_encoding_throughput = compute_throughput(len(lines), t1, t2)
-                this_saving_throughput = compute_throughput(len(lines), t2, t3)
+            t3 = time.time()
+            local_docs_processed += len(lines)
+            overall_throughput = compute_throughput(local_docs_processed, t0, t3)
+            this_encoding_throughput = compute_throughput(len(lines), t1, t2)
+            this_saving_throughput = compute_throughput(len(lines), t2, t3)
 
-                self.print(f'#> Completed batch #{batch_idx} (starting at passage #{offset}) \t\t'
-                           f'Passages/min: {overall_throughput} (overall), ',
-                           f'{this_encoding_throughput} (this encoding), ',
-                           f'{this_saving_throughput} (this saving)')
-
-            self.saver_queue.put(None)
+            self.print(f'#> Completed batch #{batch_idx} (starting at passage #{offset}) \t\t'
+                          f'Passages/min: {overall_throughput} (overall), ',
+                          f'{this_encoding_throughput} (this encoding), ',
+                          f'{this_saving_throughput} (this saving)')
+        self.saver_queue.put(None)
 
         self.print("#> Joining saver thread.")
         thread.join()
