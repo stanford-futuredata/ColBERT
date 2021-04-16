@@ -55,7 +55,7 @@ def load_checkpoint(path, model, optimizer=None, do_print=True):
         print_message("#> Loading checkpoint", path)
 
     if path.startswith("http:") or path.startswith("https:"):
-        checkpoint = torch.hub.load_state_dict_from_url(path)
+        checkpoint = torch.hub.load_state_dict_from_url(path, map_location='cpu')
     else:
         checkpoint = torch.load(path, map_location='cpu')
 
