@@ -52,7 +52,12 @@ def train(args):
         print_message(f"#> Starting from checkpoint {args.checkpoint} -- but NOT the optimizer!")
 
         checkpoint = torch.load(args.checkpoint, map_location='cpu')
-        colbert.load_state_dict(checkpoint['model_state_dict'])
+
+        try:
+            colbert.load_state_dict(checkpoint['model_state_dict'])
+        except:
+            print_message("[WARNING] Loading checkpoint with strict=False")
+            colbert.load_state_dict(checkpoint['model_state_dict'], strict=False)
 
     if args.rank == 0:
         torch.distributed.barrier()
