@@ -245,6 +245,10 @@ def grouper(iterable, n, fillvalue=None):
 class NullContextManager(object):
     def __init__(self, dummy_resource=None):
         self.dummy_resource = dummy_resource
+    def __enter__(self):
+        return self.dummy_resource
+    def __exit__(self, *args):
+        pass
 
 
 def load_batch_backgrounds(args, qids):
