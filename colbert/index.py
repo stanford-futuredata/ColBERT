@@ -19,7 +19,7 @@ def main():
     parser.add_model_inference_parameters()
     parser.add_indexing_input()
 
-    parser.add_argument('--chunksize', dest='chunksize', default=16.0, required=False, type=float)   # in GiBs
+    parser.add_argument('--chunksize', dest='chunksize', default=6.0, required=False, type=float)   # in GiBs
 
     args = parser.parse()
 

@@ -1,5 +1,4 @@
 import os
-import sys
 import tqdm
 import torch
 import datetime
@@ -26,6 +25,8 @@ def timestamp():
 
 
 def file_tqdm(file):
+    print(f"#> Reading {file.name}")
+
     with tqdm.tqdm(total=os.path.getsize(file.name) / 1024.0 / 1024.0, unit="MiB") as pbar:
         for line in file:
             yield line
@@ -35,7 +36,7 @@ def file_tqdm(file):
 
 
 def save_checkpoint(path, epoch_idx, mb_idx, model, optimizer, arguments=None):
-    print("#> Saving a checkpoint..")
+    print(f"#> Saving a checkpoint to {path} ..")
 
     if hasattr(model, 'module'):
         model = model.module  # extract model from a distributed/data-parallel wrapper
@@ -52,9 +53,12 @@ def save_checkpoint(path, epoch_idx, mb_idx, model, optimizer, arguments=None):
 
 def load_checkpoint(path, model, optimizer=None, do_print=True):
     if do_print:
-        print_message("#> Loading checkpoint", path)
+        print_message("#> Loading checkpoint", path, "..")
 
-    checkpoint = torch.load(path, map_location='cpu')
+    if path.startswith("http:") or path.startswith("https:"):
+        checkpoint = torch.hub.load_state_dict_from_url(path, map_location='cpu')
+    else:
+        checkpoint = torch.load(path, map_location='cpu')
 
     state_dict = checkpoint['model_state_dict']
     new_state_dict = OrderedDict()
@@ -66,7 +70,11 @@ def load_checkpoint(path, model, optimizer=None, do_print=True):
 
     checkpoint['model_state_dict'] = new_state_dict
 
-    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+    try:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    except:
+        print_message("[WARNING] Loading checkpoint with strict=False")
+        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
 
     if optimizer:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'], strict=False)
@@ -87,6 +95,21 @@ def create_directory(path):
         print_message("#> Creating directory", path, '\n\n')
         os.makedirs(path)
 
+# def batch(file, bsize):
+#     while True:
+#         L = [ujson.loads(file.readline()) for _ in range(bsize)]
+#         yield L
+#     return
+
+
+def f7(seq):
+    """
+    Source: https://stackoverflow.com/a/480227/1493011
+    """
+
+    seen = set()
+    return [x for x in seq if not (x in seen or seen.add(x))]
+
 
 def batch(group, bsize, provide_offset=False):
     offset = 0
@@ -102,7 +125,7 @@ class dotdict(dict):
     dot.notation access to dictionary attributes
     Credit: derek73 @ https://stackoverflow.com/questions/2352181
     """
-    __getattr__ = dict.get
+    __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
@@ -130,6 +153,22 @@ def zipstar(L, lazy=False):
     return L if lazy else list(L)
 
 
+def zip_first(L1, L2):
+    length = len(L1) if type(L1) in [tuple, list] else None
+
+    L3 = list(zip(L1, L2))
+
+    assert length in [None, len(L3)], "zip_first() failure: length differs!"
+
+    return L3
+
+
+def int_or_float(val):
+    if '.' in val:
+        return float(val)
+        
+    return int(val)
+
 def load_ranking(path, types=None, lazy=False):
     print_message(f"#> Loading the ranked lists from {path} ..")
 
@@ -138,10 +177,10 @@ def load_ranking(path, types=None, lazy=False):
         lists = zipstar([l.tolist() for l in tqdm.tqdm(lists)], lazy=lazy)
     except:
         if types is None:
-            types = itertools.cycle([int])
+            types = itertools.cycle([int_or_float])
 
         with open(path) as f:
-            lists = [[typ(x) for typ, x in zip(types, line.strip().split('\t'))]
+            lists = [[typ(x) for typ, x in zip_first(types, line.strip().split('\t'))]
                      for line in file_tqdm(f)]
 
     return lists
@@ -206,9 +245,27 @@ def grouper(iterable, n, fillvalue=None):
 class NullContextManager(object):
     def __init__(self, dummy_resource=None):
         self.dummy_resource = dummy_resource
-
     def __enter__(self):
         return self.dummy_resource
-
     def __exit__(self, *args):
         pass
+
+
+def load_batch_backgrounds(args, qids):
+    if args.qid2backgrounds is None:
+        return None
+
+    qbackgrounds = []
+
+    for qid in qids:
+        back = args.qid2backgrounds[qid]
+
+        if len(back) and type(back[0]) == int:
+            x = [args.collection[pid] for pid in back]
+        else:
+            x = [args.collectionX.get(pid, '') for pid in back]
+
+        x = ' [SEP] '.join(x)
+        qbackgrounds.append(x)
+    
+    return qbackgrounds
