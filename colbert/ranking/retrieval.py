@@ -14,15 +14,20 @@ from colbert.utils.utils import print_message, batch
 from colbert.ranking.rankers import Ranker
 
 
-def retrieve(args):
+def set_up_retrieval(args):
     inference = ModelInference(args.colbert, amp=args.amp)
     ranker = Ranker(args, inference, faiss_depth=args.faiss_depth)
+    queries = args.queries
 
+    return ranker, queries
+
+
+def execute_retrieval(ranker, queries, depth: int = 1000):
     ranking_logger = RankingLogger(Run.path, qrels=None)
     milliseconds = 0
 
     with ranking_logger.context('ranking.tsv', also_save_annotations=False) as rlogger:
-        queries = args.queries
+
         qids_in_order = list(queries.keys())
 
         for qoffset, qbatch in batch(qids_in_order, 100, provide_offset=True):
@@ -52,10 +57,18 @@ def retrieve(args):
                 if query_idx % 100 == 0:
                     print_message(f"#> Logging query #{query_idx} (qid {qid}) now...")
 
-                ranking = [(score, pid, None) for pid, score in itertools.islice(ranking, args.depth)]
+                ranking = [(score, pid, None) for pid, score in itertools.islice(ranking, depth)]
                 rlogger.log(qid, ranking, is_ranked=True)
 
     print('\n\n')
     print(ranking_logger.filename)
     print("#> Done.")
     print('\n\n')
+    return ranking_logger.filename
+
+
+def retrieve(args):
+    ranker, queries = set_up_retrieval(args)
+    return execute_retrieval(ranker, queries, args.depth)
+
+
