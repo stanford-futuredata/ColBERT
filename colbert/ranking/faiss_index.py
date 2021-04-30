@@ -12,7 +12,7 @@ from colbert.indexing.loaders import load_doclens
 
 
 class FaissIndex():
-    def __init__(self, index_path, faiss_index_path, nprobe, part_range=None):
+    def __init__(self, index_path, faiss_index_path, nprobe, part_range=None, parallel_dedup=True):
         print_message("#> Loading the FAISS index from", faiss_index_path, "..")
 
         faiss_part_range = os.path.basename(faiss_index_path).split('.')[-2].split('-')
@@ -59,7 +59,14 @@ class FaissIndex():
 
         print_message("len(self.emb2pid) =", len(self.emb2pid))
 
-        self.parallel_pool = Pool(16)
+        self.parallel_pool = None
+        if parallel_dedup:
+            self.parallel_pool = Pool(16)
+
+    def __del__(self):
+        if self.parallel_pool:
+            self.parallel_pool.close()
+            self.parallel_pool.join()
 
     def retrieve(self, faiss_depth, Q, verbose=False):
         embedding_ids = self.queries_to_embedding_ids(faiss_depth, Q, verbose=verbose)
@@ -108,7 +115,7 @@ class FaissIndex():
 
         print_message("#> Removing duplicates (in parallel if large enough)..", condition=verbose)
 
-        if len(all_pids) > 5000:
+        if self.parallel_pool and len(all_pids) > 5000:
             all_pids = list(self.parallel_pool.map(uniq, all_pids))
         else:
             all_pids = list(map(uniq, all_pids))

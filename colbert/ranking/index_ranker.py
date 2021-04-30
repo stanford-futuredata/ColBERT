@@ -8,7 +8,7 @@ from itertools import accumulate
 from colbert.parameters import DEVICE
 from colbert.utils.utils import print_message, dotdict, flatten
 
-BSIZE = 1 << 14
+BSIZE = 1 << 12
 
 
 class IndexRanker():
@@ -24,7 +24,7 @@ class IndexRanker():
 
         self.dim = self.tensor.size(-1)
 
-        self.strides = [torch_percentile(self.doclens, p) for p in [25, 50, 75]]
+        self.strides = [torch_percentile(self.doclens, p) for p in [50]]
         self.strides.append(self.doclens.max().item())
         self.strides = sorted(list(set(self.strides)))
 

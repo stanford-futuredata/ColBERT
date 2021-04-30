@@ -8,7 +8,7 @@ from colbert.indexing.faiss import index_faiss
 from colbert.indexing.loaders import load_doclens
 
 
-def main():
+def main(custom_args=None):
     random.seed(12345)
 
     parser = Arguments(description='Faiss indexing for end-to-end retrieval with ColBERT.')
@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--sample', dest='sample', default=None, type=float)
     parser.add_argument('--slices', dest='slices', default=1, type=int)
 
-    args = parser.parse()
+    args = parser.parse(custom_args)
     assert args.slices >= 1
     assert args.sample is None or (0.0 < args.sample < 1.0), args.sample
 

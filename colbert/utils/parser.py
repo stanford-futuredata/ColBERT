@@ -91,8 +91,12 @@ class Arguments():
         for check in self.checks:
             check(args)
 
-    def parse(self):
-        args = self.parser.parse_args()
+    def parse(self, custom_args=None):
+        if custom_args is not None:
+            args = self.parser.parse_args(custom_args)
+        else:
+            args = self.parser.parse_args()
+
         self.check_arguments(args)
 
         args.input_arguments = copy.deepcopy(args)

@@ -77,7 +77,7 @@ def load_checkpoint(path, model, optimizer=None, do_print=True):
         model.load_state_dict(checkpoint['model_state_dict'], strict=False)
 
     if optimizer:
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'], strict=False)
 
     if do_print:
         print_message("#> checkpoint['epoch'] =", checkpoint['epoch'])
