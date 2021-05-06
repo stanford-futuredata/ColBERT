@@ -78,7 +78,7 @@ def evaluate(args):
                 print("\n\n")
 
         print("\n\n")
-        print('Avg Latency =', sum(args.milliseconds[1:]) / len(args.milliseconds[1:]))
+        # print('Avg Latency =', sum(args.milliseconds[1:]) / len(args.milliseconds[1:]))
         print("\n\n")
 
     print('\n\n')
