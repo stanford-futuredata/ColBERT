@@ -48,3 +48,4 @@ def batch_retrieve(args):
     print(ranking_logger.filename)
     print("#> Done.")
     print('\n\n')
+    return ranking_logger.filename

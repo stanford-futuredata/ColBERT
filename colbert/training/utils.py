@@ -12,6 +12,7 @@ def print_progress(scores):
 
 
 def manage_checkpoints(args, colbert, optimizer, batch_idx):
+    print("Managing checkpoints...")
     arguments = args.input_arguments.__dict__
 
     path = os.path.join(Run.path, 'checkpoints')
@@ -25,4 +26,5 @@ def manage_checkpoints(args, colbert, optimizer, batch_idx):
 
     if batch_idx in SAVED_CHECKPOINTS:
         name = os.path.join(path, "colbert-{}.dnn".format(batch_idx))
+        print("Saving to...", name)
         save_checkpoint(name, 0, batch_idx, colbert, optimizer, arguments)

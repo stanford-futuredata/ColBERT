@@ -14,7 +14,7 @@ from colbert.training.eager_batcher import EagerBatcher
 from colbert.parameters import DEVICE
 
 from colbert.modeling.colbert import ColBERT
-from colbert.utils.utils import print_message
+from colbert.utils.utils import print_message, save_checkpoint
 from colbert.training.utils import print_progress, manage_checkpoints
 
 
@@ -121,3 +121,7 @@ def train(args):
 
             print_message(batch_idx, avg_loss)
             manage_checkpoints(args, colbert, optimizer, batch_idx+1)
+
+    # save final model after training
+    print(f"Saving trained model to {args.model_save_path}...")
+    save_checkpoint(args.model_save_path, 0, 0, colbert, optimizer, args.input_arguments.__dict__)
