@@ -62,7 +62,7 @@ def generate_triples(
         depth_negative: int = 1000,
         cutoff_negative: int = 30
     ):
-    rankings = load_ranking(ranking, types=[int, int, int, float, int])
+    rankings = load_ranking(ranking, types=[int, int, int])
 
     print_message("#> Group by QID")
     qid2rankings = groupby_first_item(tqdm.tqdm(rankings))
@@ -93,8 +93,8 @@ def generate_triples(
 
     with open(output, 'w') as f:
         for example in Triples:
-            ujson.dump(example, f)
-            f.write('\n')
+            # ujson.dump(example, f)
+            f.write(f'{example[0]}\t{example[1]}\t{example[2]}\n')
 
     # with open(f'{args.output}.meta', 'w') as f:
     #     args.cmd = ' '.join(sys.argv)

@@ -82,7 +82,9 @@ def index_faiss(args):
         print_message(f"#> Processing slice #{slice_idx+1} of {args.slices} (range {part_offset}..{part_endpos}).")
         print_message(f"#> Will write to {output_path}.")
 
-        assert not os.path.exists(output_path), output_path
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        # assert not os.path.exists(output_path), output_path
 
         index = prepare_faiss_index(slice_samples_paths, args.partitions, args.sample)
 

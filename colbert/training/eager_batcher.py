@@ -33,7 +33,6 @@ class EagerBatcher():
         for line_idx, line in zip(range(self.bsize * self.nranks), self.reader):
             if (self.position + line_idx) % self.nranks != self.rank:
                 continue
-
             query, pos, neg = line.strip().split('\t')
 
             queries.append(query)

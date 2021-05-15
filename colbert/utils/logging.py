@@ -16,7 +16,7 @@ class Logger():
         self.logs_path = os.path.join(self.run.path, "logs/")
 
         if self.is_main:
-            self._init_mlflow()
+            # self._init_mlflow()
             self.initialized_tensorboard = False
             create_directory(self.logs_path)
 
@@ -44,7 +44,7 @@ class Logger():
         trace = ''.join(traceback.format_exception(etype, value, tb)) + '\n'
         print_message(trace, '\n\n')
 
-        self.log_new_artifact(output_path, trace)
+        # self.log_new_artifact(output_path, trace)
 
     def _log_all_artifacts(self):
         if not self.is_main:
@@ -56,10 +56,10 @@ class Logger():
         if not self.is_main:
             return
 
-        for key in vars(args):
-            value = getattr(args, key)
-            if type(value) in [int, float, str, bool]:
-                mlflow.log_param(key, value)
+        # for key in vars(args):
+        #     value = getattr(args, key)
+        #     if type(value) in [int, float, str, bool]:
+        #         mlflow.log_param(key, value)
 
         with open(os.path.join(self.logs_path, 'args.json'), 'w') as output_metadata:
             ujson.dump(args.input_arguments.__dict__, output_metadata, indent=4)
@@ -68,7 +68,7 @@ class Logger():
         with open(os.path.join(self.logs_path, 'args.txt'), 'w') as output_metadata:
             output_metadata.write(' '.join(sys.argv) + '\n')
 
-    def log_metric(self, name, value, step, log_to_mlflow=True):
+    def log_metric(self, name, value, step, log_to_mlflow=False):
         if not self.is_main:
             return
 
