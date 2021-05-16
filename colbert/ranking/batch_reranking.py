@@ -129,3 +129,5 @@ def batch_rerank(args):
     print_message('#> Done.\n')
 
     thread.join()
+
+    return ranking_logger.filename
