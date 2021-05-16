@@ -88,7 +88,9 @@ def train(args):
 
         reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
 
-    for batch_idx, BatchSteps in zip(range(start_batch_idx, args.maxsteps), reader):
+    batches = list(zip(range(start_batch_idx, args.maxsteps), reader))
+
+    for batch_idx, BatchSteps in batches:
         this_batch_loss = 0.0
 
         for queries, passages in BatchSteps:
