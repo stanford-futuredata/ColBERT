@@ -92,9 +92,8 @@ def generate_triples(
     print_message("#> Writing {}M examples to file.".format(len(Triples) / 1000.0 / 1000.0))
 
     with open(output, 'w') as f:
-        for example in Triples:
-            # ujson.dump(example, f)
-            f.write(f'{example[0]}\t{example[1]}\t{example[2]}\n')
+        for t in Triples:
+            f.write(f'{t[0]}\t{t[1]}\t{t[2]}\n')
 
     # with open(f'{args.output}.meta', 'w') as f:
     #     args.cmd = ' '.join(sys.argv)

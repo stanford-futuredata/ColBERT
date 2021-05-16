@@ -30,6 +30,7 @@ def execute_retrieval(ranker, queries, depth: int = 1000):
 
         qids_in_order = list(queries.keys())
 
+        print("Running inference...")
         for qoffset, qbatch in batch(qids_in_order, 100, provide_offset=True):
             qbatch_text = [queries[qid] for qid in qbatch]
 
@@ -45,9 +46,9 @@ def execute_retrieval(ranker, queries, depth: int = 1000):
                 torch.cuda.synchronize()
                 milliseconds += (time.time() - s) * 1000.0
 
-                if len(pids):
-                    print(qoffset+query_idx, q, len(scores), len(pids), scores[0], pids[0],
-                          milliseconds / (qoffset+query_idx+1), 'ms')
+                # if len(pids):
+                #     print(qoffset+query_idx, q, len(scores), len(pids), scores[0], pids[0],
+                #           milliseconds / (qoffset+query_idx+1), 'ms')
 
                 rankings.append(zip(pids, scores))
 

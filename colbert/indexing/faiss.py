@@ -84,7 +84,6 @@ def index_faiss(args):
 
         if os.path.exists(output_path):
             os.remove(output_path)
-        # assert not os.path.exists(output_path), output_path
 
         index = prepare_faiss_index(slice_samples_paths, args.partitions, args.sample)
 
