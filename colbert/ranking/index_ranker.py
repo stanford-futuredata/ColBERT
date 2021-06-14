@@ -24,7 +24,7 @@ class IndexRanker():
 
         self.dim = self.tensor.size(-1)
 
-        self.strides = [torch_percentile(self.doclens, p) for p in [25, 50, 75]]
+        self.strides = [torch_percentile(self.doclens, p) for p in [90]]
         self.strides.append(self.doclens.max().item())
         self.strides = sorted(list(set(self.strides)))
 
