@@ -138,7 +138,7 @@ In the simplest case, you want to retrieve from the full collection:
 ```
 python -m colbert.retrieve \
 --amp --doc_maxlen 180 --mask-punctuation --bsize 256 \
---queries /path/to/MSMARCO/queries.dev.small.tsv
+--queries /path/to/MSMARCO/queries.dev.small.tsv \
 --nprobe 32 --partitions 32768 --faiss_depth 1024 \
 --index_root /root/to/indexes/ --index_name MSMARCO.L2.32x200k \
 --checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert-200000.dnn \
