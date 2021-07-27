@@ -168,7 +168,7 @@ python -m colbert.index_with_compression \
 --partitions 32768 --sample 0.05
 ```
 
-The `--compression_level` argument controls how many bits to use per embedding dimension (the default without compression is 16). The `--compresion_thresholds [compression_thresholds.csv]` argument explicitly configures the binarization thresholds. Each line of this file must first include the number of bits _b_, and then 2<sup>_b_</sup> + 1 comma-separated threshold values in increasing order. Note that the median threshold value will be discarded, and thresholds will be applied according to the [torch.bucketize](https://pytorch.org/docs/stable/generated/torch.bucketize.html) convention with `right=True`. For example, this file would produce uniform thresholds for 1, 2, or 3 bits:
+The `--compression_level` argument controls how many bits to use per embedding dimension (the default without compression is 16). The `--compression_thresholds [compression_thresholds.csv]` argument explicitly configures the binarization thresholds. Each line of this file must first include the number of bits _b_, and then 2<sup>_b_</sup> + 1 comma-separated threshold values in increasing order. Note that the median threshold value will be discarded, and thresholds will be applied according to the [torch.bucketize](https://pytorch.org/docs/stable/generated/torch.bucketize.html) convention with `right=True`. For example, this file would produce uniform thresholds for 1, 2, or 3 bits:
 ```
 1,-0.1,0,0.1
 2,-0.1,-0.05,0,0.05,0.1
