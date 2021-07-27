@@ -18,6 +18,8 @@ def main():
     parser.add_model_inference_parameters()
     parser.add_reranking_input()
     parser.add_index_use_input()
+    # TODO: Read these from metadata saved in index directory
+    parser.add_compressed_index_input()
 
     parser.add_argument('--step', dest='step', default=1, type=int)
     parser.add_argument('--part-range', dest='part_range', default=None, type=str)

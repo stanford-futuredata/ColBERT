@@ -19,6 +19,8 @@ def main():
     parser.add_model_inference_parameters()
     parser.add_ranking_input()
     parser.add_retrieval_input()
+    # TODO: Read these from metadata saved in index directory
+    parser.add_compressed_index_input()
 
     parser.add_argument('--faiss_name', dest='faiss_name', default=None, type=str)
     parser.add_argument('--faiss_depth', dest='faiss_depth', default=1024, type=int)

@@ -13,10 +13,24 @@ class Ranker():
         self.faiss_depth = faiss_depth
 
         if faiss_depth is not None:
-            self.faiss_index = FaissIndex(args.index_path, args.faiss_index_path, args.nprobe, part_range=args.part_range)
+            load_compressed_index = args.compression_level is not None
+            self.faiss_index = FaissIndex(
+                args.index_path,
+                args.faiss_index_path,
+                args.nprobe,
+                part_range=args.part_range,
+                load_compressed_index=load_compressed_index
+            )
             self.retrieve = partial(self.faiss_index.retrieve, self.faiss_depth)
 
-        self.index = IndexPart(args.index_path, dim=inference.colbert.dim, part_range=args.part_range, verbose=True)
+        self.index = IndexPart(
+            args.index_path,
+            dim=inference.colbert.dim,
+            part_range=args.part_range,
+            compression_level=args.compression_level,
+            compression_thresholds=args.compression_thresholds,
+            verbose=True
+        )
 
     def encode(self, queries):
         assert type(queries) in [list, tuple], type(queries)

@@ -1,6 +1,6 @@
 # ColBERT
 
-### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds. 
+### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds.
 
 
 <p align="center">
@@ -55,7 +55,7 @@ This repository works directly with a simple **tab-separated file** format to st
 
 
 * Queries: each line is `qid \t query text`.
-* Collection: each line is `pid \t passage text`. 
+* Collection: each line is `pid \t passage text`.
 * Top-k Ranking: each line is `qid \t pid \t rank`.
 
 This works directly with the data format of the [MS MARCO Passage Ranking](https://github.com/microsoft/MSMARCO-Passage-Ranking) dataset. You will need the training triples (`triples.train.small.tar.gz`), the official top-1000 ranked lists for the dev set queries (`top1000.dev`), and the dev set relevant passages (`qrels.dev.small.tsv`). For indexing the full collection, you will also need the list of passages (`collection.tar.gz`).
@@ -151,6 +151,33 @@ If you have a large set of queries (or want to reduce memory usage), use **batch
 
 Some use cases (e.g., building a user-facing search engines) require more control over retrieval. For those, you typically don't want to use the command line for retrieval. Instead, you want to import our retrieval API from Python and directly work with that (e.g., to build a simple REST API). Instructions for this are coming soon, but you will just need to adapt/modify the retrieval loop in [`colbert/ranking/retrieval.py#L33`](colbert/ranking/retrieval.py#L33).
 
+
+## Binarized embeddings
+
+ColBERT can apply binarization to compress embeddings as bit vectors before storing them on disk. The training process remains unmodified. Then the following command can be used for indexing with compression (note that this will compress embeddings to 1 bit per embedding dimension):
+
+```
+CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 \
+python -m colbert.index_with_compression \
+--nproc_per_node=4 --amp --doc_maxlen 180 --mask-punctuation --bsize 1024 \
+--checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints-colbert-200000.dnn \
+--collection /path/to/MSMARCO/collection.tsv \
+--index_root /root/to/indexes --index_name MSMARCO.L2.32x200k_compression=1 \
+--root /root/to/experiments/ --experiment MSMARCO-psg
+--compression_level 1 --compression_thresholds /path/to/compression_thresholds.csv \
+--partitions 32768 --sample 0.05
+```
+
+The `--compression_level` argument controls how many bits to use per embedding dimension (the default without compression is 16). The `--compresion_thresholds [compression_thresholds.csv]` argument explicitly configures the binarization thresholds. Each line of this file must first include the number of bits _b_, and then 2<sup>_b_</sup> + 1 comma-separated threshold values in increasing order. Note that the median threshold value will be discarded, and thresholds will be applied according to the [torch.bucketize](https://pytorch.org/docs/stable/generated/torch.bucketize.html) convention with `right=True`. For example, this file would produce uniform thresholds for 1, 2, or 3 bits:
+```
+1,-0.1,0,0.1
+2,-0.1,-0.05,0,0.05,0.1
+3,-0.1,-0.075,-0.05,-0.025,0,0.025,0.05,0.075,0.1
+```
+QulBERT trains and constructs the FAISS index on-the-fly, so no additional command is necessary for this step. Instead, the indexing command simply accepts two addtional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. After indexing is complete, retrieval and re-ranking proceed as usual but with the following additional arguments repeated from the indexing step:
+```
+--compression_level 1 --compression_thresholds /path/to/compression_thresholds.csv
+```
 
 ## Releases
 

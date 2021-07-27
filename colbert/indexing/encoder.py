@@ -1,3 +1,4 @@
+from bitarray import bitarray
 import os
 import time
 import torch
@@ -10,10 +11,14 @@ import queue
 
 from colbert.modeling.inference import ModelInference
 from colbert.evaluation.loaders import load_colbert
+from colbert.indexing.loaders import load_compression_data
 from colbert.utils.utils import print_message
 
 from colbert.indexing.index_manager import IndexManager
 
+np.random.seed(12345)
+
+STOP = "STOP"
 
 class CollectionEncoder():
     def __init__(self, args, process_idx, num_processes):
@@ -41,6 +46,16 @@ class CollectionEncoder():
         self.indexmgr = IndexManager(args.dim)
         self.iterator = self._initialize_iterator()
 
+        self.compress_index = args.compression_level is not None
+        if self.compress_index:
+            bits = args.compression_level
+            thresholds = load_compression_data(bits, args.compression_thresholds)
+            assert len(thresholds) == 2 ** bits + 1
+            self.compression_thresholds = torch.tensor(thresholds[1:-1])
+            self.compression_bit_map = {j: bitarray([int(i) for i in f"{j:0{bits}b}"]) for j in range(2 ** bits)}
+            if process_idx == 0:
+                self.print_main("#> Using the following bit patterns for compression:", self.compression_bit_map)
+
     def _initialize_iterator(self):
         return open(self.collection)
 
@@ -55,7 +70,28 @@ class CollectionEncoder():
 
         self.inference = ModelInference(self.colbert, amp=self.args.amp)
 
-    def encode(self):
+    def _compress(self, embds):
+        a = bitarray()
+        idxs = torch.bucketize(embds.flatten(), self.compression_thresholds, right=True)
+        a.encode(self.compression_bit_map, idxs.tolist())
+        return a
+
+    def prepare_train_sample(self, sample, sample_fraction):
+        for batch_idx, (offset, lines, owner) in enumerate(self._batch_passages(self.iterator)):
+            if owner != self.process_idx:
+                continue
+            self.print(f"Encoding batch {batch_idx}...")
+            batch = self._preprocess_batch(offset, lines)
+            sample_idx = np.random.randint(0, high=len(batch), size=(int(len(batch) * sample_fraction),))
+            batch = [batch[i] for i in sample_idx]
+            embs, doclens = self._encode_batch(batch_idx, batch)
+            sample.append(embs)
+        self.iterator.close()
+        self.iterator = self._initialize_iterator()
+
+    def encode(self, faiss_index_queue=None):
+        self.faiss_index_queue = faiss_index_queue
+
         self.saver_queue = queue.Queue(maxsize=3)
         thread = threading.Thread(target=self._saver_thread)
         thread.start()
@@ -70,9 +106,13 @@ class CollectionEncoder():
             t1 = time.time()
             batch = self._preprocess_batch(offset, lines)
             embs, doclens = self._encode_batch(batch_idx, batch)
+            if self.compress_index:
+                compressed_embs = self._compress(embs)
+            else:
+                compressed_embs = None
 
             t2 = time.time()
-            self.saver_queue.put((batch_idx, embs, offset, doclens))
+            self.saver_queue.put((batch_idx, embs, compressed_embs, offset, doclens))
 
             t3 = time.time()
             local_docs_processed += len(lines)
@@ -88,6 +128,11 @@ class CollectionEncoder():
 
         self.print("#> Joining saver thread.")
         thread.join()
+
+        if faiss_index_queue is not None:
+            self.print("#> Finishing FAISS indexing.")
+            faiss_index_queue.put((float("inf"), STOP))
+
 
     def _batch_passages(self, fi):
         """
@@ -147,16 +192,23 @@ class CollectionEncoder():
 
         return embs, local_doclens
 
-    def _save_batch(self, batch_idx, embs, offset, doclens):
+    def _save_batch(self, batch_idx, embs, compressed_embs, offset, doclens):
         start_time = time.time()
 
-        output_path = os.path.join(self.args.index_path, "{}.pt".format(batch_idx))
+        if compressed_embs is not None:
+            output_path = os.path.join(self.args.index_path, "{}.bn".format(batch_idx))
+        else:
+            output_path = os.path.join(self.args.index_path, "{}.pt".format(batch_idx))
         output_sample_path = os.path.join(self.args.index_path, "{}.sample".format(batch_idx))
         doclens_path = os.path.join(self.args.index_path, 'doclens.{}.json'.format(batch_idx))
 
         # Save the embeddings.
-        self.indexmgr.save(embs, output_path)
-        self.indexmgr.save(embs[torch.randint(0, high=embs.size(0), size=(embs.size(0) // 20,))], output_sample_path)
+        if compressed_embs is not None:
+            self.indexmgr.save_bitarray(compressed_embs, output_path)
+            self.faiss_index_queue.put((batch_idx, embs))
+        else:
+            self.indexmgr.save(embs, output_path)
+            self.indexmgr.save(embs[torch.randint(0, high=embs.size(0), size=(embs.size(0) // 20,))], output_sample_path)
 
         # Save the doclens.
         with open(doclens_path, 'w') as output_doclens:

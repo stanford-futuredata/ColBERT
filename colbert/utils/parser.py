@@ -74,6 +74,12 @@ class Arguments():
         self.add_argument('--index_root', dest='index_root', required=True)
         self.add_argument('--index_name', dest='index_name', required=True)
 
+    def add_compressed_index_input(self):
+        self.add_argument('--compression_level', dest='compression_level',
+                          choices=[1, 2, 3, 4], type=int, default=None)
+        self.add_argument('--compression_thresholds', dest='compression_thresholds', type=str, default=None)
+
+
     def add_index_use_input(self):
         self.add_argument('--index_root', dest='index_root', required=True)
         self.add_argument('--index_name', dest='index_name', required=True)

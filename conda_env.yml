@@ -8,8 +8,10 @@ dependencies:
   - cudatoolkit=10.1
   - pytorch=1.6.0
   - torchvision=0.7.0
-  - faiss-gpu=1.6.3
+  - faiss-gpu=1.7.0
+  - cupy
   - pip:
+    - bitarray
     - mlflow
     - tensorboard
     - tqdm

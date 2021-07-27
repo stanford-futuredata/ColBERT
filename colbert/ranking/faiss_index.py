@@ -12,7 +12,7 @@ from colbert.indexing.loaders import load_doclens
 
 
 class FaissIndex():
-    def __init__(self, index_path, faiss_index_path, nprobe, part_range=None):
+    def __init__(self, index_path, faiss_index_path, nprobe, part_range=None, load_compressed_index=False):
         print_message("#> Loading the FAISS index from", faiss_index_path, "..")
 
         faiss_part_range = os.path.basename(faiss_index_path).split('.')[-2].split('-')
@@ -31,7 +31,9 @@ class FaissIndex():
         self.faiss_index.nprobe = nprobe
 
         print_message("#> Building the emb2pid mapping..")
-        all_doclens = load_doclens(index_path, flatten=False)
+        all_doclens = load_doclens(index_path, load_compressed_index=load_compressed_index, flatten=False)
+        if len(all_doclens) == 0:
+            raise ValueError("Could not load doclens")
 
         pid_offset = 0
         if faiss_part_range is not None:

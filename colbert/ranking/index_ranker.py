@@ -1,8 +1,10 @@
 import os
 import math
+import numpy as np
 import torch
 import ujson
 import traceback
+import cupy
 
 from itertools import accumulate
 from colbert.parameters import DEVICE
@@ -12,7 +14,14 @@ BSIZE = 1 << 14
 
 
 class IndexRanker():
-    def __init__(self, tensor, doclens):
+    def __init__(
+        self,
+        tensor,
+        doclens,
+        dim=None,
+        compression_level=None,
+        compression_thresholds=None,
+    ):
         self.tensor = tensor
         self.doclens = doclens
 
@@ -22,7 +31,21 @@ class IndexRanker():
         self.doclens = torch.tensor(self.doclens)
         self.doclens_pfxsum = torch.tensor(self.doclens_pfxsum)
 
-        self.dim = self.tensor.size(-1)
+        if dim is None:
+            self.dim = self.tensor.size(-1)
+        else:
+            self.dim = dim
+
+        self.decompress_embeddings = compression_level is not None
+        if self.decompress_embeddings:
+            assert compression_thresholds is not None
+            self.compression_level = compression_level
+            self.packed_dim = self.tensor.size(-1)
+            self.compression_thresholds = compression_thresholds.to(DEVICE)
+            self.power_of_two = [2 ** i for i in range(self.compression_level)]
+            self.power_of_two.reverse()
+            self.power_of_two = torch.from_numpy(np.array(self.power_of_two, dtype=np.uint8))
+            self.power_of_two = self.power_of_two.to(torch.uint8).to(DEVICE)
 
         self.strides = [torch_percentile(self.doclens, p) for p in [90]]
         self.strides.append(self.doclens.max().item())
@@ -36,9 +59,11 @@ class IndexRanker():
     def _create_views(self, tensor):
         views = []
 
+        dim = self.packed_dim if self.decompress_embeddings else self.dim
+
         for stride in self.strides:
             outdim = tensor.size(0) - stride + 1
-            view = torch.as_strided(tensor, (outdim, stride, self.dim), (self.dim, self.dim, 1))
+            view = torch.as_strided(tensor, (outdim, stride, dim), (dim, dim, 1))
             views.append(view)
 
         return views
@@ -46,12 +71,26 @@ class IndexRanker():
     def _create_buffers(self, max_bsize, dtype, devices):
         buffers = {}
 
+        dim = self.packed_dim if self.decompress_embeddings else self.dim
+
         for device in devices:
-            buffers[device] = [torch.zeros(max_bsize, stride, self.dim, dtype=dtype,
+            buffers[device] = [torch.zeros(max_bsize, stride, dim, dtype=dtype,
                                            device=device, pin_memory=(device == 'cpu'))
                                for stride in self.strides]
 
         return buffers
+
+    def _decompress(self, D):
+        D = D.to(DEVICE)
+        D_decompressed = torch.as_tensor(cupy.unpackbits(cupy.asarray(D)), dtype=torch.uint8, device=DEVICE)
+        D_decompressed = D_decompressed.reshape(D.size(0), D.size(1), self.dim, self.compression_level)
+        # NOTE: dtype must be int64 to use for indexing
+        if self.compression_level == 1:
+            D_decompressed = D_decompressed.to(torch.int64)
+        else:
+            D_decompressed = torch.sum((D_decompressed * self.power_of_two), axis=-1, dtype=torch.int64)
+        D_decompressed = torch.squeeze(D_decompressed, axis=-1)
+        return self.compression_thresholds[D_decompressed]
 
     def rank(self, Q, pids, views=None, shift=0):
         assert len(pids) > 0
@@ -88,7 +127,12 @@ class IndexRanker():
 
             D_size = group_offsets_uniq.size(0)
             D = torch.index_select(views[group_idx], 0, group_offsets_uniq, out=D_buffers[group_idx][:D_size])
-            D = D.to(DEVICE)
+            if self.decompress_embeddings:
+                D = self._decompress(D)
+                D = torch.nn.functional.normalize(D, p=2, dim=-1)
+            else:
+                D = D.to(DEVICE)
+
             D = D[group_offsets_expand.to(DEVICE)].to(dtype=self.maxsim_dtype)
 
             mask = torch.arange(stride, device=DEVICE) + 1

@@ -21,5 +21,8 @@ def init(rank):
 
 
 def barrier(rank):
-    if rank >= 0:
+    nranks = 'WORLD_SIZE' in os.environ and int(os.environ['WORLD_SIZE'])
+    nranks = max(1, nranks)
+
+    if rank >= 0 and nranks > 1:
         torch.distributed.barrier()

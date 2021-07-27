@@ -63,6 +63,8 @@ class FaissIndexGPU():
 
         assert self.ngpu > 0
 
+        torch.cuda.empty_cache()
+
         s = time.time()
         self.index_ivf = faiss.extract_index_ivf(index)
         self.clustering_index = faiss.index_cpu_to_all_gpus(quantizer)
