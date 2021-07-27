@@ -154,7 +154,20 @@ Some use cases (e.g., building a user-facing search engines) require more contro
 
 ## Binarized embeddings
 
-ColBERT can apply binarization to compress embeddings as bit vectors before storing them on disk. The training process remains unmodified. Then the following command can be used for indexing with compression (note that this will compress embeddings to 1 bit per embedding dimension):
+ColBERT can apply binarization to compress embeddings as bit vectors before storing them on disk.
+
+### Preqrequisites
+
+The provided conda environment contains all necessary dependencies, but for those working off an existing ColBERT environment the following new dependencies will need to be installed:
+
+```
+conda install -c conda-forge cupy
+pip install bitarray
+```
+
+### Indexing
+
+The training process remains unmodified. Then the following command can be used for indexing with compression (note that this will compress embeddings to 1 bit per embedding dimension):
 
 ```
 CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 \
@@ -174,7 +187,9 @@ The `--compression_level` argument controls how many bits to use per embedding d
 2,-0.1,-0.05,0,0.05,0.1
 3,-0.1,-0.075,-0.05,-0.025,0,0.025,0.05,0.075,0.1
 ```
-QulBERT trains and constructs the FAISS index on-the-fly, so no additional command is necessary for this step. Instead, the indexing command simply accepts two addtional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size and/or the FAISS training sample fraction (`--sample`).
+ColBERT trains and constructs the FAISS index on-the-fly when indexing with compression, so no additional command is necessary for this step. Instead, the indexing command simply accepts two addtional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size and/or the FAISS training sample fraction (`--sample`).
+
+### Retrieval
 
 After indexing is complete, retrieval and re-ranking proceed as usual but with the following additional arguments repeated from the indexing step:
 ```
