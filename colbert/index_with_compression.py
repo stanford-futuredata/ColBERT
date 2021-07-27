@@ -123,7 +123,7 @@ def encode(rank, nranks, faiss_train_sample, faiss_index_queues):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--nproc_per_node", dest="nproc_per_node", type=int)
+    parser.add_argument("--nproc_per_node", dest="nproc_per_node", type=int, default=1)
     args, unknown = parser.parse_known_args()
 
     manager = mp.Manager()
