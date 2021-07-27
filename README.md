@@ -159,13 +159,13 @@ ColBERT can apply binarization to compress embeddings as bit vectors before stor
 ```
 CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 \
 python -m colbert.index_with_compression \
---nproc_per_node=4 --amp --doc_maxlen 180 --mask-punctuation --bsize 1024 \
+--nproc_per_node=4 --amp --doc_maxlen 180 --mask-punctuation --bsize 64 \
 --checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints-colbert-200000.dnn \
 --collection /path/to/MSMARCO/collection.tsv \
 --index_root /root/to/indexes --index_name MSMARCO.L2.32x200k_compression=1 \
 --root /root/to/experiments/ --experiment MSMARCO-psg
 --compression_level 1 --compression_thresholds /path/to/compression_thresholds.csv \
---partitions 32768 --sample 0.05
+--partitions 32768 --sample 0.01
 ```
 
 The `--compression_level` argument controls how many bits to use per embedding dimension (the default without compression is 16). The `--compression_thresholds [compression_thresholds.csv]` argument explicitly configures the binarization thresholds. Each line of this file must first include the number of bits _b_, and then 2<sup>_b_</sup> + 1 comma-separated threshold values in increasing order. Note that the median threshold value will be discarded, and thresholds will be applied according to the [torch.bucketize](https://pytorch.org/docs/stable/generated/torch.bucketize.html) convention with `right=True`. For example, this file would produce uniform thresholds for 1, 2, or 3 bits:
@@ -174,7 +174,9 @@ The `--compression_level` argument controls how many bits to use per embedding d
 2,-0.1,-0.05,0,0.05,0.1
 3,-0.1,-0.075,-0.05,-0.025,0,0.025,0.05,0.075,0.1
 ```
-QulBERT trains and constructs the FAISS index on-the-fly, so no additional command is necessary for this step. Instead, the indexing command simply accepts two addtional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. After indexing is complete, retrieval and re-ranking proceed as usual but with the following additional arguments repeated from the indexing step:
+QulBERT trains and constructs the FAISS index on-the-fly, so no additional command is necessary for this step. Instead, the indexing command simply accepts two addtional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size and/or the FAISS training sample fraction (`--sample`).
+
+After indexing is complete, retrieval and re-ranking proceed as usual but with the following additional arguments repeated from the indexing step:
 ```
 --compression_level 1 --compression_thresholds /path/to/compression_thresholds.csv
 ```
