@@ -40,7 +40,10 @@ def train(args):
     if args.rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    colbert = ColBERT.from_pretrained('bert-base-uncased',
+    # Note: you have to pass `lm` twice because the from_pretrained function won't pass the first
+    # parameter on to the ColBERT class' __init__ function, but will pass the second one.
+    colbert = ColBERT.from_pretrained(args.lm,
+                                      lm=args.lm,
                                       query_maxlen=args.query_maxlen,
                                       doc_maxlen=args.doc_maxlen,
                                       dim=args.dim,

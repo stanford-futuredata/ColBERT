@@ -5,8 +5,8 @@ from colbert.modeling.tokenization.utils import _split_into_batches, _sort_by_le
 
 
 class DocTokenizer():
-    def __init__(self, doc_maxlen):
-        self.tok = BertTokenizerFast.from_pretrained('bert-base-uncased')
+    def __init__(self, lm, doc_maxlen):
+        self.tok = BertTokenizerFast.from_pretrained(lm)
         self.doc_maxlen = doc_maxlen
 
         self.D_marker_token, self.D_marker_token_id = '[D]', self.tok.convert_tokens_to_ids('[unused1]')

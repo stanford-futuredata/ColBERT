@@ -7,10 +7,11 @@ from colbert.parameters import DEVICE
 
 
 class ColBERT(BertPreTrainedModel):
-    def __init__(self, config, query_maxlen, doc_maxlen, mask_punctuation, dim=128, similarity_metric='cosine'):
+    def __init__(self, config, lm, query_maxlen, doc_maxlen, mask_punctuation, dim=128, similarity_metric='cosine'):
 
         super(ColBERT, self).__init__(config)
 
+        self.lm = lm
         self.query_maxlen = query_maxlen
         self.doc_maxlen = doc_maxlen
         self.similarity_metric = similarity_metric
@@ -20,12 +21,12 @@ class ColBERT(BertPreTrainedModel):
         self.skiplist = {}
 
         if self.mask_punctuation:
-            self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
+            self.tokenizer = BertTokenizerFast.from_pretrained(self.lm)
             self.skiplist = {w: True
                              for symbol in string.punctuation
                              for w in [symbol, self.tokenizer.encode(symbol, add_special_tokens=False)[0]]}
 
-        self.bert = BertModel(config)
+        self.bert = BertModel.from_pretrained(pretrained_model_name_or_path=self.lm)
         self.linear = nn.Linear(config.hidden_size, dim, bias=False)
 
         self.init_weights()

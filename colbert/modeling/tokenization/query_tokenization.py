@@ -5,8 +5,8 @@ from colbert.modeling.tokenization.utils import _split_into_batches
 
 
 class QueryTokenizer():
-    def __init__(self, query_maxlen):
-        self.tok = BertTokenizerFast.from_pretrained('bert-base-uncased')
+    def __init__(self, lm, query_maxlen):
+        self.tok = BertTokenizerFast.from_pretrained(lm)
         self.query_maxlen = query_maxlen
 
         self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')

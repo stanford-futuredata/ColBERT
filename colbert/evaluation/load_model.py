@@ -11,7 +11,10 @@ from colbert.utils.utils import print_message, load_checkpoint
 
 
 def load_model(args, do_print=True):
-    colbert = ColBERT.from_pretrained('bert-base-uncased',
+    # Note: you have to pass `lm` twice because the from_pretrained function won't pass the first
+    # parameter on to the ColBERT class' __init__ function, but will pass the second one.
+    colbert = ColBERT.from_pretrained(args.lm,
+                                      lm=args.lm,
                                       query_maxlen=args.query_maxlen,
                                       doc_maxlen=args.doc_maxlen,
                                       dim=args.dim,
