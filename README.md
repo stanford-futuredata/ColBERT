@@ -156,7 +156,7 @@ Some use cases (e.g., building a user-facing search engines) require more contro
 
 ColBERT can apply binarization to compress embeddings as bit vectors before storing them on disk.
 
-### Preqrequisites
+### Prerequisites
 
 The provided conda environment contains all necessary dependencies, but for those working off an existing ColBERT environment the following new dependencies will need to be installed:
 
@@ -187,7 +187,7 @@ The `--compression_level` argument controls how many bits to use per embedding d
 2,-0.1,-0.05,0,0.05,0.1
 3,-0.1,-0.075,-0.05,-0.025,0,0.025,0.05,0.075,0.1
 ```
-ColBERT trains and constructs the FAISS index on-the-fly when indexing with compression, so no additional command is necessary for this step. Instead, the indexing command simply accepts two addtional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size and/or the FAISS training sample fraction (`--sample`).
+ColBERT trains and constructs the FAISS index on-the-fly when indexing with compression, so no additional command is necessary for this step. Instead, the indexing command simply accepts two additional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size and/or the FAISS training sample fraction (`--sample`).
 
 ### Retrieval
 
