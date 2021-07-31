@@ -196,6 +196,16 @@ After indexing is complete, retrieval and re-ranking proceed as usual but with t
 --compression_level 1 --compression_thresholds /path/to/compression_thresholds.csv
 ```
 
+### Preliminary results
+
+Preliminary results show that compression can reduce embedding storage cost by up 16x for MS MARCO embeddings without significant performance degredation. Note that for end-to-end retrieval we currently do not alter the size of the FAISS index, though we are currently investigating techniques for compressing this as well. We plan to release a full report on our findings in August 2021.
+
+| # Bits per dim | MRR@10 | Recall@50 |
+|:--------------:|:------:|:---------:|
+|  16 (original) |   36.2 |      82.1 |
+|              2 |   35.7 |      81.8 |
+|              1 |   34.8 |      80.5 |
+
 ## Releases
 
 * v0.2.0: Sep 2020
