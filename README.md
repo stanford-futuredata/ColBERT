@@ -1,7 +1,8 @@
-# ColBERT
+# ColBERT: Binarization Branch
 
 ### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds.
 
+### NOTE:  For the documentation on binarized embeddings, jump to [Binarized embeddings](#binarized-embeddings).
 
 <p align="center">
   <img align="center" src="docs/images/ColBERT-Framework-MaxSim-W370px.png" />
@@ -167,7 +168,7 @@ pip install bitarray
 
 ### Indexing
 
-The training process remains unmodified. Then the following command can be used for indexing with compression (note that this will compress embeddings to 1 bit per embedding dimension):
+The training process remains unmodified---you can re-use your existing model checkpoints. The following command can be used for indexing with compression. This example will compress embeddings to 1 bit per embedding dimension.
 
 ```
 CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 \
@@ -181,13 +182,15 @@ python -m colbert.index_with_compression \
 --partitions 32768 --sample 0.01
 ```
 
-The `--compression_level` argument controls how many bits to use per embedding dimension (the default without compression is 16). The `--compression_thresholds [compression_thresholds.csv]` argument explicitly configures the binarization thresholds. Each line of this file must first include the number of bits _b_, and then 2<sup>_b_</sup> + 1 comma-separated threshold values in increasing order. Note that the median threshold value will be discarded, and thresholds will be applied according to the [torch.bucketize](https://pytorch.org/docs/stable/generated/torch.bucketize.html) convention with `right=True`. For example, this file would produce uniform thresholds for 1, 2, or 3 bits:
+The `--compression_level` argument controls how many bits to use per embedding dimension (the default without compression is 16). The `--compression_thresholds [compression_thresholds.csv]` argument explicitly configures the binarization thresholds. We provide an example file below. Each line of this file must first include the number of bits _b_, and then 2<sup>_b_</sup> + 1 comma-separated threshold values in increasing order. Note that the median threshold value will be discarded, and thresholds will be applied according to the [torch.bucketize](https://pytorch.org/docs/stable/generated/torch.bucketize.html) convention with `right=True`. For example, this file would produce uniform thresholds for 1, 2, or 3 bits:
 ```
 1,-0.1,0,0.1
 2,-0.1,-0.05,0,0.05,0.1
 3,-0.1,-0.075,-0.05,-0.025,0,0.025,0.05,0.075,0.1
 ```
-ColBERT trains and constructs the FAISS index on-the-fly when indexing with compression, so no additional command is necessary for this step. Instead, the indexing command simply accepts two additional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size and/or the FAISS training sample fraction (`--sample`).
+
+
+ColBERT trains and constructs the FAISS index on-the-fly when indexing with compression, so no additional command is necessary for this step. Instead, the indexing command simply accepts two additional arguments: `--partitions` controls the number of partitions used by the FAISS index, and `--sample` controls the fraction of embeddings used as FAISS index training data. If you observe excessive memory usage, we suggest lowering the batch size first, then also lowering the FAISS training sample fraction (`--sample`) if needed.
 
 ### Retrieval
 
@@ -198,7 +201,10 @@ After indexing is complete, retrieval and re-ranking proceed as usual but with t
 
 ### Preliminary results
 
-Preliminary results show that compression can reduce embedding storage cost by up 16x for MS MARCO embeddings without significant performance degredation. Note that for end-to-end retrieval we currently do not alter the size of the FAISS index, though we are currently investigating techniques for compressing this as well. We plan to release a full report on our findings in August 2021.
+This is the initial working version of binarization in ColBERT, generalizing the recent [BPR](https://arxiv.org/abs/2106.00882) single-vector system. We plan to release the final version of compression as well as a full report on our findings in August 2021.
+
+Preliminary results show that compression can reduce embedding storage cost by up 16x for MS MARCO embeddings without significant performance degredation. Note that for end-to-end retrieval we currently do not alter the size of the FAISS index, though we are working on releasing more aggressive forms of compression that replace the FAISS index as well.
+
 
 | # Bits per dim | MRR@10 | Recall@50 |
 |:--------------:|:------:|:---------:|
