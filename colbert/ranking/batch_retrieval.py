@@ -16,7 +16,14 @@ from colbert.ranking.faiss_index import FaissIndex
 def batch_retrieve(args):
     assert args.retrieve_only, "TODO: Combine batch (multi-query) retrieval with batch re-ranking"
 
-    faiss_index = FaissIndex(args.index_path, args.faiss_index_path, args.nprobe, args.part_range)
+    load_compressed_index = args.compression_level is not None
+    faiss_index = FaissIndex(
+        args.index_path,
+        args.faiss_index_path,
+        args.nprobe,
+        args.part_range,
+        load_compressed_index=load_compressed_index
+    )
     inference = ModelInference(args.colbert, amp=args.amp)
 
     ranking_logger = RankingLogger(Run.path, qrels=None)
