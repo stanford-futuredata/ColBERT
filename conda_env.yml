@@ -10,6 +10,8 @@ dependencies:
   - torchvision=0.7.0
   - faiss-gpu=1.7.0
   - cupy
+  - uvicorn=0.13.4
+  - fastapi=0.63.0
   - pip:
     - bitarray
     - mlflow
