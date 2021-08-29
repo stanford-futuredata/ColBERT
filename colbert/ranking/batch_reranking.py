@@ -17,9 +17,9 @@ from colbert.ranking.index_part import IndexPart
 MAX_DEPTH_LOGGED = 1000  # TODO: Use args.depth
 
 
-def prepare_ranges(index_path, dim, step, part_range):
+def prepare_ranges(args, index_path, dim, step, part_range):
     print_message("#> Launching a separate thread to load index parts asynchronously.")
-    parts, _, _ = get_parts(index_path)
+    parts, _, _ = get_parts(index_path, load_compressed_index=args.compression_level is not None)
 
     positions = [(offset, offset + step) for offset in range(0, len(parts), step)]
 
@@ -30,7 +30,16 @@ def prepare_ranges(index_path, dim, step, part_range):
 
     def _loader_thread(index_path, dim, positions):
         for offset, endpos in positions:
-            index = IndexPart(index_path, dim=dim, part_range=range(offset, endpos), verbose=True)
+            #index = IndexPart(index_path, dim=dim, part_range=range(offset, endpos), verbose=True)
+            
+            index = IndexPart(
+                index_path,
+                dim=dim,
+                part_range=range(offset, endpos),
+                compression_level=args.compression_level,
+                compression_thresholds=args.compression_thresholds,
+                verbose=True
+            )
             loaded_parts.put(index, block=True)
 
     thread = threading.Thread(target=_loader_thread, args=(index_path, dim, positions,))
@@ -72,7 +81,7 @@ def score_by_range(positions, loaded_parts, all_query_embeddings, all_query_rank
 
 
 def batch_rerank(args):
-    positions, loaded_parts, thread = prepare_ranges(args.index_path, args.dim, args.step, args.part_range)
+    positions, loaded_parts, thread = prepare_ranges(args, args.index_path, args.dim, args.step, args.part_range)
 
     inference = ModelInference(args.colbert, amp=args.amp)
     queries, topK_pids = args.queries, args.topK_pids
