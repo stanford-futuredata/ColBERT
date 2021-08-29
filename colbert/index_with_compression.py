@@ -56,7 +56,7 @@ def encode(rank, nranks, faiss_train_sample, faiss_index_queues):
     parser.add_indexing_input()
     parser.add_compressed_index_input()
 
-    parser.add_argument('--chunksize', dest='chunksize', default=6.0, required=False, type=float)   # in GiBs
+    parser.add_argument('--chunksize', dest='chunksize', default=4.0, required=False, type=float)   # in GiBs
     parser.add_argument('--nproc_per_node', dest='nproc_per_node', required=False)
     parser.add_argument("--partitions", dest="partitions", type=int)
     parser.add_argument('--sample', dest='sample', default=0.05, type=float)
