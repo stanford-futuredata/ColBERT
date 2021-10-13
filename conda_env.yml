@@ -1,0 +1,25 @@
+name: colbert-v0.4.2
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - cudatoolkit=11.1
+  - faiss-gpu=1.7.0
+  - pip=21.0
+  - pytorch=1.9.0
+  - torchaudio
+  - torchvision
+  - pip:
+    - cupy-cuda110
+    - bitarray
+    - gitpython
+    - jupyter
+    - jupyterlab
+    - scipy
+    - spacy
+    - tqdm
+    - transformers==4.10.0
+    - ujson
