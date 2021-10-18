@@ -1,7 +1,10 @@
-experiments/
-checkpoints/
-data/
-logs/
+/experiments/
+/checkpoints/
+/data/
+/logs/
+/mlruns/
+/profiler/
+/logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -10,6 +13,11 @@ __pycache__/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+# notebooks/
 
 # mac
 .DS_Store
+
+# Other
+.vscode
+*.tsv
