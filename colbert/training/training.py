@@ -5,48 +5,55 @@ import torch.nn as nn
 import numpy as np
 
 from transformers import AdamW, get_linear_schedule_with_warmup
+from colbert.training.rerank_batcher import RerankBatcher
 
 from colbert.utils.amp import MixedPrecisionManager
 from colbert.training.lazy_batcher import LazyBatcher
 from colbert.parameters import DEVICE
 
 from colbert.modeling.colbert import ColBERT
+from colbert.modeling.reranker.electra import ElectraReranker
 
 from colbert.utils.utils import print_message
 from colbert.training.utils import print_progress, manage_checkpoints
 
 
+
 def train(config, triples, queries=None, collection=None):
-    config.help()
-    assert config.distributed
+    config.checkpoint = config.checkpoint or 'bert-base-uncased'
+
+    if config.rank < 1:
+        config.help()
 
     random.seed(12345)
     np.random.seed(12345)
     torch.manual_seed(12345)
-    if config.distributed:
-        torch.cuda.manual_seed_all(12345)
+    torch.cuda.manual_seed_all(12345)
 
-    if config.distributed:
-        assert config.bsize % config.nranks == 0, (config.bsize, config.nranks)
-        assert config.accumsteps == 1
-        config.bsize = config.bsize // config.nranks
+    assert config.bsize % config.nranks == 0, (config.bsize, config.nranks)
+    config.bsize = config.bsize // config.nranks
 
-        print("Using config.bsize =", config.bsize, "(per process) and config.accumsteps =", config.accumsteps)
+    print("Using config.bsize =", config.bsize, "(per process) and config.accumsteps =", config.accumsteps)
 
     if collection is not None:
-        reader = LazyBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
+        if config.reranker:
+            reader = RerankBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
+        else:
+            reader = LazyBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
     else:
         raise NotImplementedError()
 
-    colbert = ColBERT(name=config.checkpoint or 'bert-base-uncased', colbert_config=config)
+    if not config.reranker:
+        colbert = ColBERT(name=config.checkpoint, colbert_config=config)
+    else:
+        colbert = ElectraReranker.from_pretrained(config.checkpoint)
 
     colbert = colbert.to(DEVICE)
     colbert.train()
 
-    if config.distributed:
-        colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
-                                                            output_device=config.rank,
-                                                            find_unused_parameters=True)
+    colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
+                                                        output_device=config.rank,
+                                                        find_unused_parameters=True)
 
     optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=config.lr, eps=1e-8)
     optimizer.zero_grad()
@@ -62,7 +69,6 @@ def train(config, triples, queries=None, collection=None):
         set_bert_grad(colbert, False)
 
     amp = MixedPrecisionManager(config.amp)
-    criterion = nn.CrossEntropyLoss()
     labels = torch.zeros(config.bsize, dtype=torch.long, device=DEVICE)
 
     start_time = time.time()
@@ -84,10 +90,38 @@ def train(config, triples, queries=None, collection=None):
 
         this_batch_loss = 0.0
 
-        for queries, passages in BatchSteps:
+        for batch in BatchSteps:
             with amp.context():
-                scores = colbert(queries, passages).view(2, -1).permute(1, 0)
-                loss = criterion(scores, labels[:scores.size(0)])
+                try:
+                    queries, passages, target_scores = batch
+                    encoding = [queries, passages]
+                except:
+                    encoding, target_scores = batch
+                    encoding = [encoding.to(DEVICE)]
+
+                scores = colbert(*encoding)
+
+                if config.use_ib_negatives:
+                    scores, ib_loss = scores
+
+                scores = scores.view(-1, config.nway)
+
+                if len(target_scores):
+                    target_scores = torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
+                    target_scores = target_scores * config.distillation_alpha
+                    target_scores = torch.nn.functional.log_softmax(target_scores, dim=-1)
+
+                    log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
+                    loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
+                else:
+                    loss = nn.CrossEntropyLoss()(scores, labels[:scores.size(0)])
+                
+                if config.use_ib_negatives:
+                    if config.rank < 1:
+                        print('\t\t\t\t', loss.item(), ib_loss.item())
+
+                    loss += ib_loss
+
                 loss = loss / config.accumsteps
 
             if config.rank < 1:
@@ -103,8 +137,6 @@ def train(config, triples, queries=None, collection=None):
         amp.step(colbert, optimizer, scheduler)
 
         if config.rank < 1:
-            # avg_loss = train_loss / (batch_idx+1)
-
             print_message(batch_idx, train_loss)
             manage_checkpoints(config, colbert, optimizer, batch_idx+1, savepath=None)
 

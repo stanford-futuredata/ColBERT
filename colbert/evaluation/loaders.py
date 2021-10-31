@@ -44,7 +44,9 @@ def load_qrels(qrels_path):
             qrels[qid] = qrels.get(qid, [])
             qrels[qid].append(pid)
 
-    assert all(len(qrels[qid]) == len(set(qrels[qid])) for qid in qrels)
+    # assert all(len(qrels[qid]) == len(set(qrels[qid])) for qid in qrels)
+    for qid in qrels:
+        qrels[qid] = list(set(qrels[qid]))
 
     avg_positive = round(sum(len(qrels[qid]) for qid in qrels) / len(qrels), 2)
 

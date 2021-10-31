@@ -8,6 +8,7 @@ import random
 
 import numpy as np
 import torch.multiprocessing as mp
+from colbert.infra.config.config import ColBERTConfig
 
 import colbert.utils.distributed as distributed
 
@@ -29,7 +30,7 @@ def encode(config, collection, shared_lists, shared_queues):
 
 
 class CollectionIndexer():
-    def __init__(self, config, collection):
+    def __init__(self, config: ColBERTConfig, collection):
         self.config = config
         self.rank, self.nranks = self.config.rank, self.config.nranks
 
@@ -46,7 +47,7 @@ class CollectionIndexer():
 
     def run(self, shared_lists):
         with torch.inference_mode():
-            self.setup(shared_lists)
+            self.setup()
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
@@ -62,15 +63,11 @@ class CollectionIndexer():
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
-    def setup(self, shared_lists):
+    def setup(self):
         self.num_chunks = int(np.ceil(len(self.collection) / self.collection.get_chunksize()))
 
         sampled_pids = self._sample_pids()
-        local_sample_embs, avg_doclen_est = self._sample_embeddings(sampled_pids)
-
-        # Share the local_sample_embs for training
-        # TODO: Save local_sample_embs to disk
-        shared_lists[self.rank].append(local_sample_embs)
+        avg_doclen_est = self._sample_embeddings(sampled_pids)
 
         # Select the number of partitions
         num_passages = len(self.collection)
@@ -106,6 +103,9 @@ class CollectionIndexer():
 
         local_sample_embs, doclens = self.encoder.encode_passages(local_sample)
 
+        self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
+        torch.distributed.all_reduce(self.num_sample_embs)
+
         avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
         avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
         torch.distributed.all_reduce(avg_doclen_est)
@@ -118,7 +118,9 @@ class CollectionIndexer():
 
         Run().print(f'avg_doclen_est = {avg_doclen_est} \t len(local_sample) = {len(local_sample):,}')
 
-        return local_sample_embs, avg_doclen_est
+        torch.save(local_sample_embs, os.path.join(self.config.index_path_, f'sample.{self.rank}.pt'))
+
+        return avg_doclen_est
 
     def _save_plan(self):
         if self.rank < 1:
@@ -139,7 +141,7 @@ class CollectionIndexer():
         if self.rank > 0:
             return
 
-        sample, heldout = self._concatenate_and_split_sample(shared_lists)
+        sample, heldout = self._concatenate_and_split_sample()
 
         centroids = self._train_kmeans(sample, shared_lists)
 
@@ -154,33 +156,48 @@ class CollectionIndexer():
                               bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights)
         self.saver.save_codec(codec)
 
-    def _concatenate_and_split_sample(self, shared_lists):
-        sample = []
+    def _concatenate_and_split_sample(self):
+        print_memory_stats(f'***1*** \t RANK:{self.rank}')
 
         # TODO: Allocate a float16 array. Load the samples from disk, copy to array.
+        sample = torch.empty(self.num_sample_embs, self.config.dim, dtype=torch.float16)
+
+        offset = 0
         for r in range(self.nranks):
-            if shared_lists[r][0] is not None:
-                sample.append(shared_lists[r][0])
+            sub_sample_path = os.path.join(self.config.index_path_, f'sample.{r}.pt')
+            sub_sample = torch.load(sub_sample_path)
+            os.remove(sub_sample_path)
 
-            shared_lists[r][0] = None  # free allocation
+            endpos = offset + sub_sample.size(0)
+            sample[offset:endpos] = sub_sample
+            offset = endpos
+        
+        assert endpos == sample.size(0), (endpos, sample.size())
 
-        sample = torch.cat(sample)
+        print_memory_stats(f'***2*** \t RANK:{self.rank}')
 
         # Shuffle and split out a 5% "heldout" sub-sample [up to 50k elements]
         sample = sample[torch.randperm(sample.size(0))]
 
+        print_memory_stats(f'***3*** \t RANK:{self.rank}')
+
         sample, sample_heldout = sample.split(int(sample.size(0) - min(.5 * sample.size(0), 50_000)), dim=0)
+
+        print_memory_stats(f'***4*** \t RANK:{self.rank}')
 
         return sample, sample_heldout
 
     def _train_kmeans(self, sample, shared_lists):
         torch.cuda.empty_cache()
 
-        do_fork_for_faiss = False  # set to True to faiss GPU-0 memory at the cost of one more copy of `sample`.
+        do_fork_for_faiss = False  # set to True to free faiss GPU-0 memory at the cost of one more copy of `sample`.
 
         args_ = [self.config.dim, self.num_partitions, self.config.kmeans_niters]
 
         if do_fork_for_faiss:
+            # For this to work reliably, write the sample to disk. Pickle may not handle >4GB of data.
+            # Delete the sample file after work is done.
+
             shared_lists[0][0] = sample
             return_value_queue = mp.Queue()
 
@@ -288,7 +305,7 @@ class CollectionIndexer():
 
 
         """
-        codes = ResidualCodec.Embeddings.load_codes_chunks(index_path)
+        codes = ResidualCodec.Embeddings.load_all_codes(index_path)
 
         codes.sort().{values, indices}
 
@@ -303,25 +320,45 @@ class CollectionIndexer():
         # Then it would help nicely for batching later: 1GB.
         """
 
-        ivf = [[] for _ in range(self.num_partitions)]
+        codes = torch.empty(self.num_embeddings,)
+        print_memory_stats(f'RANK:{self.rank}')
 
         for chunk_idx in range(self.num_chunks):
-            embedding_offset = self.embedding_offsets[chunk_idx]
+            offset = self.embedding_offsets[chunk_idx]
             chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
 
-            for local_embedding_idx, partition_idx in enumerate(chunk_codes.tolist()):
-                embedding_idx = embedding_offset + local_embedding_idx
-                ivf[partition_idx].append(embedding_idx)
+            codes[offset:offset+chunk_codes.size(0)] = chunk_codes
         
-        ivf_lengths = [len(partition) for partition in ivf]
+        assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size()) 
+
 
         print_memory_stats(f'RANK:{self.rank}')
 
-        ivf = torch.tensor(flatten(ivf), dtype=torch.long)  # FIXME: If num_embeddings > 2B, use torch.long!
+        codes = codes.sort()
+        ivf, values = codes.indices, codes.values
+
+        print_memory_stats(f'RANK:{self.rank}')
+
+        partitions, ivf_lengths = values.unique_consecutive(return_counts=True)
+
+        # All partitions should be non-empty. (We can use torch.histc otherwise.)
+        assert partitions.size(0) == self.num_partitions, (partitions.size(), self.num_partitions)
+
+        # ivf = [[] for _ in range(self.num_partitions)]
+        # for chunk_idx in range(self.num_chunks):
+        #     embedding_offset = self.embedding_offsets[chunk_idx]
+        #     chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
+
+        #     for local_embedding_idx, partition_idx in enumerate(chunk_codes.tolist()):
+        #         embedding_idx = embedding_offset + local_embedding_idx
+        #         ivf[partition_idx].append(embedding_idx)
+        
+        # ivf_lengths = [len(partition) for partition in ivf]
+        # ivf = torch.tensor(flatten(ivf), dtype=torch.long)  # FIXME: If num_embeddings > 2B, use torch.long!
+
+        print_memory_stats(f'RANK:{self.rank}')
+
         ivf = (ivf, ivf_lengths)
-
-        print_memory_stats(f'RANK:{self.rank}')
-
         torch.save(ivf, os.path.join(self.config.index_path_, f'ivf.pt'))
 
     def _update_metadata(self):

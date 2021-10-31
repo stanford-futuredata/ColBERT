@@ -19,8 +19,15 @@ class Checkpoint(ColBERT):
         super().__init__(name, colbert_config)
         assert self.training is False
 
-        self.query_tokenizer = QueryTokenizer(self.colbert_config.query_maxlen)
-        self.doc_tokenizer = DocTokenizer(self.colbert_config.doc_maxlen)
+        # FIXME: The lines below expect colbert_config.checkpoint [for loading the tokenizer].
+        # It's not clear how/where that should be set! Presumably when the model is being loaded, so perhaps BaseColBERT?
+        # Notice that the same thing happens in training, particularly in LazyBatcher.
+        # But if we fix it here, we can move this up to ColBERT and then LazyBatcher can piggy-back on that.
+
+        # Actually, maybe when we do config.load_from_checkpoint, it should set the checkpoint there!
+
+        self.query_tokenizer = QueryTokenizer(self.colbert_config)
+        self.doc_tokenizer = DocTokenizer(self.colbert_config)
 
         self.amp_manager = MixedPrecisionManager(True)
 

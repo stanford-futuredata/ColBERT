@@ -22,6 +22,7 @@ class MixedPrecisionManager():
         if self.activated:
             self.scaler.scale(loss).backward()
         else:
+            assert False, "for now"
             loss.backward()
 
     def step(self, colbert, optimizer, scheduler=None):

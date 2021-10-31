@@ -40,6 +40,9 @@ class Collection:
 
     def provenance(self):
         return self.path
+    
+    def toDict(self):
+        return {'provenance': self.provenance()}
 
     def save(self, new_path):
         assert new_path.endswith('.tsv'), "TODO: Support .json[l] too."

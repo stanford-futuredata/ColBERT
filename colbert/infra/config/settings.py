@@ -10,6 +10,11 @@ from .core_config import DefaultVal
 
 @dataclass
 class RunSettings:
+    """
+        The defaults here have a special status in Run(), which initially calls assign_defaults(),
+        so these aren't soft defaults in that specific context.
+    """
+
     overwrite: bool = DefaultVal(False)
 
     root: str = DefaultVal(os.path.join(os.getcwd(), 'experiments'))
@@ -101,6 +106,7 @@ class DocSettings:
 @dataclass
 class QuerySettings:
     query_maxlen: int = DefaultVal(32)
+    attend_to_mask_tokens : bool = DefaultVal(False)
 
 
 @dataclass
@@ -125,6 +131,14 @@ class TrainingSettings:
     warmup_bert: int = DefaultVal(None)
 
     relu: bool = DefaultVal(False)
+
+    nway: int = DefaultVal(2)
+
+    use_ib_negatives: bool = DefaultVal(False)
+
+    reranker: bool = DefaultVal(False)
+
+    distillation_alpha: float = DefaultVal(1.0)
 
 
 @dataclass

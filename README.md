@@ -22,13 +22,13 @@ These rich interactions allow ColBERT to surpass the quality of _single-vector_ 
 
 ## Installation
 
-ColBERT (currently: [v0.4.6](#releases)) requires Python 3.7+ and Pytorch 1.9+ and uses the [HuggingFace Transformers](https://github.com/huggingface/transformers) library.
+ColBERT (currently: [v0.4.8](#releases)) requires Python 3.7+ and Pytorch 1.9+ and uses the [HuggingFace Transformers](https://github.com/huggingface/transformers) library.
 
 We strongly recommend creating a conda environment using the commands below. (If you don't have conda, follow the official [conda installation guide](https://docs.anaconda.com/anaconda/install/linux/#installation).)
 
 ```
 conda env create -f conda_env.yml
-conda activate colbert-v0.4.2
+conda activate colbert-v0.4
 ```
 
 If you face any problems, please [open a new issue](https://github.com/stanford-futuredata/ColBERT/issues) and we'll help you promptly!

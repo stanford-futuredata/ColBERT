@@ -1,13 +1,18 @@
 import torch
 
-from transformers import BertTokenizerFast
+# from transformers import BertTokenizerFast
+
+from colbert.modeling.hf_colbert import HF_ColBERT
+from colbert.infra import ColBERTConfig
 from colbert.modeling.tokenization.utils import _split_into_batches, _sort_by_length
 
 
 class DocTokenizer():
-    def __init__(self, doc_maxlen):
-        self.tok = BertTokenizerFast.from_pretrained('bert-base-uncased')
-        self.doc_maxlen = doc_maxlen
+    def __init__(self, config: ColBERTConfig):
+        self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
+
+        self.config = config
+        self.doc_maxlen = config.doc_maxlen
 
         self.D_marker_token, self.D_marker_token_id = '[D]', self.tok.convert_tokens_to_ids('[unused1]')
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id

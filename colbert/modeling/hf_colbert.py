@@ -1,7 +1,6 @@
-from os import name
 import torch.nn as nn
 
-from transformers import BertPreTrainedModel, BertModel
+from transformers import BertPreTrainedModel, BertModel, AutoTokenizer
 from colbert.utils.utils import torch_load_dnn
 
 
@@ -45,6 +44,21 @@ class HF_ColBERT(BertPreTrainedModel):
 
         return obj
 
+    @staticmethod
+    def raw_tokenizer_from_pretrained(name_or_path):
+        if name_or_path.endswith('.dnn'):
+            dnn = torch_load_dnn(name_or_path)
+            base = dnn.get('arguments', {}).get('model', 'bert-base-uncased')
+
+            obj = AutoTokenizer.from_pretrained(base)
+            obj.base = base
+
+            return obj
+
+        obj = AutoTokenizer.from_pretrained(name_or_path)
+        obj.base = name_or_path
+
+        return obj
 
 """
 TODO: It's easy to write a class generator that takes "name_or_path" and loads AutoConfig to check the Architecture's

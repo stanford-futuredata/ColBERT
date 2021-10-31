@@ -20,8 +20,9 @@ from colbert.utils.utils import print_message
 
 
 class Launcher:
-    def __init__(self, callee, run_config=None):
+    def __init__(self, callee, run_config=None, return_all=False):
         self.callee = callee
+        self.return_all = return_all
 
         self.run_config = RunConfig.from_existing(Run().config, run_config)
         self.nranks = self.run_config.nranks
@@ -70,15 +71,21 @@ class Launcher:
 
         print_memory_stats('MAIN')
 
+        # TODO: If the processes crash upon join, raise an exception and don't block on .get() below!
+
+        return_values = sorted([return_value_queue.get() for _ in all_procs])
+        return_values = [val for rank, val in return_values]
+
+        if not self.return_all:
+            return_values = return_values[0]
+        
         for proc in all_procs:
             proc.join()
             print("#> Joined...")
 
         print_memory_stats('MAIN')
-
-        # TODO: If the processes crash upon join, raise an exception and don't block on .get() below!
-
-        return return_value_queue.get()
+        
+        return return_values
 
 
 def setup_new_process(callee, port, return_value_queue, config, *args):
@@ -107,12 +114,11 @@ def setup_new_process(callee, port, return_value_queue, config, *args):
     with Run().context(config, inherit_config=False):
         return_val = callee(config, *args)
 
-    if rank < 1:
-        return_value_queue.put(return_val)
+    return_value_queue.put((rank, return_val))
 
 
 def print_memory_stats(message=''):
-    return
+    return  # FIXME: Add this back before release.
 
     import psutil  # Remove before releases? Or at least make optional with try/except.
 

@@ -24,6 +24,9 @@ class Queries:
 
     def provenance(self):
         return self.path
+    
+    def toDict(self):
+        return {'provenance': self.provenance()}
 
     def _load_data(self, data):
         if data is None:
@@ -45,7 +48,7 @@ class Queries:
         return True
 
     def _load_file(self, path):
-        if path.endswith('.tsv'):
+        if not path.endswith('.json'):
             self.data = load_queries(path)
             return True
         

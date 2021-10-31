@@ -21,7 +21,10 @@ class Run(object):
             cls._instance.stack = []
 
             # TODO: Save a timestamp here! And re-use it! But allow the user to override it on calling Run().context a second time.
-            cls._instance.__append(RunConfig())
+            run_config = RunConfig()
+            run_config.assign_defaults()
+            
+            cls._instance.__append(run_config)
 
         # TODO: atexit.register(all_done)
 

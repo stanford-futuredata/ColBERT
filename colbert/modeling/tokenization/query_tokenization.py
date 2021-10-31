@@ -1,13 +1,18 @@
 import torch
 
-from transformers import BertTokenizerFast
+# from transformers import BertTokenizerFast
+
+from colbert.modeling.hf_colbert import HF_ColBERT
+from colbert.infra import ColBERTConfig
 from colbert.modeling.tokenization.utils import _split_into_batches
 
 
 class QueryTokenizer():
-    def __init__(self, query_maxlen):
-        self.tok = BertTokenizerFast.from_pretrained('bert-base-uncased')
-        self.query_maxlen = query_maxlen
+    def __init__(self, config: ColBERTConfig):
+        self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
+
+        self.config = config
+        self.query_maxlen = config.query_maxlen
 
         self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
@@ -56,6 +61,10 @@ class QueryTokenizer():
         # postprocess for the [Q] marker and the [MASK] augmentation
         ids[:, 1] = self.Q_marker_token_id
         ids[ids == 0] = self.mask_token_id
+
+        if self.config.attend_to_mask_tokens:
+            mask[ids == self.mask_token_id] = 1
+            assert mask.sum().item() == mask.size(0) * mask.size(1), mask
 
         if bsize:
             batches = _split_into_batches(ids, mask, bsize)

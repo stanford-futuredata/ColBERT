@@ -1,5 +1,6 @@
+from colbert.infra.config.config import ColBERTConfig
 from colbert.search.strided_tensor import StridedTensor
-from colbert.utils.utils import print_message
+from colbert.utils.utils import print_message, flatten
 from colbert.modeling.base_colbert import BaseColBERT
 
 import torch
@@ -20,7 +21,39 @@ class ColBERT(BaseColBERT):
                              for w in [symbol, self.raw_tokenizer.encode(symbol, add_special_tokens=False)[0]]}
 
     def forward(self, Q, D):
-        return self.score(self.query(*Q), self.doc(*D))
+        Q = self.query(*Q)
+        D, D_mask = self.doc(*D, keep_dims='return_mask')
+
+        # Repeat each query encoding for every corresponding document.
+        Q_duplicated = Q.repeat_interleave(self.colbert_config.nway, dim=0).contiguous()
+        scores = self.score(Q_duplicated, D, D_mask)
+
+        if self.colbert_config.use_ib_negatives:
+            ib_loss = self.compute_ib_loss(Q, D, D_mask)
+            return scores, ib_loss
+
+        return scores
+
+    def compute_ib_loss(self, Q, D, D_mask):
+        # TODO: Take a hard look at this because it's very quick n dirty
+        scores = (D.unsqueeze(0) @ Q.permute(0, 2, 1).unsqueeze(1)).flatten(0, 1)  # query-major unsqueeze
+
+        scores = colbert_score_reduce(scores, D_mask.repeat(Q.size(0), 1, 1))
+
+        nway = self.colbert_config.nway
+        all_except_self_negatives = [list(range(qidx*D.size(0), qidx*D.size(0) + nway*qidx+1)) +
+                                     list(range(qidx*D.size(0) + nway * (qidx+1), qidx*D.size(0) + D.size(0)))
+                                     for qidx in range(Q.size(0))]
+
+        scores = scores[flatten(all_except_self_negatives)]
+        scores = scores.view(Q.size(0), -1)  # D.size(0) - self.colbert_config.nway + 1)
+
+        # assert Q.size(0) * self.colbert_config.nway == D.size(0), (Q.size(), D.size(), scores.size())
+
+        labels = torch.arange(0, Q.size(0), device=scores.device) * (self.colbert_config.nway)
+        # labels = torch.randint(low=0, high=scores.size(-1), size=(Q.size(0),), device=scores.device) * 0
+        # labels = torch.ones(size=(Q.size(0),), device=scores.device, dtype=torch.long)
+        return torch.nn.CrossEntropyLoss()(scores, labels)
 
     def query(self, input_ids, attention_mask):
         input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
@@ -50,27 +83,13 @@ class ColBERT(BaseColBERT):
 
         return D
 
-    def score(self, Q, D):
-        # TODO: Flip multiplication order and permute?
-        if self.colbert_config.similarity == 'cosine':
-            score = Q @ D.permute(0, 2, 1)
+    def score(self, Q, D_padded, D_mask):
+        # assert self.colbert_config.similarity == 'cosine'
 
-            if self.colbert_config.relu:
-                score = torch.nn.functional.relu(score)
-                # FIXME: TODO: Apply ReLU in the scoring below, irrespective of training config. And check if anything changes.
+        if self.colbert_config.similarity == 'l2':
+            return (-1.0 * ((Q.unsqueeze(2) - D_padded.unsqueeze(1))**2).sum(-1)).max(-1).values.sum(-1)
 
-            score = score.max(2).values.sum(1)
-
-            # if self.colbert_config.relu and self.training:
-            #     score = score - self.colbert_config.query_maxlen // 4
-            #     # print('BEFORE:  ', score)
-            #     # score = self.score_scaler(score.unsqueeze(-1)).squeeze(-1)
-            #     # print('AFTER:   ', score)
-
-            return score
-
-        assert self.colbert_config.similarity == 'l2'
-        return (-1.0 * ((Q.unsqueeze(2) - D.unsqueeze(1))**2).sum(-1)).max(-1).values.sum(-1)
+        return colbert_score(Q, D_padded, D_mask, config=self.colbert_config)
 
     def mask(self, input_ids):
         mask = [[(x not in self.skiplist) and (x != 0) for x in d] for d in input_ids.cpu().tolist()]
@@ -79,8 +98,17 @@ class ColBERT(BaseColBERT):
 
 # TODO: In Query/DocTokenizer, use colbert.raw_tokenizer
 
+# TODO: The masking below might also be applicable in the kNN part
+def colbert_score_reduce(scores_padded, D_mask):
+    D_padding = ~D_mask.view(scores_padded.size(0), scores_padded.size(1)).bool()
+    scores_padded[D_padding] = -9999
+    scores = scores_padded.max(1).values.sum(-1)
 
-def colbert_score(Q, D_padded, D_mask):
+    return scores
+
+
+# TODO: Wherever this is called, pass `config=`
+def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig()):
     """
         Supply sizes Q = (1 | num_docs, *, dim) and D = (num_docs, *, dim).
         If Q.size(0) is 1, the matrix will be compared with all passages.
@@ -90,41 +118,30 @@ def colbert_score(Q, D_padded, D_mask):
     """
 
     Q, D_padded, D_mask = Q.cuda(), D_padded.cuda(), D_mask.cuda()
-    # print_message(f'#> colbert_score{Q.size(), D_padded.size(), D_mask.size()}')
 
     assert Q.dim() == 3, Q.size()
     assert D_padded.dim() == 3, D_padded.size()
     assert Q.size(0) in [1, D_padded.size(0)]
 
-    scores = (D_padded @ Q.to(dtype=D_padded.dtype).permute(0, 2, 1))
+    scores = D_padded @ Q.to(dtype=D_padded.dtype).permute(0, 2, 1)
 
-    # print(scores.size(), D_mask.size())
-
-    scores = scores * D_mask.to(dtype=D_padded.dtype)  # .unsqueeze(2)
-    scores = scores.max(1).values.sum(-1)#.cpu()
-
-    return scores
+    return colbert_score_reduce(scores, D_mask)
 
 
-def colbert_score_packed(Q, D_packed, D_lengths):
+def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
     """
         Works with a single query only.
     """
 
-    Q, D_padded, D_lengths = Q.cuda(), D_packed.cuda(), D_lengths.cuda()
+    Q, D_packed, D_lengths = Q.cuda(), D_packed.cuda(), D_lengths.cuda()
 
     Q = Q.squeeze(0)
 
     assert Q.dim() == 2, Q.size()
     assert D_packed.dim() == 2, D_packed.size()
 
-    scores = D_packed @ Q.to(dtype=D_padded.dtype).T
+    scores = D_packed @ Q.to(dtype=D_packed.dtype).T
 
     scores_padded, scores_mask = StridedTensor(scores, D_lengths).as_padded_tensor()
 
-    scores_padded = scores_padded * scores_mask.to(dtype=scores_padded.dtype)  # .unsqueeze(2)
-    scores_padded = scores_padded.max(1).values
-
-    scores = scores_padded.sum(-1).cpu()
-
-    return scores
+    return colbert_score_reduce(scores_padded, scores_mask)

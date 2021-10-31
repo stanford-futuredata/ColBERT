@@ -3,9 +3,8 @@ import ujson
 
 from functools import partial
 from colbert.infra.config.config import ColBERTConfig
-from colbert.utils.utils import print_message, zipstar
-from colbert.modeling.tokenization import QueryTokenizer, DocTokenizer, tensorize_triples
-from colbert.evaluation.loaders import load_collection
+from colbert.utils.utils import flatten, print_message, zipstar
+from colbert.modeling.reranker.tokenizer import RerankerTokenizer
 
 from colbert.data.collection import Collection
 from colbert.data.queries import Queries
@@ -14,14 +13,14 @@ from colbert.data.examples import Examples
 # from colbert.utils.runs import Run
 
 
-class LazyBatcher():
+class RerankBatcher():
     def __init__(self, config: ColBERTConfig, triples, queries, collection, rank=0, nranks=1):
         self.bsize, self.accumsteps = config.bsize, config.accumsteps
         self.nway = config.nway
+        
+        assert self.accumsteps == 1, "The tensorizer doesn't support larger accumsteps yet --- but it's easy to add."
 
-        self.query_tokenizer = QueryTokenizer(config)
-        self.doc_tokenizer = DocTokenizer(config)
-        self.tensorize_triples = partial(tensorize_triples, self.query_tokenizer, self.doc_tokenizer)
+        self.tokenizer = RerankerTokenizer(total_maxlen=config.doc_maxlen, base=config.checkpoint)
         self.position = 0
 
         self.triples = Examples.cast(triples, nway=self.nway).tolist(rank, nranks)
@@ -68,7 +67,8 @@ class LazyBatcher():
         assert len(queries) == self.bsize
         assert len(passages) == self.nway * self.bsize
 
-        return self.tensorize_triples(queries, passages, scores, self.bsize // self.accumsteps, self.nway)
+        queries = flatten([[query] * self.nway for query in queries])
+        return [(self.tokenizer.tensorize(queries, passages), scores)]
 
     # def skip_to_batch(self, batch_idx, intended_batch_size):
     #     Run.warn(f'Skipping to batch #{batch_idx} (with intended_batch_size = {intended_batch_size}) for training.')

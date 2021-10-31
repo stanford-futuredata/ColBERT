@@ -6,6 +6,7 @@ from tqdm import tqdm
 from typing import Union
 
 from colbert.data import Collection, Queries, Ranking
+from colbert.infra.provenance import Provenance
 from colbert.infra.run import Run
 from colbert.infra.config import ColBERTConfig, RunConfig
 from colbert.modeling.checkpoint import Checkpoint
@@ -68,9 +69,11 @@ class Searcher:
 
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
 
-        # TODO: Create Provenance, which would save the stack trace..
-        # provenance = Provenance(source='Searcher::search_all', queries=text.provenance()) 
-        provenance = queries.provenance()
+        provenance = Provenance()
+        provenance.source = 'Searcher::search_all'
+        provenance.queries = queries.provenance()
+        provenance.config = self.config.export()
+        provenance.k = k
 
         return Ranking(data=data, provenance=provenance)
 

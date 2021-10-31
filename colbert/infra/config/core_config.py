@@ -33,6 +33,11 @@ class CoreConfig:
 
             if not isinstance(field_val, DefaultVal):
                 self.assigned[field.name] = True
+    
+    def assign_defaults(self):
+        for field in fields(self):
+            setattr(self, field.name, field.default.val)
+            self.assigned[field.name] = True
 
     def configure(self, ignore_unrecognized=True, **kw_args):
         ignored = set()

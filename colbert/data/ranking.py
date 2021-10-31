@@ -1,8 +1,10 @@
 import os
 import tqdm
+import ujson
 
 from colbert.infra.run import Run
 from colbert.utils.utils import print_message, groupby_first_item
+from utility.utils.save_metadata import get_metadata_only
 
 
 def numericize(v):
@@ -26,6 +28,9 @@ class Ranking:
 
     def provenance(self):
         return self.__provenance
+    
+    def toDict(self):
+        return {'provenance': self.provenance()}
 
     def _prepare_data(self, data):
         # TODO: Handle list of lists???
@@ -56,7 +61,6 @@ class Ranking:
 
     def save(self, new_path):
         assert 'tsv' in new_path.strip('/').split('/')[-1].split('.'), "TODO: Support .json[l] too."
-        # assert not os.path.exists(new_path), new_path
 
         with Run().open(new_path, 'w') as f:
             for items in self.flat_ranking:
@@ -65,7 +69,16 @@ class Ranking:
 
             print_message(f"#> Saved ranking of {len(self.data)} queries and {len(self.flat_ranking)} lines to {f.name}")
 
-            return f.name
+            output_path = f.name
+        
+        with Run().open(f'{new_path}.meta', 'w') as f:
+            d = {}
+            d['metadata'] = get_metadata_only()
+            d['provenance'] = self.provenance()
+            line = ujson.dumps(d, indent=4)
+            f.write(line)
+        
+        return output_path
 
     @classmethod
     def cast(cls, obj):

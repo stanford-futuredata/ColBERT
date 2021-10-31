@@ -6,22 +6,27 @@ from colbert.utils.utils import print_message
 
 
 class Examples:
-    def __init__(self, path=None, data=None):
+    def __init__(self, path=None, data=None, nway=None):
+        self.nway = nway
         self.path = path
         self.data = data or self._load_file(path)
-    
+
     def provenance(self):
         return self.path
+    
+    def toDict(self):
+        return self.provenance()
 
     def _load_file(self, path):
+        nway = self.nway + 1 if self.nway else self.nway
         examples = []
-        
+
         with open(path) as f:
             for line in f:
-                examples.append(ujson.loads(line))
+                example = ujson.loads(line)[:nway]
+                examples.append(example)
 
         return examples
-
 
     def tolist(self, rank=None, nranks=None):
         """
@@ -33,7 +38,7 @@ class Examples:
 
         if rank or nranks:
             assert rank in range(nranks), (rank, nranks)
-            return [self.data[idx] for idx in range(0, len(self.data), nranks)] # if line_idx % nranks == rank
+            return [self.data[idx] for idx in range(0, len(self.data), nranks)]  # if line_idx % nranks == rank
 
         return list(self.data)
 
@@ -51,14 +56,15 @@ class Examples:
         # print_message(f"#> Saved ranking of {len(self.data)} queries and {len(self.flat_ranking)} lines to {new_path}")
 
     @classmethod
-    def cast(cls, obj):
+    def cast(cls, obj, nway=None):
         if type(obj) is str:
-            return cls(path=obj)
+            return cls(path=obj, nway=nway)
 
         if isinstance(obj, list):
-            return cls(data=obj)
+            return cls(data=obj, nway=nway)
 
         if type(obj) is cls:
+            assert nway is None, nway
             return obj
 
         assert False, f"obj has type {type(obj)} which is not compatible with cast()"
