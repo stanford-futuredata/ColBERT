@@ -2,9 +2,10 @@ import torch
 
 from contextlib import contextmanager
 from colbert.utils.utils import NullContextManager
+from packaging import version
 
-PyTorch_over_1_6 = float('.'.join(torch.__version__.split('.')[0:2])) >= 1.6
-
+v = version.parse
+PyTorch_over_1_6  = v(torch.__version__) >= v('1.6')
 
 class MixedPrecisionManager():
     def __init__(self, activated):
