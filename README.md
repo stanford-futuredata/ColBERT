@@ -1,7 +1,9 @@
+> **Update: if you're looking for [ColBERTv2](https://arxiv.org/abs/2112.01488) code, you can find it alongside a new simpler API, in the branch [`new_api`](https://github.com/stanford-futuredata/ColBERT/tree/new_api).**
+
+
 # ColBERT
 
 ### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds. 
-
 
 <p align="center">
   <img align="center" src="docs/images/ColBERT-Framework-MaxSim-W370px.png" />
