@@ -54,14 +54,14 @@ class BaseConfig(CoreConfig):
             config, _ = cls.from_deprecated_args(dnn.get('arguments', {}))
 
             # TODO: FIXME: Decide if the line below will have any unintended consequences. We don't want to overwrite those!
-            # config.set('checkpoint', checkpoint_path)
+            config.set('checkpoint', checkpoint_path)
 
             return config
 
         loaded_config_path = os.path.join(checkpoint_path, 'artifact.metadata')
         if os.path.exists(loaded_config_path):
             loaded_config, _ = cls.from_path(loaded_config_path)
-            # loaded_config.set('checkpoint', checkpoint_path)
+            loaded_config.set('checkpoint', checkpoint_path)
 
             return loaded_config
 

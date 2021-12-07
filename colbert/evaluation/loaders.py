@@ -162,7 +162,7 @@ def load_collection(collection_path):
             if line_idx % (1000*1000) == 0:
                 print(f'{line_idx // 1000 // 1000}M', end=' ', flush=True)
 
-            pid, passage, *rest = line.strip().split('\t')
+            pid, passage, *rest = line.strip('\n\r ').split('\t')
             assert pid == 'id' or int(pid) == line_idx
 
             if len(rest) >= 1:

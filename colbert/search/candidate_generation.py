@@ -1,56 +1,16 @@
-from colbert.utils.utils import batch
 import torch
 
 from colbert.search.strided_tensor import StridedTensor
-
-"""
-import line_profiler
-import atexit
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
-"""
-
-from .strided_tensor_core import StridedTensorCore, _create_mask, _create_view
+from .strided_tensor_core import _create_mask, _create_view
 
 
 class CandidateGeneration:
-    def lengths2idxs(self, lengths, nprobe):
-        """
-            The batch version is slower. At least with a small number of [large] lengths.
-
-            stride = lengths.max().item()
-            tensor = torch.arange(0, lengths.size(0), device='cuda').unsqueeze(0).repeat(stride, 1)
-            tensor = tensor[_create_mask(lengths, stride).T.contiguous()] // nprobe
-
-            # TODO: Replace repeat with expand and test speed!
-        """
-
-        idxs = torch.empty(lengths.sum().item(), dtype=torch.long, device='cuda')
-
-        offset = 0
-        for idx, length in enumerate(lengths.tolist()):
-            endpos = offset + length
-            idxs[offset:endpos] = idx  # % nprobe
-            offset = endpos
-
-        return idxs
-
     def generate_candidate_eids(self, Q, nprobe):
         cells = (self.codec.centroids @ Q.T).topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
         cells = cells.flatten().contiguous()  # (32 * nprobe,)
         cells = cells.unique(sorted=False)
 
-        # print(f'cells = {cells}')
-
-        # print(f' CELLS:  {cells} ')
-
-        # TODO: Try both lookup_staggered() and lookup() here to compare speed with large IVFs.
-        # It seems that lookup() is faster with small IVFs.
-
         eids, cell_lengths = self.ivf.lookup(cells)  # eids = (packedlen,)  lengths = (32 * nprobe,)
-
-        # print(f'cell_lengths = {cell_lengths}')
-        # print(f'eids[420:440] = {eids[420:440]}')
 
         return eids.cuda(), cells.cuda(), cell_lengths.cuda()
 
@@ -63,24 +23,6 @@ class CandidateGeneration:
 
         return scores.cuda(), eids
 
-        # idxs = self.lengths2idxs(cell_lengths, nprobe)
-
-        # print(f'idxs[420:440] = {idxs[0:540]}')
-        # print(f'cells[idxs][420:440] = {cells[idxs][420:440]}')
-
-        # E = self.lookup_eids(eids.long(), codes=cells[idxs].long()).cuda()  # (packedlen, 128)
-
-        E = self.lookup_eids(eids.long()).cuda()  # (packedlen, 128)
-
-        scores = (Q.unsqueeze(0) @ E.unsqueeze(2)).squeeze(-1).T
-
-        # Q = Q[idxs]  # (packedlen, 128)
-
-        # scores = torch.bmm(Q.unsqueeze(1), E.unsqueeze(2)).flatten()   # (packedlen,)
-
-        return scores
-
-    # @profile
     def generate_candidates(self, config, Q):
         nprobe = config.nprobe
         ncandidates = config.ncandidates

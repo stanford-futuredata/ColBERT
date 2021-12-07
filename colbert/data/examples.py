@@ -3,16 +3,19 @@ import os
 import ujson
 
 from colbert.utils.utils import print_message
+from colbert.infra.provenance import Provenance
+from utility.utils.save_metadata import get_metadata_only
 
 
 class Examples:
-    def __init__(self, path=None, data=None, nway=None):
+    def __init__(self, path=None, data=None, nway=None, provenance=None):
+        self.__provenance = provenance or path or Provenance()
         self.nway = nway
         self.path = path
         self.data = data or self._load_file(path)
 
     def provenance(self):
-        return self.path
+        return self.__provenance
     
     def toDict(self):
         return self.provenance()
@@ -52,8 +55,17 @@ class Examples:
                 ujson.dump(example, f)
                 f.write('\n')
 
-            return f.name
-        # print_message(f"#> Saved ranking of {len(self.data)} queries and {len(self.flat_ranking)} lines to {new_path}")
+            output_path = f.name
+            print_message(f"#> Saved examples with {len(self.data)} lines to {f.name}")
+        
+        with Run().open(f'{new_path}.meta', 'w') as f:
+            d = {}
+            d['metadata'] = get_metadata_only()
+            d['provenance'] = self.provenance()
+            line = ujson.dumps(d, indent=4)
+            f.write(line)
+
+        return output_path
 
     @classmethod
     def cast(cls, obj, nway=None):

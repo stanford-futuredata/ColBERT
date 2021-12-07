@@ -19,13 +19,6 @@ class Checkpoint(ColBERT):
         super().__init__(name, colbert_config)
         assert self.training is False
 
-        # FIXME: The lines below expect colbert_config.checkpoint [for loading the tokenizer].
-        # It's not clear how/where that should be set! Presumably when the model is being loaded, so perhaps BaseColBERT?
-        # Notice that the same thing happens in training, particularly in LazyBatcher.
-        # But if we fix it here, we can move this up to ColBERT and then LazyBatcher can piggy-back on that.
-
-        # Actually, maybe when we do config.load_from_checkpoint, it should set the checkpoint there!
-
         self.query_tokenizer = QueryTokenizer(self.colbert_config)
         self.doc_tokenizer = DocTokenizer(self.colbert_config)
 
@@ -41,15 +34,19 @@ class Checkpoint(ColBERT):
         with torch.no_grad():
             with self.amp_manager.context():
                 D = super().doc(*args, **kw_args)
-                return D.cpu() if to_cpu else D
 
-    def queryFromText(self, queries, bsize=None, to_cpu=False):
+                if to_cpu:
+                    return (D[0].cpu(), *D[1:]) if isinstance(D, tuple) else D.cpu()
+
+                return D
+
+    def queryFromText(self, queries, bsize=None, to_cpu=False, context=None):
         if bsize:
-            batches = self.query_tokenizer.tensorize(queries, bsize=bsize)
+            batches = self.query_tokenizer.tensorize(queries, context=context, bsize=bsize)
             batches = [self.query(input_ids, attention_mask, to_cpu=to_cpu) for input_ids, attention_mask in batches]
             return torch.cat(batches)
 
-        input_ids, attention_mask = self.query_tokenizer.tensorize(queries)
+        input_ids, attention_mask = self.query_tokenizer.tensorize(queries, context=context)
         return self.query(input_ids, attention_mask)
 
     def docFromText(self, docs, bsize=None, keep_dims=True, to_cpu=False, showprogress=False, return_tokens=False):
@@ -71,14 +68,14 @@ class Checkpoint(ColBERT):
             if keep_dims is True:
                 D = _stack_3D_tensors(batches)
                 return (D[reverse_indices], *returned_text)
-            
+
             elif keep_dims == 'flatten':
                 D, mask = [], []
 
                 for D_, mask_ in batches:
                     D.append(D_)
                     mask.append(mask_)
-                
+
                 D, mask = torch.cat(D)[reverse_indices], torch.cat(mask)[reverse_indices]
 
                 doclens = mask.squeeze(-1).sum(-1).tolist()
@@ -94,9 +91,16 @@ class Checkpoint(ColBERT):
             return ([D[idx] for idx in reverse_indices.tolist()], *returned_text)
 
         input_ids, attention_mask = self.doc_tokenizer.tensorize(docs)
-        return self.doc(input_ids, attention_mask, keep_dims=keep_dims)
+        return self.doc(input_ids, attention_mask, keep_dims=keep_dims, to_cpu=to_cpu)
+
+    def lazy_rank(self, queries, docs):
+        Q = self.queryFromText(queries, bsize=128, to_cpu=True)
+        D = self.docFromText(docs, bsize=128, to_cpu=True)
+
+        assert False, "Implement scoring"
 
     def score(self, Q, D, mask=None, lengths=None):
+        assert False, "Call colbert_score"
         # EVENTUALLY: Just call the colbert_score function!
 
         if lengths is not None:

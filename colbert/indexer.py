@@ -46,9 +46,8 @@ class Indexer:
             if delete:
                 deleted.append(filename)
         
-        print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
-
         if len(deleted):
+            print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
             time.sleep(20)
 
             for filename in deleted:

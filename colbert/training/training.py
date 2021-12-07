@@ -5,6 +5,7 @@ import torch.nn as nn
 import numpy as np
 
 from transformers import AdamW, get_linear_schedule_with_warmup
+from colbert.infra import ColBERTConfig
 from colbert.training.rerank_batcher import RerankBatcher
 
 from colbert.utils.amp import MixedPrecisionManager
@@ -19,7 +20,7 @@ from colbert.training.utils import print_progress, manage_checkpoints
 
 
 
-def train(config, triples, queries=None, collection=None):
+def train(config: ColBERTConfig, triples, queries=None, collection=None):
     config.checkpoint = config.checkpoint or 'bert-base-uncased'
 
     if config.rank < 1:
@@ -106,7 +107,7 @@ def train(config, triples, queries=None, collection=None):
 
                 scores = scores.view(-1, config.nway)
 
-                if len(target_scores):
+                if len(target_scores) and not config.ignore_scores:
                     target_scores = torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
                     target_scores = target_scores * config.distillation_alpha
                     target_scores = torch.nn.functional.log_softmax(target_scores, dim=-1)

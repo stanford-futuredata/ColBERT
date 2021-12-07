@@ -1,6 +1,7 @@
 import os
 import tqdm
 import ujson
+from colbert.infra.provenance import Provenance
 
 from colbert.infra.run import Run
 from colbert.utils.utils import print_message, groupby_first_item
@@ -23,7 +24,7 @@ def load_ranking(path):  # works with annotated and un-annotated ranked lists
 
 class Ranking:
     def __init__(self, path=None, data=None, metrics=None, provenance=None):
-        self.__provenance = provenance or path
+        self.__provenance = provenance or path or Provenance()
         self.data = self._prepare_data(data or self._load_file(path))
 
     def provenance(self):
@@ -67,9 +68,8 @@ class Ranking:
                 line = '\t'.join(map(lambda x: str(int(x) if type(x) is bool else x), items)) + '\n'
                 f.write(line)
 
-            print_message(f"#> Saved ranking of {len(self.data)} queries and {len(self.flat_ranking)} lines to {f.name}")
-
             output_path = f.name
+            print_message(f"#> Saved ranking of {len(self.data)} queries and {len(self.flat_ranking)} lines to {f.name}")
         
         with Run().open(f'{new_path}.meta', 'w') as f:
             d = {}

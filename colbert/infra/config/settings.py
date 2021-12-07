@@ -107,6 +107,7 @@ class DocSettings:
 class QuerySettings:
     query_maxlen: int = DefaultVal(32)
     attend_to_mask_tokens : bool = DefaultVal(False)
+    interaction: str = DefaultVal('colbert')
 
 
 @dataclass
@@ -139,6 +140,8 @@ class TrainingSettings:
     reranker: bool = DefaultVal(False)
 
     distillation_alpha: float = DefaultVal(1.0)
+
+    ignore_scores: bool = DefaultVal(False)
 
 
 @dataclass

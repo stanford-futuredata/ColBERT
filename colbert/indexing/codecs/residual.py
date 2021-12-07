@@ -105,7 +105,7 @@ class ResidualCodec:
 
         codes = []
 
-        bsize = (1 << 31) // self.centroids.size(0)
+        bsize = (1 << 29) // self.centroids.size(0)
         for batch in embs.split(bsize):
             indices = (self.centroids @ batch.T.cuda().half()).max(dim=0).indices.to(device=out_device)
             codes.append(indices)

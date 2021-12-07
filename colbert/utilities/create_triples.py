@@ -1,4 +1,5 @@
 import random
+from colbert.infra.provenance import Provenance
 
 from utility.utils.save_metadata import save_metadata
 from utility.supervision.triples import sample_for_query
@@ -14,11 +15,18 @@ MAX_NUM_TRIPLES = 40_000_000
 class Triples:
     def __init__(self, ranking, seed=12345):
         random.seed(seed)  # TODO: Use internal RNG instead..
-        self.qid2rankings = Ranking.cast(ranking).todict()
+        self.seed = seed
+
+        ranking = Ranking.cast(ranking)
+        self.ranking_provenance = ranking.provenance()
+        self.qid2rankings = ranking.todict()
 
     def create(self, positives, depth):
         assert all(len(x) == 2 for x in positives)
         assert all(maxBest <= maxDepth for maxBest, maxDepth in positives), positives
+
+        self.positives = positives
+        self.depth = depth
 
         Triples = []
         NonEmptyQIDs = 0
@@ -47,7 +55,11 @@ class Triples:
         return Triples
 
     def save(self, new_path):
-        Examples(data=self.Triples).save(new_path)
+        provenance = Provenance()
+        provenance.source = 'Triples::create'
+        provenance.seed = self.seed
+        provenance.positives = self.positives
+        provenance.depth = self.depth
+        provenance.ranking = self.ranking_provenance
 
-        # save_metadata(f'{output}.meta', args)  # TODO: What args to save?? {seed, positives, depth, rankings if path or else whatever provenance the rankings object shares}
-
+        Examples(data=self.Triples, provenance=provenance).save(new_path)

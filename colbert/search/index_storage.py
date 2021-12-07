@@ -1,5 +1,4 @@
 import torch
-import ujson
 
 from colbert.utils.utils import flatten, print_message
 
@@ -11,13 +10,6 @@ from colbert.search.candidate_generation import CandidateGeneration
 
 from .index_loader import IndexLoader
 from colbert.modeling.colbert import colbert_score, colbert_score_packed
-
-"""
-import line_profiler
-import atexit
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
-"""
 
 
 class IndexScorer(IndexLoader, CandidateGeneration):
@@ -50,8 +42,6 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
         print_message("len(self.emb2pid) =", len(self.emb2pid))
 
-        # self.emb2pid = self.emb2pid.cuda() # FIXME: REMOVE THIS LINE!
-
     def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
         return self.embeddings_strided.lookup_eids(embedding_ids, codes=codes, out_device=out_device)
 
@@ -59,14 +49,10 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         return self.embeddings_strided.lookup_pids(passage_ids, out_device)
 
     def retrieve(self, config, Q):
-        # embedding_ids = self.queries_to_embedding_ids(faiss_depth, nprobe, Q)
+        Q = Q[:, :config.query_maxlen]   # NOTE: Candidate generation uses only the query tokens
         embedding_ids = self.generate_candidates(config, Q)
 
         return embedding_ids
-        
-        pids = self.embedding_ids_to_pids(embedding_ids)
-
-        return pids
 
     def embedding_ids_to_pids(self, embedding_ids):
         all_pids = torch.unique(self.emb2pid[embedding_ids.long()].cuda(), sorted=False)
@@ -90,53 +76,11 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             If Q.size(0) is 1, the matrix will be compared with all passages.
             Otherwise, each query matrix will be compared against the *aligned* passage.
         """
-
-
-        # """ # OLD code: 
         D_packed, D_mask = self.lookup_pids(pids)
 
         if Q.size(0) == 1:
-            return colbert_score_packed(Q, D_packed, D_mask)
+            return colbert_score_packed(Q, D_packed, D_mask, config)
 
         D_padded, D_lengths = StridedTensor(D_packed, D_mask).as_padded_tensor()
 
-        return colbert_score(Q, D_padded, D_lengths)
-        # """
-
-
-
-        assert isinstance(pids[0], int) or pids.dim() == 1
-
-        ncandidates = min(config.ncandidates, pids.size(0))
-        # bsizes = [min(k * 4, ncandidates)]
-        # total = bsizes[0]
-
-        # while total < ncandidates:
-        #     bsizes.append(min(bsizes[-1] * 2, ncandidates - total))
-        #     total += bsizes[-1]
-
-        all_scores = []
-        thresholds = []
-        maxscores = []
-
-        for batch_pids in pids.split(min(1024, ncandidates)):
-            D_packed, D_mask = self.lookup_pids(batch_pids)
-
-            if Q.size(0) == 1:
-                scores = colbert_score_packed(Q, D_packed, D_mask)
-            else:
-                D_padded, D_lengths = StridedTensor(D_packed, D_mask).as_padded_tensor()
-                scores = colbert_score(Q, D_padded, D_lengths)
-
-            all_scores.append(scores)
-
-            threshold = torch.cat(all_scores).float().topk(k).values[-1].item()
-            thresholds.append(threshold)
-
-            maxscore = scores.max().item()
-            maxscores.append(maxscore)
-        
-        with open('logs/index_storage.txt', 'a') as f:
-            f.write(ujson.dumps((ncandidates, thresholds, maxscores)) + '\n')
-
-        return torch.cat(all_scores)
+        return colbert_score(Q, D_padded, D_lengths, config)
