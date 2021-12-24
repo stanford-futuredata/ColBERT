@@ -299,26 +299,11 @@ class CollectionIndexer():
         assert len(self.embedding_offsets) == self.num_chunks
 
     def _build_ivf(self):
-        # TODO: If this is slow or memory intensive, it can be done as a torch.sort, torch.add offset, torch.unique
-        # operations over the concatenated codes.
-        # On MS MARCO, this seems to take 10 minutes! I can imagine that's 40 minutes on Wikipedia.
-
-
-        """
-        codes = ResidualCodec.Embeddings.load_all_codes(index_path)
-
-        codes.sort().{values, indices}
-
-        values.unique_consecutive -> counts -> cumsum -> offsets
-        (indices.int32(), offsets)
-
-
         # Maybe we should several small IVFs? Every 250M embeddings, so that's every 1 GB.
         # It would save *memory* here and *disk space* regarding the int64.
         # But we'd have to decide how many IVFs to use during retrieval: many (loop) or one?
         # A loop seems nice if we can find a size that's large enough for speed yet small enough to fit on GPU!
         # Then it would help nicely for batching later: 1GB.
-        """
 
         codes = torch.empty(self.num_embeddings,)
         print_memory_stats(f'RANK:{self.rank}')

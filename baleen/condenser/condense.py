@@ -22,9 +22,9 @@ class Condenser:
 
     def condense(self, query, backs, ranking):
         stage1_preds = self._stage1(query, backs, ranking)
-        stage2_preds = self._stage2(query, stage1_preds)
+        stage2_preds, stage2_preds_L3x = self._stage2(query, stage1_preds)
 
-        return stage1_preds, stage2_preds
+        return stage1_preds, stage2_preds, stage2_preds_L3x
 
     def _load_model(self, path, device):
         model = torch.load(path, map_location='cpu')
@@ -128,8 +128,14 @@ class Condenser:
 
             preds = [(score, (pid, sid)) for (pid, sid), score in zip(preds, scores)]
             preds = sorted(preds, reverse=True)[:5]
+
+            preds_L3x = [x for score, x in preds if score > min(0, preds[1][0] - 1e-10)] # Take at least 2!
             preds = [x for score, x in preds if score > 0]
 
-        # TODO: Apply L3x for final stage.
-        
-        return preds
+            earliest_pids = f7([pid for pid, _ in preds_L3x])[:4]  # Take at most 4 docs.
+            preds_L3x = [(pid, sid) for pid, sid in preds_L3x if pid in earliest_pids]
+
+            assert len(preds_L3x) >= 2
+            assert len(f7([pid for pid, _ in preds_L3x])) <= 4
+
+        return preds, preds_L3x

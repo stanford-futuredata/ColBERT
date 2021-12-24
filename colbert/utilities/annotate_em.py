@@ -106,10 +106,8 @@ class AnnotateEM:
 
 
 if __name__ == '__main__':
-    r = '/future/u/okhattab/root/unit/experiments/2021.08/retrieve.py/2021-09-04_15.50.02/ranking.tsv'
-    r = '/future/u/okhattab/root/unit/experiments/2021.08/retrieve.py/2021-09-04_15.59.37/ranking.tsv'
-    r = sys.argv[1]
+    r = sys.argv[2]
 
-    a = AnnotateEM(collection='/future/u/okhattab/root/unit/data/NQ-mini/collection.tsv',
-                   qas='/future/u/okhattab/root/unit/data/NQ-mini/dev/qas.json')
+    a = AnnotateEM(collection='/dfs/scratch0/okhattab/OpenQA/collection.tsv',
+                   qas=sys.argv[1])
     a.annotate(ranking=r)

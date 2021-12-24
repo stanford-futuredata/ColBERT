@@ -36,12 +36,12 @@ class Baleen:
                 if len(pids_bag) < k * (hop_idx+1):
                     pids_bag.add(pid)
             
-            stage1_preds, facts = condenser.condense(query, backs=facts, ranking=ranking_)
+            stage1_preds, facts, stage2_L3x = condenser.condense(query, backs=facts, ranking=ranking_)
             context = ' [SEP] '.join([collectionX.get((pid, sid), '') for pid, sid in facts])
 
         assert len(pids_bag) == depth
 
-        return facts, pids_bag, stage1_preds
+        return stage2_L3x, pids_bag, stage1_preds
 
             
 

@@ -3,13 +3,9 @@ import torch
 from contextlib import contextmanager
 from colbert.utils.utils import NullContextManager
 
-PyTorch_over_1_6 = True # float('.'.join(torch.__version__.split('.')[0:2])) >= 1.6
-
 
 class MixedPrecisionManager():
     def __init__(self, activated):
-        assert (not activated) or PyTorch_over_1_6, "Cannot use AMP for PyTorch version < 1.6"
-
         self.activated = activated
 
         if self.activated:
@@ -22,7 +18,6 @@ class MixedPrecisionManager():
         if self.activated:
             self.scaler.scale(loss).backward()
         else:
-            assert False, "for now"
             loss.backward()
 
     def step(self, colbert, optimizer, scheduler=None):
