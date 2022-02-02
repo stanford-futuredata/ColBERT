@@ -56,18 +56,22 @@ class Indexer:
         return deleted
 
     def index(self, name, collection, overwrite=False):
+        assert overwrite in [True, False, 'reuse']
+
         self.configure(collection=collection, index_name=name)
         self.configure(bsize=64, partitions=None)
 
         self.index_path = self.config.index_path_
+        index_does_not_exist = (not os.path.exists(self.config.index_path_))
 
-        assert overwrite or (not os.path.exists(self.config.index_path_)), self.config.index_path_
+        assert (overwrite in [True, 'reuse']) or index_does_not_exist, self.config.index_path_
         create_directory(self.config.index_path_)
 
-        if overwrite:
+        if overwrite is True:
             self.erase()
 
-        self.__launch(collection)
+        if index_does_not_exist or overwrite != 'reuse':
+            self.__launch(collection)
 
         return self.index_path
 

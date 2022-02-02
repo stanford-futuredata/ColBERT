@@ -12,8 +12,11 @@ class Provenance:
         output = []
 
         for frame in trace[2:-1]:
-            frame = f'{frame.filename}:{frame.lineno}:{frame.function}:   {frame.code_context[0].strip()}'
-            output.append(frame)
+            try:
+                frame = f'{frame.filename}:{frame.lineno}:{frame.function}:   {frame.code_context[0].strip()}'
+                output.append(frame)
+            except:
+                output.append(None)
 
         return output
 

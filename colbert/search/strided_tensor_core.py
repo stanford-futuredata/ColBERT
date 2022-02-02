@@ -30,9 +30,9 @@ class StridedTensorCore:
         self.offsets = torch.cat((zero, torch.cumsum(self.lengths, dim=0)))
 
         if self.offsets[-2] + self.max_stride > self.tensor.size(0):
-            if self.tensor.size(0) > 10_000_000:
-                print("#> WARNING: StridedTensor has to add padding, internally, to a large tensor.")
-                print("#> WARNING: Consider doing this padding in advance to save memory!")
+            # if self.tensor.size(0) > 10_000_000:
+            #     print("#> WARNING: StridedTensor has to add padding, internally, to a large tensor.")
+            #     print("#> WARNING: Consider doing this padding in advance to save memory!")
 
             padding = torch.zeros(self.max_stride, *self.inner_dims, dtype=self.tensor.dtype, device=self.tensor.device)
             self.tensor = torch.cat((self.tensor, padding))
