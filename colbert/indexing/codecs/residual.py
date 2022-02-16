@@ -5,6 +5,7 @@ EVENTUALLY: Tune the batch sizes selected here for a good balance of speed and g
 import os
 import cupy
 import torch
+import numpy as np
 
 from colbert.infra.config import ColBERTConfig
 from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
@@ -14,21 +15,27 @@ class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
     def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None):
+        self.use_gpu = config.total_visible_gpus > 0
+        if self.use_gpu > 0:
+            self.centroids = centroids.cuda().half()
+        else:
+            self.centroids = centroids.float()
         self.dim, self.nbits = config.dim, config.nbits
-        self.centroids = centroids.half().cuda()
         self.avg_residual = avg_residual
 
         if torch.is_tensor(self.avg_residual):
-            self.avg_residual = self.avg_residual.half().cuda()
-        
+            if self.use_gpu:
+                self.avg_residual = self.avg_residual.cuda().half()
+
         if torch.is_tensor(bucket_cutoffs):
-            bucket_cutoffs = bucket_cutoffs.cuda()
-            bucket_weights = bucket_weights.half().cuda()
+            if self.use_gpu:
+                bucket_cutoffs = bucket_cutoffs.half().cuda()
+                bucket_weights = bucket_weights.cuda()
 
         self.bucket_cutoffs = bucket_cutoffs
         self.bucket_weights = bucket_weights
 
-        self.arange_bits = torch.arange(0, self.nbits, device='cuda', dtype=torch.uint8)
+        self.arange_bits = torch.arange(0, self.nbits, device='cuda' if self.use_gpu else 'cpu', dtype=torch.uint8)
 
     @classmethod
     def load(cls, index_path):
@@ -122,7 +129,10 @@ class ResidualCodec:
         centroids = []
 
         for batch in codes.split(1 << 20):
-            centroids.append(self.centroids[batch.cuda().long()].to(device=out_device))
+            if self.use_gpu:
+                centroids.append(self.centroids[batch.cuda().long()].to(device=out_device))
+            else:
+                centroids.append(self.centroids[batch.long()].to(device=out_device))
 
         return torch.cat(centroids)
 
@@ -135,29 +145,38 @@ class ResidualCodec:
 
         D = []
         for codes_, residuals_ in zip(codes.split(1 << 15), residuals.split(1 << 15)):
-            codes_, residuals_ = codes_.cuda(), residuals_.cuda()
-            centroids_ = self.lookup_centroids(codes_, out_device='cuda')
+            if self.use_gpu:
+                codes_, residuals_ = codes_.cuda(), residuals_.cuda()
+            centroids_ = self.lookup_centroids(codes_, out_device='cuda' if self.use_gpu else 'cpu')
             residuals_ = self.decompress_residuals(residuals_).to(device=centroids_.device)
 
             centroids_.add_(residuals_)
-            D_ = torch.nn.functional.normalize(centroids_, p=2, dim=-1).half()
+            if self.use_gpu:
+                D_ = torch.nn.functional.normalize(centroids_, p=2, dim=-1).half()
+            else:
+                D_ = torch.nn.functional.normalize(centroids_.to(torch.float32), p=2, dim=-1)
             D.append(D_)
-        
+
         return torch.cat(D)
 
     def decompress_residuals(self, binary_residuals):
         assert binary_residuals.dim() == 2, binary_residuals.size()
         assert binary_residuals.size(1) == self.dim // 8 * self.nbits, binary_residuals.size()
 
-        residuals = cupy.unpackbits(cupy.asarray(binary_residuals.contiguous().flatten()))
+        if self.use_gpu:
+            residuals = cupy.unpackbits(cupy.asarray(binary_residuals.contiguous().flatten()))
+        else:
+            residuals = torch.from_numpy(np.unpackbits(binary_residuals.contiguous().flatten().numpy()))
 
-        residuals = torch.as_tensor(residuals, dtype=torch.uint8, device='cuda')
+        residuals = torch.as_tensor(residuals, dtype=torch.uint8, device='cuda' if self.use_gpu else 'cpu')
 
         if self.nbits > 1:
             residuals = residuals.reshape(binary_residuals.size(0), self.dim, self.nbits)
             residuals = (residuals << self.arange_bits).sum(-1)
 
         residuals = residuals.reshape(binary_residuals.size(0), self.dim)
-        residuals = self.bucket_weights[residuals.long()].cuda()
+        residuals = self.bucket_weights[residuals.long()]
+        if self.use_gpu:
+            residuals = residuals.cuda()
 
         return residuals

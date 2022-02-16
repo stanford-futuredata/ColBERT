@@ -16,8 +16,8 @@ atexit.register(profile.print_stats)
 
 
 class StridedTensor(StridedTensorCore):
-    def __init__(self, packed_tensor, lengths, dim=None):
-        super().__init__(packed_tensor, lengths, dim=dim)
+    def __init__(self, packed_tensor, lengths, dim=None, use_gpu=True):
+        super().__init__(packed_tensor, lengths, dim=dim, use_gpu=use_gpu)
 
     @classmethod
     def pad_packed(cls, packed_tensor, lengths):
@@ -43,8 +43,12 @@ class StridedTensor(StridedTensorCore):
 
         assert pids.dim() == 1
 
-        pids = pids.cuda().long()
-        lengths = self.lengths[pids].cuda()
+        if self.use_gpu:
+            pids = pids.cuda()
+        pids = pids.long()
+        lengths = self.lengths[pids]
+        if self.use_gpu:
+            lengths = lengths.cuda()
         offsets = self.offsets[pids]
 
         return pids, lengths, offsets
@@ -55,9 +59,11 @@ class StridedTensor(StridedTensorCore):
         stride = lengths.max().item()
         stride = next(s for s in self.strides if stride <= s)
 
-        tensor = self.views[stride][offsets].cuda()
+        tensor = self.views[stride][offsets]
+        if self.use_gpu:
+            tensor = tensor.cuda()
 
-        mask = _create_mask(lengths, stride)
+        mask = _create_mask(lengths, stride, use_gpu=self.use_gpu)
 
         if output == 'padded':
             return tensor, mask
@@ -101,7 +107,7 @@ class StridedTensor(StridedTensorCore):
 
         lengths2 = lengths.clone()
         sentinel = self.strides[-1] + 1
-        order = torch.arange(pids.size(0), device='cuda')
+        order = torch.arange(pids.size(0), device='cuda' if self.use_gpu else 'cpu')
 
         all_orders = []
         all_tensors = []
@@ -124,7 +130,7 @@ class StridedTensor(StridedTensorCore):
 
             lengths2[is_shorter] = sentinel
 
-        assert lengths2.allclose(torch.tensor([sentinel], device='cuda'))
+        assert lengths2.allclose(torch.tensor([sentinel], device='cuda' if self.use_gpu else 'cpu'))
 
         all_orders = torch.cat(all_orders)
         permute_idxs = torch.sort(all_orders).indices
@@ -132,9 +138,11 @@ class StridedTensor(StridedTensorCore):
         return permute_idxs, all_tensors, torch.cat(all_lengths), all_masks
 
     def _lookup_with_stride(self, stride, lengths, offsets):
-        tensor = self.views[stride][offsets].cuda()
+        tensor = self.views[stride][offsets]
+        if self.use_gpu:
+            tensor = tensor.cuda()
 
-        mask = _create_mask(lengths, stride)
+        mask = _create_mask(lengths, stride, use_gpu=self.use_gpu)
         # tensor = tensor[mask]
 
         return tensor, lengths, mask

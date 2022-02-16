@@ -42,3 +42,7 @@ This Jupyter **[docs/intro.ipynb notebook](docs/intro.ipynb)** illustrates using
 
 It includes how to download the ColBERTv2 model checkpoint trained on MS MARCO Passage Ranking and how to download our new LoTTE benchmark.
 
+
+## CPU execution
+
+This branch includes experimental support for CPU execution. We are actively working on optimizing CPU performance so please stay tuned for updates.

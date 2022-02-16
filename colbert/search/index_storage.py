@@ -13,8 +13,8 @@ from colbert.modeling.colbert import colbert_score, colbert_score_packed
 
 
 class IndexScorer(IndexLoader, CandidateGeneration):
-    def __init__(self, index_path):
-        super().__init__(index_path)
+    def __init__(self, index_path, use_gpu=True):
+        super().__init__(index_path=index_path, use_gpu=use_gpu)
 
         self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
 

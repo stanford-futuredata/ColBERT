@@ -9,8 +9,9 @@ from colbert.search.strided_tensor import StridedTensor
 
 
 class IndexLoader:
-    def __init__(self, index_path):
+    def __init__(self, index_path, use_gpu=True):
         self.index_path = index_path
+        self.use_gpu = use_gpu
 
         self._load_codec()
         self._load_ivf()
@@ -29,7 +30,7 @@ class IndexLoader:
             ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]
         else:
             # ivf, ivf_lengths = ivf.cuda(), torch.LongTensor(ivf_lengths).cuda()  # FIXME: REMOVE THIS LINE!
-            ivf = StridedTensor(ivf, ivf_lengths)
+            ivf = StridedTensor(ivf, ivf_lengths, use_gpu=self.use_gpu)
 
         self.ivf = ivf
 

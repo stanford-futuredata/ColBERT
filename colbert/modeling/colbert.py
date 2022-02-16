@@ -14,6 +14,7 @@ class ColBERT(BaseColBERT):
 
     def __init__(self, name='bert-base-uncased', colbert_config=None):
         super().__init__(name, colbert_config)
+        self.use_gpu = colbert_config.total_visible_gpus > 0
 
         if self.colbert_config.mask_punctuation:
             self.skiplist = {w: True
@@ -72,7 +73,9 @@ class ColBERT(BaseColBERT):
         mask = torch.tensor(self.mask(input_ids, skiplist=self.skiplist), device=self.device).unsqueeze(2).float()
         D = D * mask
 
-        D = torch.nn.functional.normalize(D, p=2, dim=2).half()
+        D = torch.nn.functional.normalize(D, p=2, dim=2)
+        if self.use_gpu:
+            D = D.half()
 
         if keep_dims is False:
             D, mask = D.cpu(), mask.bool().cpu().squeeze(-1)
@@ -135,7 +138,9 @@ def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig()):
         EVENTUALLY: Consider masking with -inf for the maxsim (or enforcing a ReLU).
     """
 
-    Q, D_padded, D_mask = Q.cuda(), D_padded.cuda(), D_mask.cuda()
+    use_gpu = config.total_visible_gpus > 0
+    if use_gpu:
+        Q, D_padded, D_mask = Q.cuda(), D_padded.cuda(), D_mask.cuda()
 
     assert Q.dim() == 3, Q.size()
     assert D_padded.dim() == 3, D_padded.size()
@@ -151,7 +156,9 @@ def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
         Works with a single query only.
     """
 
-    Q, D_packed, D_lengths = Q.cuda(), D_packed.cuda(), D_lengths.cuda()
+    use_gpu = config.total_visible_gpus > 0
+    if use_gpu:
+        Q, D_packed, D_lengths = Q.cuda(), D_packed.cuda(), D_lengths.cuda()
 
     Q = Q.squeeze(0)
 
@@ -160,6 +167,6 @@ def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
 
     scores = D_packed @ Q.to(dtype=D_packed.dtype).T
 
-    scores_padded, scores_mask = StridedTensor(scores, D_lengths).as_padded_tensor()
+    scores_padded, scores_mask = StridedTensor(scores, D_lengths, use_gpu=use_gpu).as_padded_tensor()
 
     return colbert_score_reduce(scores_padded, scores_mask, config)

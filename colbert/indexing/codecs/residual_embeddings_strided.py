@@ -16,9 +16,10 @@ class ResidualEmbeddingsStrided:
         self.codec = codec
         self.codes = embeddings.codes
         self.residuals = embeddings.residuals
+        self.use_gpu = self.codec.use_gpu
 
-        self.codes_strided = StridedTensor(self.codes, doclens)
-        self.residuals_strided = StridedTensor(self.residuals, doclens)
+        self.codes_strided = StridedTensor(self.codes, doclens, use_gpu=self.use_gpu)
+        self.residuals_strided = StridedTensor(self.residuals, doclens, use_gpu=self.use_gpu)
 
     def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
         codes = self.codes[embedding_ids] if codes is None else codes

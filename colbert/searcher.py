@@ -34,8 +34,11 @@ class Searcher:
         self.collection = Collection.cast(collection or self.config.collection)
         self.configure(checkpoint=self.checkpoint, collection=self.collection)
 
-        self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config).cuda()
-        self.ranker = IndexScorer(self.index)
+        self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config)
+        use_gpu = self.config.total_visible_gpus > 0
+        if use_gpu:
+            self.checkpoint = self.checkpoint.cuda()
+        self.ranker = IndexScorer(self.index, use_gpu)
 
         print_memory_stats()
 
