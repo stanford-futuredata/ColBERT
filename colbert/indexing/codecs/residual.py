@@ -3,8 +3,11 @@ EVENTUALLY: Tune the batch sizes selected here for a good balance of speed and g
 """
 
 import os
-import cupy
 import torch
+try:
+    import cupy
+except ImportError as e:
+    assert(not torch.cuda.is_available(), "cupy must be installed in GPU mode")
 import numpy as np
 
 from colbert.infra.config import ColBERTConfig

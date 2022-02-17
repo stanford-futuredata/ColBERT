@@ -45,4 +45,4 @@ It includes how to download the ColBERTv2 model checkpoint trained on MS MARCO P
 
 ## CPU execution
 
-This branch includes experimental support for CPU execution. We are actively working on optimizing CPU performance so please stay tuned for updates.
+This branch includes experimental support for CPU execution. We are actively working on optimizing CPU performance so please stay tuned for updates. We have included a new environment file specifically for CPU-only environments (`conda_env_cpu.yml`), but note that if you are testing CPU execution on a machine that includes GPUs you might need to specify `CUDA_VISIBLE_DEVICES=""` as part of your command.

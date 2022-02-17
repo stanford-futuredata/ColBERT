@@ -1,0 +1,18 @@
+name: colbert-v0.4-cpu
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - faiss=1.7.0
+  - pip=21.0
+  - pytorch-cpu=1.9.0
+  - pip:
+    - bitarray
+    - gitpython
+    - scipy
+    - spacy
+    - tqdm
+    - transformers==4.10.0
+    - ujson
