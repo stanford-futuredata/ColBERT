@@ -10,7 +10,6 @@ profile = line_profiler.LineProfiler()
 atexit.register(profile.print_stats)
 """
 
-
 class ResidualEmbeddingsStrided:
     def __init__(self, codec, embeddings, doclens):
         self.codec = codec
@@ -27,7 +26,7 @@ class ResidualEmbeddingsStrided:
 
         return self.codec.decompress(residual_embeddings.ResidualEmbeddings(codes, residuals))
 
-    # # @profile
+    # @profile
     def lookup_pids(self, passage_ids, out_device='cuda'):
         codes_packed, codes_lengths = self.codes_strided.lookup(passage_ids)#.as_packed_tensor()
         residuals_packed, _ = self.residuals_strided.lookup(passage_ids)#.as_packed_tensor()
@@ -37,3 +36,6 @@ class ResidualEmbeddingsStrided:
         return embeddings_packed, codes_lengths
         # return StridedTensor(embeddings_packed, codes_lengths).as_padded_tensor()
         # return StridedTensor.pad_packed(embeddings_packed, codes_lengths)
+
+    def lookup_codes(self, passage_ids):
+        return self.codes_strided.lookup(passage_ids)#.as_packed_tensor()

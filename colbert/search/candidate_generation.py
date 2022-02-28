@@ -10,7 +10,8 @@ class CandidateGeneration:
         self.use_gpu = use_gpu
 
     def generate_candidate_eids(self, Q, nprobe):
-        cells = (self.codec.centroids @ Q.T).topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
+        scores = (self.codec.centroids @ Q.T)
+        cells = scores.topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
         cells = cells.flatten().contiguous()  # (32 * nprobe,)
         cells = cells.unique(sorted=False)
 
@@ -19,7 +20,7 @@ class CandidateGeneration:
         eids = eids.long()
         if self.use_gpu:
             eids = eids.cuda()
-        return eids
+        return eids, scores
 
     def generate_candidate_scores(self, Q, eids):
         E = self.lookup_eids(eids)
@@ -38,7 +39,7 @@ class CandidateGeneration:
             Q = Q.cuda().half()
         assert Q.dim() == 2
 
-        eids = self.generate_candidate_eids(Q, nprobe)
+        eids, centroid_scores = self.generate_candidate_eids(Q, nprobe)
         eids = torch.unique(eids, sorted=False)
 
         pids = self.emb2pid[eids.long()]
@@ -52,7 +53,7 @@ class CandidateGeneration:
             pids, pids_counts = pids.cuda(), pids_counts.cuda()
 
         if len(pids) <= ncandidates:
-            return pids
+            return pids, centroid_scores
 
         pids_offsets = pids_counts.cumsum(dim=0) - pids_counts[0]
 
@@ -112,4 +113,4 @@ class CandidateGeneration:
         if scores_lb.size(0) > ncandidates:
             pids = pids[scores_lb.topk(ncandidates, dim=-1, sorted=True).indices]
 
-        return pids
+        return pids, centroid_scores

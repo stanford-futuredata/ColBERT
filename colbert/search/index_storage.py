@@ -9,8 +9,14 @@ from colbert.search.strided_tensor import StridedTensor
 from colbert.search.candidate_generation import CandidateGeneration
 
 from .index_loader import IndexLoader
-from colbert.modeling.colbert import colbert_score, colbert_score_packed
+from colbert.modeling.colbert import colbert_score, colbert_score_packed, colbert_score_reduce
 
+"""
+import line_profiler
+import atexit
+profile = line_profiler.LineProfiler()
+atexit.register(profile.print_stats)
+"""
 
 class IndexScorer(IndexLoader, CandidateGeneration):
     def __init__(self, index_path, use_gpu=True):
@@ -32,7 +38,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         EVENTUALLY: Build this in advance and load it from disk.
 
         EVENTUALLY: Use two tensors. emb2pid_offsets will have every 256th element. emb2pid_delta will have the delta
-                    from the corresponding offset, 
+                    from the corresponding offset,
         """
 
         offset_doclens = 0
@@ -50,25 +56,27 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
     def retrieve(self, config, Q):
         Q = Q[:, :config.query_maxlen]   # NOTE: Candidate generation uses only the query tokens
-        embedding_ids = self.generate_candidates(config, Q)
+        embedding_ids, centroid_scores = self.generate_candidates(config, Q)
 
-        return embedding_ids
+        return embedding_ids, centroid_scores
 
     def embedding_ids_to_pids(self, embedding_ids):
         all_pids = torch.unique(self.emb2pid[embedding_ids.long()].cuda(), sorted=False)
         return all_pids
 
+
     def rank(self, config, Q, k):
         with torch.inference_mode():
-            pids = self.retrieve(config, Q)
-            scores = self.score_pids(config, Q, pids, k)
+            pids, centroid_scores = self.retrieve(config, Q)
+            scores, pids = self.score_pids(config, Q, pids, k, centroid_scores)
 
             scores_sorter = scores.sort(descending=True)
             pids, scores = pids[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
 
             return pids, scores
 
-    def score_pids(self, config, Q, pids, k):
+    # @profile
+    def score_pids(self, config, Q, pids, k, centroid_scores):
         """
             Always supply a flat list or tensor for `pids`.
 
@@ -76,11 +84,18 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             If Q.size(0) is 1, the matrix will be compared with all passages.
             Otherwise, each query matrix will be compared against the *aligned* passage.
         """
+		# Do approximate scoring to identify set of pids to score with full pipeline
+        codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
+        scores = centroid_scores[codes_packed.long()]
+        scores_padded, scores_mask = StridedTensor(scores, codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
+        scores = colbert_score_reduce(scores_padded, scores_mask, config)
+        pids = pids[torch.topk(scores, k=10).indices]
+
         D_packed, D_mask = self.lookup_pids(pids)
 
         if Q.size(0) == 1:
-            return colbert_score_packed(Q, D_packed, D_mask, config)
+            return colbert_score_packed(Q, D_packed, D_mask, config), pids
 
-        D_padded, D_lengths = StridedTensor(D_packed, D_mask).as_padded_tensor()
+        D_padded, D_lengths = StridedTensor(D_packed, D_mask, use_gpu=self.use_gpu).as_padded_tensor()
 
-        return colbert_score(Q, D_padded, D_lengths, config)
+        return colbert_score(Q, D_padded, D_lengths, config), pids
