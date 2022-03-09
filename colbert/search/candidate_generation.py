@@ -52,7 +52,8 @@ class CandidateGeneration:
         if self.use_gpu:
             pids, pids_counts = pids.cuda(), pids_counts.cuda()
 
-        if len(pids) <= ncandidates:
+        #if len(pids) <= ncandidates:
+        if True:
             return pids, centroid_scores
 
         pids_offsets = pids_counts.cumsum(dim=0) - pids_counts[0]

@@ -85,11 +85,25 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             Otherwise, each query matrix will be compared against the *aligned* passage.
         """
 		# Do approximate scoring to identify set of pids to score with full pipeline
+        threshold = 0.4
+        codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
+        if self.use_gpu:
+            centroid_scores = centroid_scores.cuda()
+
+        idx = centroid_scores.max(-1).values >= threshold
+        pruned_codes_padded, pruned_codes_mask = StridedTensor(idx[codes_packed.long()].to(torch.int8), codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
+        pruned_codes_lengths = (pruned_codes_padded * pruned_codes_mask).sum(dim=1)
+        approx_scores = centroid_scores[codes_packed[idx[codes_packed.long()]].long()]
+        approx_scores_padded, approx_scores_mask = StridedTensor(approx_scores, pruned_codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
+
+        """
         codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
         scores = centroid_scores[codes_packed.long()]
         scores_padded, scores_mask = StridedTensor(scores, codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
-        scores = colbert_score_reduce(scores_padded, scores_mask, config)
-        pids = pids[torch.topk(scores, k=10).indices]
+        """
+
+        scores = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
+        pids = pids[torch.topk(scores, k=50).indices]
 
         D_packed, D_mask = self.lookup_pids(pids)
 
