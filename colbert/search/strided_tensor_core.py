@@ -80,7 +80,10 @@ class StridedTensorCore:
             view = _create_view(self.tensor.cuda(), self.max_stride, self.inner_dims)[self.offsets[:-1]]
             mask = _create_mask(self.lengths.cuda(), self.max_stride, like=view, use_gpu=self.use_gpu)
         else:
-            view = _create_view(self.tensor, self.max_stride, self.inner_dims)[self.offsets[:-1]]
+            #import pdb
+            #pdb.set_trace()
+            view = _create_view(self.tensor, self.max_stride, self.inner_dims)
+            view = view[self.offsets[:-1]]
             mask = _create_mask(self.lengths, self.max_stride, like=view, use_gpu=self.use_gpu)
 
         return view, mask

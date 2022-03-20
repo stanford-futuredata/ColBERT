@@ -14,6 +14,8 @@ from colbert.infra.run import Run
 from colbert.infra.config import ColBERTConfig, RunConfig
 from colbert.infra.launcher import print_memory_stats
 
+import time
+
 TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
 
 
@@ -54,19 +56,20 @@ class Searcher:
 
         return Q
 
-    def search(self, text: str, k=10):
-        return self.dense_search(self.encode(text), k)
+    def search(self, text: str, threshold, k_1, k_2, batch_size, k=10):
+        Q = self.encode(text)
+        return self.dense_search(Q, threshold, k_1, k_2, batch_size, k)
 
-    def search_all(self, queries: TextQueries, k=10):
+    def search_all(self, queries: TextQueries, threshold, k_1, k_2, batch_size, k=10):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
         Q = self.encode(queries_)
 
-        return self._search_all_Q(queries, Q, k)
+        return self._search_all_Q(queries, Q, threshold, k_1, k_2, batch_size, k)
 
-    def _search_all_Q(self, queries, Q, k):
-        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], k=k)))
+    def _search_all_Q(self, queries, Q, threshold, k_1, k_2, batch_size, k):
+        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], threshold=threshold, k_1=k_1, k_2=k_2, batch_size=batch_size, k=k)))
                            for query_idx in tqdm(range(Q.size(0)))]
 
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
@@ -79,7 +82,7 @@ class Searcher:
 
         return Ranking(data=data, provenance=provenance)
 
-    def dense_search(self, Q: torch.Tensor, k=10):
-        pids, scores = self.ranker.rank(self.config, Q, k)
+    def dense_search(self, Q: torch.Tensor, threshold, k_1, k_2, batch_size, k=10):
+        pids, scores = self.ranker.rank(self.config, Q, threshold, k_1, k_2, batch_size)
 
         return pids[:k], list(range(1, k+1)), scores[:k]

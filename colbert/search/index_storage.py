@@ -11,12 +11,27 @@ from colbert.search.candidate_generation import CandidateGeneration
 from .index_loader import IndexLoader
 from colbert.modeling.colbert import colbert_score, colbert_score_packed, colbert_score_reduce
 
-"""
+from math import ceil
+
+import os
+import pathlib
+from torch.utils.cpp_extension import load
+
+segmented_maxsim_cpp = load(
+    name="segmented_maxsim_cpp",
+    sources=[
+        os.path.join(
+            pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
+        ),
+    ],
+    extra_cflags=["-fopenmp"],
+    extra_ldflags=["-lgomp"],
+)
+
 import line_profiler
 import atexit
 profile = line_profiler.LineProfiler()
 atexit.register(profile.print_stats)
-"""
 
 class IndexScorer(IndexLoader, CandidateGeneration):
     def __init__(self, index_path, use_gpu=True):
@@ -65,18 +80,19 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         return all_pids
 
 
-    def rank(self, config, Q, k):
+    def rank(self, config, Q, threshold, k_1, k_2, batch_size):
         with torch.inference_mode():
             pids, centroid_scores = self.retrieve(config, Q)
-            scores, pids = self.score_pids(config, Q, pids, k, centroid_scores)
+            scores, pids = self.score_pids(config, Q, pids, threshold, k_1, k_2, batch_size, centroid_scores)
 
             scores_sorter = scores.sort(descending=True)
             pids, scores = pids[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
 
             return pids, scores
 
-    # @profile
-    def score_pids(self, config, Q, pids, k, centroid_scores):
+
+    @profile
+    def score_pids(self, config, Q, pids, threshold, k_1, k_2, batch_size, centroid_scores):
         """
             Always supply a flat list or tensor for `pids`.
 
@@ -84,32 +100,63 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             If Q.size(0) is 1, the matrix will be compared with all passages.
             Otherwise, each query matrix will be compared against the *aligned* passage.
         """
-		# Do approximate scoring to identify set of pids to score with full pipeline
-        threshold = 0.4
-        codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
+        def segmented_maxsim_python(scores, lengths):
+            num_query_vectors = scores.shape[0]
+            num_docs = lengths.shape[0]
+            max_scores = torch.zeros((num_docs, num_query_vectors))
+            for j in range(num_query_vectors):
+                offset = 0
+                for i in range(num_docs):
+                    max_scores[i][j] = max(scores[j][offset : offset + lengths[i]])
+                    offset += lengths[i]
+            return max_scores, max_scores.sum(-1)
+
         if self.use_gpu:
             centroid_scores = centroid_scores.cuda()
-
         idx = centroid_scores.max(-1).values >= threshold
-        pruned_codes_padded, pruned_codes_mask = StridedTensor(idx[codes_packed.long()].to(torch.int8), codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
-        pruned_codes_lengths = (pruned_codes_padded * pruned_codes_mask).sum(dim=1)
-        approx_scores = centroid_scores[codes_packed[idx[codes_packed.long()]].long()]
-        approx_scores_padded, approx_scores_mask = StridedTensor(approx_scores, pruned_codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
+        
+        # Filter docs using pruned centroid scores
+        codes_offset = 0
+        approx_scores = []
+        for i in range(0, ceil(len(pids) / batch_size)):
+            pids_ = pids[i * batch_size : (i+1) * batch_size]
+            codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids_)
+            idx_ = idx[codes_packed.long()]
+            pruned_codes_strided = StridedTensor(idx_, codes_lengths, use_gpu=self.use_gpu) 
+            pruned_codes_padded, pruned_codes_mask = pruned_codes_strided.as_padded_tensor()
+            pruned_codes_lengths = (pruned_codes_padded * pruned_codes_mask).sum(dim=1)
+            codes_packed_ = codes_packed[idx_]
+            approx_scores_ = centroid_scores[codes_packed_.long()]
+            if approx_scores_.shape[0] == 0:
+                approx_scores.append(torch.zeros((len(pids_),), dtype=approx_scores_.dtype))
+                continue
+            
+            approx_scores_T = approx_scores_.T.contiguous()
+            approx_scores_ = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores_T, pruned_codes_lengths)
+            approx_scores.append(approx_scores_)
+        approx_scores = torch.cat(approx_scores, dim=0)
 
-        """
+        # Filter docs using full centroid scores
+        if k_1 < len(approx_scores):
+            pids = pids[torch.topk(approx_scores, k=k_1).indices]
         codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
-        scores = centroid_scores[codes_packed.long()]
-        scores_padded, scores_mask = StridedTensor(scores, codes_lengths, use_gpu=self.use_gpu).as_padded_tensor()
+        approx_scores = centroid_scores[codes_packed.long()]
+        approx_scores_T = approx_scores.T.contiguous()
+        approx_scores = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores_T, codes_lengths)
+        """
+        approx_scores_strided = StridedTensor(approx_scores, codes_lengths, use_gpu=self.use_gpu) 
+        approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
+        approx_scores = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config) 
         """
 
-        scores = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
-        pids = pids[torch.topk(scores, k=50).indices]
-
+        # Rank final list of docs using full approximate embeddings (including residuals) 
+        if k_2 < len(approx_scores):
+            pids = pids[torch.topk(approx_scores, k=k_2).indices]
         D_packed, D_mask = self.lookup_pids(pids)
-
         if Q.size(0) == 1:
             return colbert_score_packed(Q, D_packed, D_mask, config), pids
 
-        D_padded, D_lengths = StridedTensor(D_packed, D_mask, use_gpu=self.use_gpu).as_padded_tensor()
+        D_strided = StridedTensor(D_packed, D_mask, use_gpu=self.use_gpu)
+        D_padded, D_lengths = D_strided.as_padded_tensor()
 
         return colbert_score(Q, D_padded, D_lengths, config), pids
