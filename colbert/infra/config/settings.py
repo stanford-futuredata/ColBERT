@@ -60,22 +60,22 @@ class RunSettings:
 
             if script_path.startswith(cwd):
                 script_path = script_path[len(cwd):]
-            
+
             else:
                 try:
                     commonpath = os.path.commonpath([script_path, root_path])
                     script_path = script_path[len(commonpath):]
                 except:
                     pass
-            
+
 
             assert script_path.endswith('.py')
             script_name = script_path.replace('/', '.').strip('.')[:-3]
 
             assert len(script_name) > 0, (script_name, script_path, cwd)
-            
+
             return script_name
-        
+
         return 'none'
 
     @property
@@ -128,7 +128,7 @@ class TrainingSettings:
 
     ## NEW:
     warmup: int = DefaultVal(None)
-    
+
     warmup_bert: int = DefaultVal(None)
 
     relu: bool = DefaultVal(False)
@@ -151,13 +151,13 @@ class IndexingSettings:
     nbits: int = DefaultVal(1)
 
     kmeans_niters: int = DefaultVal(20)
-    
+
     @property
     def index_path_(self):
         return self.index_path or os.path.join(self.index_root_, self.index_name)
 
 @dataclass
 class SearchSettings:
-    nprobe: int = DefaultVal(2)
-    
-    ncandidates: int = DefaultVal(8192)
+    ncells: int = DefaultVal(None)
+    centroid_score_threshold: float = DefaultVal(None)
+    ndocs: int = DefaultVal(None)

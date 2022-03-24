@@ -28,11 +28,6 @@ segmented_maxsim_cpp = load(
     extra_ldflags=["-lgomp"],
 )
 
-import line_profiler
-import atexit
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
-
 class IndexScorer(IndexLoader, CandidateGeneration):
     def __init__(self, index_path, use_gpu=True):
         super().__init__(index_path=index_path, use_gpu=use_gpu)
@@ -79,20 +74,17 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         all_pids = torch.unique(self.emb2pid[embedding_ids.long()].cuda(), sorted=False)
         return all_pids
 
-
-    def rank(self, config, Q, threshold, k_1, k_2, batch_size):
+    def rank(self, config, Q):
         with torch.inference_mode():
             pids, centroid_scores = self.retrieve(config, Q)
-            scores, pids = self.score_pids(config, Q, pids, threshold, k_1, k_2, batch_size, centroid_scores)
+            scores, pids = self.score_pids(config, Q, pids, centroid_scores)
 
             scores_sorter = scores.sort(descending=True)
             pids, scores = pids[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
 
             return pids, scores
 
-
-    @profile
-    def score_pids(self, config, Q, pids, threshold, k_1, k_2, batch_size, centroid_scores):
+    def score_pids(self, config, Q, pids, centroid_scores):
         """
             Always supply a flat list or tensor for `pids`.
 
@@ -100,29 +92,21 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             If Q.size(0) is 1, the matrix will be compared with all passages.
             Otherwise, each query matrix will be compared against the *aligned* passage.
         """
-        def segmented_maxsim_python(scores, lengths):
-            num_query_vectors = scores.shape[0]
-            num_docs = lengths.shape[0]
-            max_scores = torch.zeros((num_docs, num_query_vectors))
-            for j in range(num_query_vectors):
-                offset = 0
-                for i in range(num_docs):
-                    max_scores[i][j] = max(scores[j][offset : offset + lengths[i]])
-                    offset += lengths[i]
-            return max_scores, max_scores.sum(-1)
+
+        # TODO: Remove batching?
+        batch_size = 2 ** 20
 
         if self.use_gpu:
             centroid_scores = centroid_scores.cuda()
-        idx = centroid_scores.max(-1).values >= threshold
-        
+
         # Filter docs using pruned centroid scores
-        codes_offset = 0
         approx_scores = []
+        idx = centroid_scores.max(-1).values >= config.centroid_score_threshold
         for i in range(0, ceil(len(pids) / batch_size)):
             pids_ = pids[i * batch_size : (i+1) * batch_size]
             codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids_)
             idx_ = idx[codes_packed.long()]
-            pruned_codes_strided = StridedTensor(idx_, codes_lengths, use_gpu=self.use_gpu) 
+            pruned_codes_strided = StridedTensor(idx_, codes_lengths, use_gpu=self.use_gpu)
             pruned_codes_padded, pruned_codes_mask = pruned_codes_strided.as_padded_tensor()
             pruned_codes_lengths = (pruned_codes_padded * pruned_codes_mask).sum(dim=1)
             codes_packed_ = codes_packed[idx_]
@@ -130,28 +114,30 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             if approx_scores_.shape[0] == 0:
                 approx_scores.append(torch.zeros((len(pids_),), dtype=approx_scores_.dtype))
                 continue
-            
-            approx_scores_T = approx_scores_.T.contiguous()
-            approx_scores_ = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores_T, pruned_codes_lengths)
+            if self.use_gpu:
+                approx_scores_strided = StridedTensor(approx_scores_, pruned_codes_lengths, use_gpu=self.use_gpu)
+                approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
+                approx_scores_ = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
+            else:
+                approx_scores_ = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores_, pruned_codes_lengths)
             approx_scores.append(approx_scores_)
         approx_scores = torch.cat(approx_scores, dim=0)
 
         # Filter docs using full centroid scores
-        if k_1 < len(approx_scores):
-            pids = pids[torch.topk(approx_scores, k=k_1).indices]
+        if config.ndocs < len(approx_scores):
+            pids = pids[torch.topk(approx_scores, k=config.ndocs).indices]
         codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
         approx_scores = centroid_scores[codes_packed.long()]
-        approx_scores_T = approx_scores.T.contiguous()
-        approx_scores = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores_T, codes_lengths)
-        """
-        approx_scores_strided = StridedTensor(approx_scores, codes_lengths, use_gpu=self.use_gpu) 
-        approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
-        approx_scores = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config) 
-        """
+        if self.use_gpu:
+            approx_scores_strided = StridedTensor(approx_scores, codes_lengths, use_gpu=self.use_gpu)
+            approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
+            approx_scores = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
+        else:
+            approx_scores = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores, codes_lengths)
 
-        # Rank final list of docs using full approximate embeddings (including residuals) 
-        if k_2 < len(approx_scores):
-            pids = pids[torch.topk(approx_scores, k=k_2).indices]
+        # Rank final list of docs using full approximate embeddings (including residuals)
+        if config.ndocs // 4 < len(approx_scores):
+            pids = pids[torch.topk(approx_scores, k=(config.ndocs // 4)).indices]
         D_packed, D_mask = self.lookup_pids(pids)
         if Q.size(0) == 1:
             return colbert_score_packed(Q, D_packed, D_mask, config), pids

@@ -56,20 +56,20 @@ class Searcher:
 
         return Q
 
-    def search(self, text: str, threshold, k_1, k_2, batch_size, k=10):
+    def search(self, text: str, k=10):
         Q = self.encode(text)
-        return self.dense_search(Q, threshold, k_1, k_2, batch_size, k)
+        return self.dense_search(Q, k)
 
-    def search_all(self, queries: TextQueries, threshold, k_1, k_2, batch_size, k=10):
+    def search_all(self, queries: TextQueries, k=10):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
         Q = self.encode(queries_)
 
-        return self._search_all_Q(queries, Q, threshold, k_1, k_2, batch_size, k)
+        return self._search_all_Q(queries, Q, k)
 
-    def _search_all_Q(self, queries, Q, threshold, k_1, k_2, batch_size, k):
-        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], threshold=threshold, k_1=k_1, k_2=k_2, batch_size=batch_size, k=k)))
+    def _search_all_Q(self, queries, Q, k):
+        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], k)))
                            for query_idx in tqdm(range(Q.size(0)))]
 
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
@@ -82,7 +82,29 @@ class Searcher:
 
         return Ranking(data=data, provenance=provenance)
 
-    def dense_search(self, Q: torch.Tensor, threshold, k_1, k_2, batch_size, k=10):
-        pids, scores = self.ranker.rank(self.config, Q, threshold, k_1, k_2, batch_size)
+    def dense_search(self, Q: torch.Tensor, k=10):
+        if k <= 10:
+            if self.config.ncells is None:
+                self.configure(ncells=1)
+            if self.config.centroid_score_threshold is None:
+                self.configure(centroid_score_threshold=0.5)
+            if self.config.ndocs is None:
+                self.configure(ndocs=256)
+        elif k <= 100:
+            if self.config.ncells is None:
+                self.configure(ncells=2)
+            if self.config.centroid_score_threshold is None:
+                self.configure(centroid_score_threshold=0.45)
+            if self.config.ndocs is None:
+                self.configure(ndocs=1024)
+        else:
+            if self.config.ncells is None:
+                self.configure(ncells=4)
+            if self.config.centroid_score_threshold is None:
+                self.configure(centroid_score_threshold=0.4)
+            if self.config.ndocs is None:
+                self.configure(ndocs=max(k * 4, 4096))
+
+        pids, scores = self.ranker.rank(self.config, Q)
 
         return pids[:k], list(range(1, k+1)), scores[:k]
