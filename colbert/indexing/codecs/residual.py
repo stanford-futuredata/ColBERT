@@ -14,19 +14,22 @@ from itertools import product
 from colbert.infra.config import ColBERTConfig
 from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
 
-import pathlib
-from torch.utils.cpp_extension import load
-decompress_residuals_cpp = load(
-    name="decompress_residuals_cpp",
-    sources=[
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
-        ),
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
-        ),
-    ],
-)
+try:
+    import pathlib
+    from torch.utils.cpp_extension import load
+    decompress_residuals_cpp = load(
+        name="decompress_residuals_cpp",
+        sources=[
+            os.path.join(
+                pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
+            ),
+            os.path.join(
+                pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
+            ),
+        ],
+    )
+except ImportError as e:
+    assert not torch.cuda.is_available(), "Decompression kernel must be compiled in GPU mode"
 
 class ResidualCodec:
     Embeddings = ResidualEmbeddings
