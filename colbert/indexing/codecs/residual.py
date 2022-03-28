@@ -29,6 +29,13 @@ if torch.cuda.is_available():
         ],
     )
 
+"""
+import line_profiler
+import atexit
+profile = line_profiler.LineProfiler()
+atexit.register(profile.print_stats)
+"""
+
 class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
@@ -57,48 +64,47 @@ class ResidualCodec:
 
         self.arange_bits = torch.arange(0, self.nbits, device='cuda' if self.use_gpu else 'cpu', dtype=torch.uint8)
 
-        if self.use_gpu:
-            # We reverse bits in the CUDA kernel because arange_bits as
-            # currently constructed produces results with the reverse
-            # of the expected endianness
-            self.reversed_bit_map = []
-            mask = (1 << self.nbits) - 1
-            for i in range(256):
-                # The reversed byte
-                z = 0
-                for j in range(8, 0, -self.nbits):
-                    # Extract a subsequence of length n bits
-                    x = (i >> (j - self.nbits)) & mask
+        # We reverse the residual bits because arange_bits as
+        # currently constructed produces results with the reverse
+        # of the expected endianness
+        self.reversed_bit_map = []
+        mask = (1 << self.nbits) - 1
+        for i in range(256):
+            # The reversed byte
+            z = 0
+            for j in range(8, 0, -self.nbits):
+                # Extract a subsequence of length n bits
+                x = (i >> (j - self.nbits)) & mask
 
-                    # Reverse the endianness of each bit (e.g. 10 -> 01)
-                    y = 0
-                    for k in range(self.nbits - 1, -1, -1):
-                        y += ((x >> (self.nbits - k - 1)) & 1) * (2 ** k)
+                # Reverse the endianness of each bit subsequence (e.g. 10 -> 01)
+                y = 0
+                for k in range(self.nbits - 1, -1, -1):
+                    y += ((x >> (self.nbits - k - 1)) & 1) * (2 ** k)
 
-                    # Set the corresponding bits in the output byte
-                    z |= y
-                    if j > self.nbits:
-                        z <<= self.nbits
-                self.reversed_bit_map.append(z)
-            self.reversed_bit_map = (
-                torch.tensor(self.reversed_bit_map).cuda().to(torch.uint8)
-            )
+                # Set the corresponding bits in the output byte
+                z |= y
+                if j > self.nbits:
+                    z <<= self.nbits
+            self.reversed_bit_map.append(z)
+        self.reversed_bit_map = torch.tensor(self.reversed_bit_map).to(torch.uint8)
 
-            # A table of all possible lookup orders into bucket_weights
-            # given n bits per lookup
-            keys_per_byte = 8 // self.nbits
-            self.decompression_lookup_table = (
-                torch.tensor(
-                    list(
-                        product(
-                            list(range(len(self.bucket_weights))),
-                            repeat=keys_per_byte
-                        )
+        # A table of all possible lookup orders into bucket_weights
+        # given n bits per lookup
+        keys_per_byte = 8 // self.nbits
+        self.decompression_lookup_table = (
+            torch.tensor(
+                list(
+                    product(
+                        list(range(len(self.bucket_weights))),
+                        repeat=keys_per_byte
                     )
                 )
-                .cuda()
-                .to(torch.uint8)
             )
+            .to(torch.uint8)
+        )
+        if self.use_gpu:
+            self.reversed_bit_map = self.reversed_bit_map.cuda()
+            self.decompression_lookup_table = self.decompression_lookup_table.cuda()
 
     @classmethod
     def load(cls, index_path):
@@ -199,6 +205,7 @@ class ResidualCodec:
 
         return torch.cat(centroids)
 
+    #@profile
     def decompress(self, compressed_embs: Embeddings):
         """
             We batch below even if the target device is CUDA to avoid large temporary buffers causing OOM.
@@ -221,9 +228,11 @@ class ResidualCodec:
                     self.nbits,
                 ).cuda()
             else:
-                centroids_ = self.lookup_centroids(codes_, out_device='cuda' if self.use_gpu else 'cpu')
-                residuals_ = self.decompress_residuals(residuals_).to(device=centroids_.device)
-
+                centroids_ = self.lookup_centroids(codes_, out_device='cpu')
+                residuals_ = self.reversed_bit_map[residuals_.long()]
+                residuals_ = self.decompression_lookup_table[residuals_.long()]
+                residuals_ = residuals_.reshape(residuals_.shape[0], -1)
+                residuals_ = self.bucket_weights[residuals_.long()]
                 centroids_.add_(residuals_)
 
             if self.use_gpu:
@@ -233,26 +242,3 @@ class ResidualCodec:
             D.append(D_)
 
         return torch.cat(D)
-
-    def decompress_residuals(self, binary_residuals):
-        assert binary_residuals.dim() == 2, binary_residuals.size()
-        assert binary_residuals.size(1) == self.dim // 8 * self.nbits, binary_residuals.size()
-
-        if self.use_gpu:
-            residuals = cupy.unpackbits(cupy.asarray(binary_residuals.contiguous().flatten()))
-        else:
-            residuals = torch.from_numpy(np.unpackbits(binary_residuals.contiguous().flatten().numpy()))
-
-        residuals = torch.as_tensor(residuals, dtype=torch.uint8, device='cuda' if self.use_gpu else 'cpu')
-
-        if self.nbits > 1:
-            residuals = residuals.reshape(binary_residuals.size(0), self.dim, self.nbits)
-            residuals = (residuals << self.arange_bits)
-            residuals = residuals.sum(-1)
-
-        residuals = residuals.reshape(binary_residuals.size(0), self.dim)
-        residuals = self.bucket_weights[residuals.long()]
-        if self.use_gpu:
-            residuals = residuals.cuda()
-
-        return residuals
