@@ -13,6 +13,19 @@ import atexit
 profile = line_profiler.LineProfiler()
 atexit.register(profile.print_stats)
 """
+import os
+import pathlib
+from torch.utils.cpp_extension import load
+segmented_lookup_cpp = load(
+    name="segmented_lookup_cpp",
+    sources=[
+        os.path.join(
+            pathlib.Path(__file__).parent.resolve(), "segmented_lookup.cpp"
+        ),
+    ],
+    extra_cflags=["-fopenmp"],
+    extra_ldflags=["-lgomp"],
+)
 
 
 class StridedTensor(StridedTensorCore):
@@ -56,21 +69,24 @@ class StridedTensor(StridedTensorCore):
     def lookup(self, pids, output='packed'):
         pids, lengths, offsets = self._prepare_lookup(pids)
 
-        stride = lengths.max().item()
-        stride = next(s for s in self.strides if stride <= s)
-
-        tensor = self.views[stride][offsets]
         if self.use_gpu:
-            tensor = tensor.cuda()
+            stride = lengths.max().item()
+            stride = next(s for s in self.strides if stride <= s)
 
-        mask = _create_mask(lengths, stride, use_gpu=self.use_gpu)
+            tensor = self.views[stride][offsets]
+            if self.use_gpu:
+                tensor = tensor.cuda()
 
-        if output == 'padded':
-            return tensor, mask
+            mask = _create_mask(lengths, stride, use_gpu=self.use_gpu)
 
-        assert output == 'packed'
+            if output == 'padded':
+                return tensor, mask
 
-        tensor = tensor[mask]
+            assert output == 'packed'
+
+            tensor = tensor[mask]
+        else:
+            tensor = segmented_lookup_cpp.segmented_lookup_cpp(self.tensor, pids, lengths, offsets)
 
         return tensor, lengths
 
