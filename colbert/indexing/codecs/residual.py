@@ -54,8 +54,8 @@ class ResidualCodec:
 
         if torch.is_tensor(bucket_cutoffs):
             if self.use_gpu:
-                bucket_cutoffs = bucket_cutoffs.half().cuda()
-                bucket_weights = bucket_weights.cuda()
+                bucket_cutoffs = bucket_cutoffs.cuda()
+                bucket_weights = bucket_weights.half().cuda()
 
         self.bucket_cutoffs = bucket_cutoffs
         self.bucket_weights = bucket_weights
@@ -91,20 +91,24 @@ class ResidualCodec:
         # A table of all possible lookup orders into bucket_weights
         # given n bits per lookup
         keys_per_byte = 8 // self.nbits
-        self.decompression_lookup_table = (
-            torch.tensor(
-                list(
-                    product(
-                        list(range(len(self.bucket_weights))),
-                        repeat=keys_per_byte
+        if self.bucket_weights is not None:
+            self.decompression_lookup_table = (
+                torch.tensor(
+                    list(
+                        product(
+                            list(range(len(self.bucket_weights))),
+                            repeat=keys_per_byte
+                        )
                     )
                 )
+                .to(torch.uint8)
             )
-            .to(torch.uint8)
-        )
+        else:
+            self.decompression_lookup_table = None
         if self.use_gpu:
             self.reversed_bit_map = self.reversed_bit_map.cuda()
-            self.decompression_lookup_table = self.decompression_lookup_table.cuda()
+            if self.decompression_lookup_table is not None:
+                self.decompression_lookup_table = self.decompression_lookup_table.cuda()
 
     @classmethod
     def load(cls, index_path):
