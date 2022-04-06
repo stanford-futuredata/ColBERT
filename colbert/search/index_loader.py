@@ -23,8 +23,8 @@ class IndexLoader:
         self.codec = ResidualCodec.load(self.index_path)
 
     def _load_ivf(self):
-        ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pt"), map_location='cpu')
-        
+        ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pid.pt"), map_location='cpu')
+
         if False:
             ivf = ivf.tolist()
             ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]

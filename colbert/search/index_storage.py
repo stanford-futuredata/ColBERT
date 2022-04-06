@@ -17,6 +17,8 @@ import os
 import pathlib
 from torch.utils.cpp_extension import load
 
+import tqdm
+
 segmented_maxsim_cpp = load(
     name="segmented_maxsim_cpp",
     sources=[
@@ -34,6 +36,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
         self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
 
+        """
         print_message("#> Building the emb2pid mapping..")
         all_doclens = load_doclens(index_path, flatten=False)
 
@@ -42,7 +45,9 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         all_doclens = flatten(all_doclens)
         total_num_embeddings = sum(all_doclens)
 
+
         self.emb2pid = torch.zeros(total_num_embeddings, dtype=torch.int)
+        """
 
         """
         EVENTUALLY: Build this in advance and load it from disk.
@@ -51,12 +56,30 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                     from the corresponding offset,
         """
 
+        """
         offset_doclens = 0
         for pid, dlength in enumerate(all_doclens):
             self.emb2pid[offset_doclens: offset_doclens + dlength] = pid
             offset_doclens += dlength
 
         print_message("len(self.emb2pid) =", len(self.emb2pid))
+
+        ivf = self.emb2pid[self.ivf.tensor]
+        unique_pids_per_centroid = []
+        ivf_lengths = []
+
+        offset = 0
+        for length in tqdm.tqdm(self.ivf.lengths.tolist()):
+            pids = torch.unique(ivf[offset:offset+length])
+            unique_pids_per_centroid.append(pids)
+            ivf_lengths.append(pids.shape[0])
+            offset += length
+        ivf = torch.cat(unique_pids_per_centroid)
+        ivf_lengths = torch.tensor(ivf_lengths)
+        self.ivf = StridedTensor(ivf, ivf_lengths, use_gpu=self.use_gpu)
+
+        torch.save((ivf, ivf_lengths), os.path.join(self.index_path, f'ivf.pid.pt'))
+        """
 
     def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
         return self.embeddings_strided.lookup_eids(embedding_ids, codes=codes, out_device=out_device)
