@@ -23,8 +23,7 @@ segmented_lookup_cpp = load(
             pathlib.Path(__file__).parent.resolve(), "segmented_lookup.cpp"
         ),
     ],
-    extra_cflags=["-fopenmp"],
-    extra_ldflags=["-lgomp"],
+    extra_cflags=["-O3"],
 )
 
 

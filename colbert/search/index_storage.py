@@ -17,6 +17,7 @@ import os
 import pathlib
 from torch.utils.cpp_extension import load
 
+"""
 segmented_maxsim_cpp = load(
     name="segmented_maxsim_cpp",
     sources=[
@@ -24,8 +25,18 @@ segmented_maxsim_cpp = load(
             pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
         ),
     ],
-    extra_cflags=["-fopenmp"],
-    extra_ldflags=["-lgomp"],
+    extra_cflags=["-O3"],
+)
+"""
+
+filter_pids_cpp = load(
+    name="filter_pids_cpp",
+    sources=[
+        os.path.join(
+            pathlib.Path(__file__).parent.resolve(), "filter_pids.cpp"
+        ),
+    ],
+    extra_cflags=["-O3"],
 )
 
 class IndexScorer(IndexLoader, CandidateGeneration):
@@ -99,45 +110,47 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         if self.use_gpu:
             centroid_scores = centroid_scores.cuda()
 
-        # Filter docs using pruned centroid scores
-        approx_scores = []
         idx = centroid_scores.max(-1).values >= config.centroid_score_threshold
-        for i in range(0, ceil(len(pids) / batch_size)):
-            pids_ = pids[i * batch_size : (i+1) * batch_size]
-            codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids_)
-            idx_ = idx[codes_packed.long()]
-            pruned_codes_strided = StridedTensor(idx_, codes_lengths, use_gpu=self.use_gpu)
-            pruned_codes_padded, pruned_codes_mask = pruned_codes_strided.as_padded_tensor()
-            pruned_codes_lengths = (pruned_codes_padded * pruned_codes_mask).sum(dim=1)
-            codes_packed_ = codes_packed[idx_]
-            approx_scores_ = centroid_scores[codes_packed_.long()]
-            if approx_scores_.shape[0] == 0:
-                approx_scores.append(torch.zeros((len(pids_),), dtype=approx_scores_.dtype))
-                continue
-            if self.use_gpu:
+
+        if self.use_gpu:
+            approx_scores = []
+
+            # Filter docs using pruned centroid scores
+            for i in range(0, ceil(len(pids) / batch_size)):
+                pids_ = pids[i * batch_size : (i+1) * batch_size]
+                codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids_)
+                idx_ = idx[codes_packed.long()]
+                pruned_codes_strided = StridedTensor(idx_, codes_lengths, use_gpu=self.use_gpu)
+                pruned_codes_padded, pruned_codes_mask = pruned_codes_strided.as_padded_tensor()
+                pruned_codes_lengths = (pruned_codes_padded * pruned_codes_mask).sum(dim=1)
+                codes_packed_ = codes_packed[idx_]
+                approx_scores_ = centroid_scores[codes_packed_.long()]
+                if approx_scores_.shape[0] == 0:
+                    approx_scores.append(torch.zeros((len(pids_),), dtype=approx_scores_.dtype))
+                    continue
                 approx_scores_strided = StridedTensor(approx_scores_, pruned_codes_lengths, use_gpu=self.use_gpu)
                 approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
                 approx_scores_ = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
-            else:
-                approx_scores_ = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores_, pruned_codes_lengths)
-            approx_scores.append(approx_scores_)
-        approx_scores = torch.cat(approx_scores, dim=0)
+                approx_scores.append(approx_scores_)
+            approx_scores = torch.cat(approx_scores, dim=0)
+            if config.ndocs < len(approx_scores):
+                pids = pids[torch.topk(approx_scores, k=config.ndocs).indices]
 
-        # Filter docs using full centroid scores
-        if config.ndocs < len(approx_scores):
-            pids = pids[torch.topk(approx_scores, k=config.ndocs).indices]
-        codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
-        approx_scores = centroid_scores[codes_packed.long()]
-        if self.use_gpu:
+            # Filter docs using full centroid scores
+            codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
+            approx_scores = centroid_scores[codes_packed.long()]
             approx_scores_strided = StridedTensor(approx_scores, codes_lengths, use_gpu=self.use_gpu)
             approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
             approx_scores = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
+            if config.ndocs // 4 < len(approx_scores):
+                pids = pids[torch.topk(approx_scores, k=(config.ndocs // 4)).indices]
         else:
-            approx_scores = segmented_maxsim_cpp.segmented_maxsim_cpp(approx_scores, codes_lengths)
+            pids = filter_pids_cpp.filter_pids_cpp(
+                        pids, centroid_scores, self.embeddings.codes, self.doclens,
+                        self.embeddings_strided.codes_strided.offsets, idx, config.ndocs
+                    )
 
         # Rank final list of docs using full approximate embeddings (including residuals)
-        if config.ndocs // 4 < len(approx_scores):
-            pids = pids[torch.topk(approx_scores, k=(config.ndocs // 4)).indices]
         D_packed, D_mask = self.lookup_pids(pids)
         if Q.size(0) == 1:
             return colbert_score_packed(Q, D_packed, D_mask, config), pids

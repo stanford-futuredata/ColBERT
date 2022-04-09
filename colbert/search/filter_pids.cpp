@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <torch/extension.h>
 
 #include <algorithm>
@@ -5,17 +6,62 @@
 #include <numeric>
 #include <utility>
 
-void prune_centroid_scores(const torch::Tensor& centroid_scores,
-                           float centroid_score_threshold, bool* idx) {
-    auto ncentroids = centroid_scores.size(0);
-    auto nquery_vectors = centroid_scores.size(1);
-    auto centroid_scores_a = centroid_scores.data_ptr<float>();
+typedef struct maxsim_args {
+    int tid;
+    int nthreads;
 
-    for (int i = 0; i < ncentroids; i++) {
-        float max_centroid_score =
-            *(std::max_element(centroid_scores_a + (i * nquery_vectors),
-                               centroid_scores_a + ((i + 1) * nquery_vectors)));
-        idx[i] = max_centroid_score >= centroid_score_threshold;
+    int ncentroids;
+    int nquery_vectors;
+    int npids;
+
+    int* pids;
+    float* centroid_scores;
+    int* codes;
+    int64_t* doclens;
+    int64_t* offsets;
+    bool* idx;
+
+    std::priority_queue<std::pair<float, int>> approx_scores;
+} maxsim_args_t;
+
+void* maxsim(void* args) {
+    maxsim_args_t* maxsim_args = (maxsim_args_t*)args;
+
+    float per_doc_approx_scores[maxsim_args->nquery_vectors];
+    for (int k = 0; k < maxsim_args->nquery_vectors; k++) {
+        per_doc_approx_scores[k] = -9999;
+    }
+
+    int ndocs_per_thread =
+        (int)std::ceil(((float)maxsim_args->npids) / maxsim_args->nthreads);
+    int start = maxsim_args->tid * ndocs_per_thread;
+    int end =
+        std::min((maxsim_args->tid + 1) * ndocs_per_thread, maxsim_args->npids);
+
+    for (int i = start; i < end; i++) {
+        std::set<int> seen_codes;
+        auto pid = maxsim_args->pids[i];
+        for (int j = 0; j < maxsim_args->doclens[pid]; j++) {
+            auto code = maxsim_args->codes[maxsim_args->offsets[pid] + j];
+            assert(code < maxsim_args->ncentroids);
+            if (maxsim_args->idx[code] &&
+                seen_codes.find(code) == seen_codes.end()) {
+                std::transform(
+                    per_doc_approx_scores,
+                    per_doc_approx_scores + maxsim_args->nquery_vectors,
+                    maxsim_args->centroid_scores +
+                        (code * maxsim_args->nquery_vectors),
+                    per_doc_approx_scores,
+                    [](float a, float b) { return std::max(a, b); });
+                seen_codes.insert(code);
+            }
+        }
+        float score = 0;
+        for (int k = 0; k < maxsim_args->nquery_vectors; k++) {
+            score += per_doc_approx_scores[k];
+            per_doc_approx_scores[k] = -9999;
+        }
+        maxsim_args->approx_scores.push(std::make_pair(score, pid));
     }
 }
 
@@ -36,41 +82,58 @@ torch::Tensor filter_pids(const torch::Tensor pids,
     auto offsets_a = offsets.data_ptr<int64_t>();
     auto idx_a = idx.data_ptr<bool>();
 
-    float per_doc_approx_scores[nquery_vectors];
-    for (int k = 0; k < nquery_vectors; k++) {
-        per_doc_approx_scores[k] = -9999;
+    int nthreads = at::get_num_threads();
+
+    pthread_t threads[nthreads];
+    maxsim_args_t args[nthreads];
+
+    for (int i = 0; i < nthreads; i++) {
+        args[i].tid = i;
+        args[i].nthreads = nthreads;
+
+        args[i].ncentroids = ncentroids;
+        args[i].nquery_vectors = nquery_vectors;
+        args[i].npids = npids;
+
+        args[i].pids = pids_a;
+        args[i].centroid_scores = centroid_scores_a;
+        args[i].codes = codes_a;
+        args[i].doclens = doclens_a;
+        args[i].offsets = offsets_a;
+        args[i].idx = idx_a;
+
+        args[i].approx_scores = std::priority_queue<std::pair<float, int>>();
+
+        int rc = pthread_create(&threads[i], NULL, maxsim, (void*)&args[i]);
+        if (rc) {
+            fprintf(stderr, "Unable to create thread %d: %d\n", i, rc);
+        }
     }
-    std::priority_queue<std::pair<float, int>> approx_scores;
-    for (int i = 0; i < npids; i++) {
-        std::set<int> seen_codes;
-        for (int j = 0; j < doclens_a[pids_a[i]]; j++) {
-            auto code = codes_a[offsets_a[pids_a[i]] + j];
-            assert(code < ncentroids);
-            if (idx_a[code] && seen_codes.find(code) == seen_codes.end()) {
-                std::transform(per_doc_approx_scores,
-                               per_doc_approx_scores + nquery_vectors,
-                               centroid_scores_a + (code * nquery_vectors),
-                               per_doc_approx_scores,
-                               [](float a, float b) { return std::max(a, b); });
-                seen_codes.insert(code);
-            }
+
+    for (int i = 0; i < nthreads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    std::priority_queue<std::pair<float, int>> global_approx_scores;
+    for (int i = 0; i < nthreads; i++) {
+        for (int j = 0; j < nfiltered_docs; j++) {
+            global_approx_scores.push(args[i].approx_scores.top());
+            args[i].approx_scores.pop();
         }
-        float score = 0;
-        for (int k = 0; k < nquery_vectors; k++) {
-            score += per_doc_approx_scores[k];
-            per_doc_approx_scores[k] = -9999;
-        }
-        approx_scores.push(std::make_pair(score, pids_a[i]));
     }
 
     int filtered_pids[nfiltered_docs];
     for (int i = 0; i < nfiltered_docs; i++) {
-        std::pair<float, int> score_and_pid = approx_scores.top();
+        std::pair<float, int> score_and_pid = global_approx_scores.top();
         filtered_pids[i] = score_and_pid.second;
-        approx_scores.pop();
+        global_approx_scores.pop();
     }
 
-    approx_scores = std::priority_queue<std::pair<float, int>>();
+    std::priority_queue<std::pair<float, int>> approx_scores;
+    float per_doc_approx_scores[nquery_vectors];
+    for (int k = 0; k < nquery_vectors; k++) {
+        per_doc_approx_scores[k] = -9999;
+    }
     for (int i = 0; i < nfiltered_docs; i++) {
         int pid = filtered_pids[i];
         for (int j = 0; j < doclens_a[pid]; j++) {
