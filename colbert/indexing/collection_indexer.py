@@ -2,9 +2,12 @@ import os
 import tqdm
 import time
 import ujson
-import faiss
 import torch
 import random
+try:
+    import faiss
+except ImportError as e:
+    print("WARNING: faiss must be imported for indexing")
 
 import numpy as np
 import torch.multiprocessing as mp

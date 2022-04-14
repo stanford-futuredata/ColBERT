@@ -4,8 +4,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.7
-  - faiss=1.7.0
+  - python=3.8
   - pip=21.0
   - pytorch-cpu=1.9.0
   - pip:
