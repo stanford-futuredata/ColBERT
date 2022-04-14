@@ -11,7 +11,11 @@ class CandidateGeneration:
 
     def generate_candidate_eids(self, Q, ncells):
         scores = (self.codec.centroids @ Q.T)
-        cells = scores.topk(ncells, dim=0, sorted=False).indices.permute(1, 0)  # (32, ncells)
+        if ncells == 1:
+            cells = scores.argmax(dim=0, keepdim=True).permute(1, 0)
+        else:
+            cells = scores.topk(ncells, dim=0, sorted=False).indices.permute(1, 0)  # (32, ncells)
+
         cells = cells.flatten().contiguous()  # (32 * ncells,)
         cells = cells.unique(sorted=False)
 
