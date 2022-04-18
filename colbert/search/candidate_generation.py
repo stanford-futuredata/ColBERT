@@ -9,22 +9,32 @@ class CandidateGeneration:
     def __init__(self, use_gpu=True):
         self.use_gpu = use_gpu
 
-    def generate_candidate_eids(self, Q, ncells):
+    def get_cells(self, Q, ncells):
         scores = (self.codec.centroids @ Q.T)
         if ncells == 1:
             cells = scores.argmax(dim=0, keepdim=True).permute(1, 0)
         else:
             cells = scores.topk(ncells, dim=0, sorted=False).indices.permute(1, 0)  # (32, ncells)
-
         cells = cells.flatten().contiguous()  # (32 * ncells,)
         cells = cells.unique(sorted=False)
+        return cells, scores
+
+    def generate_candidate_eids(self, Q, ncells):
+        cells, scores = self.get_cells(Q, ncells)
 
         eids, cell_lengths = self.ivf.lookup(cells)  # eids = (packedlen,)  lengths = (32 * ncells,)
-
         eids = eids.long()
         if self.use_gpu:
             eids = eids.cuda()
         return eids, scores
+
+    def generate_candidate_pids(self, Q, ncells):
+        cells, scores = self.get_cells(Q, ncells)
+
+        pids, cell_lengths = self.ivf.lookup(cells)
+        if self.use_gpu:
+            pids = pids.cuda()
+        return pids, scores
 
     def generate_candidate_scores(self, Q, eids):
         E = self.lookup_eids(eids)
@@ -42,12 +52,8 @@ class CandidateGeneration:
             Q = Q.cuda().half()
         assert Q.dim() == 2
 
-        eids, centroid_scores = self.generate_candidate_eids(Q, ncells)
-        eids = torch.unique(eids, sorted=False)
+        pids, centroid_scores = self.generate_candidate_pids(Q, ncells)
 
-        pids = self.emb2pid[eids.long()]
-        if self.use_gpu:
-            pids = pids.cuda()
         sorter = pids.sort()
         pids = sorter.values
 

@@ -17,17 +17,6 @@ import os
 import pathlib
 from torch.utils.cpp_extension import load
 
-"""
-segmented_maxsim_cpp = load(
-    name="segmented_maxsim_cpp",
-    sources=[
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
-        ),
-    ],
-    extra_cflags=["-O3"],
-)
-"""
 
 filter_pids_cpp = load(
     name="filter_pids_cpp",
@@ -44,30 +33,6 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         super().__init__(index_path=index_path, use_gpu=use_gpu)
 
         self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
-
-        print_message("#> Building the emb2pid mapping..")
-        all_doclens = load_doclens(index_path, flatten=False)
-
-        assert self.num_embeddings == sum(flatten(all_doclens))
-
-        all_doclens = flatten(all_doclens)
-        total_num_embeddings = sum(all_doclens)
-
-        self.emb2pid = torch.zeros(total_num_embeddings, dtype=torch.int)
-
-        """
-        EVENTUALLY: Build this in advance and load it from disk.
-
-        EVENTUALLY: Use two tensors. emb2pid_offsets will have every 256th element. emb2pid_delta will have the delta
-                    from the corresponding offset,
-        """
-
-        offset_doclens = 0
-        for pid, dlength in enumerate(all_doclens):
-            self.emb2pid[offset_doclens: offset_doclens + dlength] = pid
-            offset_doclens += dlength
-
-        print_message("len(self.emb2pid) =", len(self.emb2pid))
 
     def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
         return self.embeddings_strided.lookup_eids(embedding_ids, codes=codes, out_device=out_device)
@@ -146,9 +111,9 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 pids = pids[torch.topk(approx_scores, k=(config.ndocs // 4)).indices]
         else:
             pids = filter_pids_cpp.filter_pids_cpp(
-                        pids, centroid_scores, self.embeddings.codes, self.doclens,
-                        self.embeddings_strided.codes_strided.offsets, idx, config.ndocs
-                    )
+                    pids, centroid_scores, self.embeddings.codes, self.doclens,
+                    self.embeddings_strided.codes_strided.offsets, idx, config.ndocs
+                )
 
         # Rank final list of docs using full approximate embeddings (including residuals)
         D_packed, D_mask = self.lookup_pids(pids)
