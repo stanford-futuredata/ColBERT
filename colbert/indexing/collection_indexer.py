@@ -22,6 +22,7 @@ from colbert.data.collection import Collection
 
 from colbert.indexing.collection_encoder import CollectionEncoder
 from colbert.indexing.index_saver import IndexSaver
+from colbert.indexing.utils import optimize_ivf
 from colbert.utils.utils import flatten, print_message
 
 from colbert.indexing.codecs.residual import ResidualCodec
@@ -346,8 +347,7 @@ class CollectionIndexer():
 
         print_memory_stats(f'RANK:{self.rank}')
 
-        ivf = (ivf, ivf_lengths)
-        torch.save(ivf, os.path.join(self.config.index_path_, f'ivf.pt'))
+        _, _ = optimize_ivf(ivf, ivf_lengths, self.config.index_path_)
 
     def _update_metadata(self):
         config = self.config
