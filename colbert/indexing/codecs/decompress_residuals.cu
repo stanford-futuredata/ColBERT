@@ -18,7 +18,6 @@ __global__ void decompress_residuals_kernel(
         centroids,
     const int n, const int dim, const int nbits, const int packed_size,
     at::Half* output) {
-    const uint8_t two_to_the_nbits = 1 << nbits;
     const int packed_dim = (int)(dim * nbits / packed_size);
     const int i = blockIdx.x;
     const int j = threadIdx.x;
@@ -31,7 +30,7 @@ __global__ void decompress_residuals_kernel(
     uint8_t x = binary_residuals[i * packed_dim + j];
     x = reversed_bit_map[x];
     int output_idx = (int)(j * packed_size / nbits);
-    for (int k = 0; k < two_to_the_nbits; k++) {
+    for (int k = 0; k < packed_size / nbits; k++) {
         assert(output_idx < dim);
         const int bucket_weight_idx = bucket_weight_combinations[x][k];
         output[i * dim + output_idx] = bucket_weights[bucket_weight_idx];
@@ -55,7 +54,7 @@ torch::Tensor decompress_residuals_cuda(
     // TODO: Set this automatically?
     const int packed_size = 8;
 
-    const int threads = 32;
+    const int threads = dim / (packed_size / nbits);
     const int blocks =
         (binary_residuals.size(0) * binary_residuals.size(1)) / threads;
 
