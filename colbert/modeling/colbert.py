@@ -6,6 +6,19 @@ from colbert.modeling.base_colbert import BaseColBERT
 import torch
 import string
 
+import os
+import pathlib
+from torch.utils.cpp_extension import load
+segmented_maxsim_cpp = load(
+    name="segmented_maxsim_cpp",
+    sources=[
+        os.path.join(
+            pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
+        ),
+    ],
+    extra_cflags=["-O3"],
+)
+
 
 class ColBERT(BaseColBERT):
     """
@@ -50,7 +63,7 @@ class ColBERT(BaseColBERT):
         scores = scores.view(Q.size(0), -1)  # D.size(0) - self.colbert_config.nway + 1)
 
         labels = torch.arange(0, Q.size(0), device=scores.device) * (self.colbert_config.nway)
-        
+
         return torch.nn.CrossEntropyLoss()(scores, labels)
 
     def query(self, input_ids, attention_mask):
@@ -157,6 +170,7 @@ def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
     """
 
     use_gpu = config.total_visible_gpus > 0
+
     if use_gpu:
         Q, D_packed, D_lengths = Q.cuda(), D_packed.cuda(), D_lengths.cuda()
 
@@ -167,6 +181,9 @@ def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
 
     scores = D_packed @ Q.to(dtype=D_packed.dtype).T
 
-    scores_padded, scores_mask = StridedTensor(scores, D_lengths, use_gpu=use_gpu).as_padded_tensor()
+    if use_gpu or config.interaction == "flipr":
+        scores_padded, scores_mask = StridedTensor(scores, D_lengths, use_gpu=use_gpu).as_padded_tensor()
 
-    return colbert_score_reduce(scores_padded, scores_mask, config)
+        return colbert_score_reduce(scores_padded, scores_mask, config)
+    else:
+        return segmented_maxsim_cpp.segmented_maxsim_cpp(scores, D_lengths)

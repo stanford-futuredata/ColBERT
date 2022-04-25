@@ -17,12 +17,21 @@ import os
 import pathlib
 from torch.utils.cpp_extension import load
 
-
 filter_pids_cpp = load(
     name="filter_pids_cpp",
     sources=[
         os.path.join(
             pathlib.Path(__file__).parent.resolve(), "filter_pids.cpp"
+        ),
+    ],
+    extra_cflags=["-O3"],
+)
+
+decompress_residuals_cpp = load(
+    name="decompress_residuals_cpp",
+    sources=[
+        os.path.join(
+            pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
         ),
     ],
     extra_cflags=["-O3"],
@@ -116,7 +125,25 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 )
 
         # Rank final list of docs using full approximate embeddings (including residuals)
-        D_packed, D_mask = self.lookup_pids(pids)
+        if self.use_gpu:
+            D_packed, D_mask = self.lookup_pids(pids)
+        else:
+            D_packed = decompress_residuals_cpp.decompress_residuals_cpp(
+                    pids,
+                    self.doclens,
+                    self.embeddings_strided.codes_strided.offsets,
+                    self.codec.bucket_weights,
+                    self.codec.reversed_bit_map,
+                    self.codec.decompression_lookup_table,
+                    self.embeddings.residuals,
+                    self.embeddings.codes,
+                    self.codec.centroids,
+                    self.codec.dim,
+                    self.codec.nbits
+                )
+            D_packed = torch.nn.functional.normalize(D_packed.to(torch.float32), p=2, dim=-1)
+            D_mask = self.doclens[pids.long()]
+
         if Q.size(0) == 1:
             return colbert_score_packed(Q, D_packed, D_mask, config), pids
 
