@@ -161,3 +161,4 @@ class SearchSettings:
     ncells: int = DefaultVal(None)
     centroid_score_threshold: float = DefaultVal(None)
     ndocs: int = DefaultVal(None)
+    mmap_index: bool = DefaultVal(False)

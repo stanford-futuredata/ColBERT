@@ -10,9 +10,10 @@ from colbert.search.strided_tensor import StridedTensor
 
 
 class IndexLoader:
-    def __init__(self, index_path, use_gpu=True):
+    def __init__(self, index_path, use_gpu=True, mmap_index=False):
         self.index_path = index_path
         self.use_gpu = use_gpu
+        self.mmap_index = mmap_index
 
         self._load_codec()
         self._load_ivf()
@@ -52,7 +53,7 @@ class IndexLoader:
 
     def _load_embeddings(self):
         self.embeddings = ResidualCodec.Embeddings.load_chunks(self.index_path, range(self.num_chunks),
-                                                               self.num_embeddings)
+                                                               self.num_embeddings, self.mmap_index)
 
     @property
     def metadata(self):

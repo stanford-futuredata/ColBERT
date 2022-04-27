@@ -40,7 +40,7 @@ class Searcher:
         use_gpu = self.config.total_visible_gpus > 0
         if use_gpu:
             self.checkpoint = self.checkpoint.cuda()
-        self.ranker = IndexScorer(self.index, use_gpu)
+        self.ranker = IndexScorer(self.index, use_gpu=use_gpu, mmap_index=config.mmap_index)
 
         print_memory_stats()
 

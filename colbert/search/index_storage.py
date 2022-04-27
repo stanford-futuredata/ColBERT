@@ -38,17 +38,30 @@ decompress_residuals_cpp = load(
 )
 
 class IndexScorer(IndexLoader, CandidateGeneration):
-    def __init__(self, index_path, use_gpu=True):
-        super().__init__(index_path=index_path, use_gpu=use_gpu)
+    def __init__(self, index_path, use_gpu=True, mmap_index=False):
+        super().__init__(index_path=index_path, use_gpu=use_gpu, mmap_index=mmap_index)
 
-        self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
+        if not mmap_index:
+            self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
+        else:
+            self.embeddings_strided = None
 
     def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
         return self.embeddings_strided.lookup_eids(embedding_ids, codes=codes, out_device=out_device)
 
     def lookup_pids(self, passage_ids, out_device='cuda', return_mask=False):
+        if self.embeddings_strided is None:
+            codes_packed, codes_lengths = self.embeddings.lookup_codes(passage_ids)
+            residuals_packed, _ = self.embeddings.lookup_pids(passage_ids)
+            embeddings_packed = self.codec.decompress(residual_embeddings.ResidualEmbeddings(codes_packed, residuals_packed))
+            return embeddings_packed, codes_lengths 
         return self.embeddings_strided.lookup_pids(passage_ids, out_device)
 
+    def lookup_codes(self, passage_ids, out_device='cuda'):
+        if self.embeddings_strided is None:
+           return self.embeddings.lookup_codes(passage_ids)
+        return self.embeddings_strided.lookup_codes(passage_ids)
+        
     def retrieve(self, config, Q):
         Q = Q[:, :config.query_maxlen]   # NOTE: Candidate generation uses only the query tokens
         embedding_ids, centroid_scores = self.generate_candidates(config, Q)
@@ -92,7 +105,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             # Filter docs using pruned centroid scores
             for i in range(0, ceil(len(pids) / batch_size)):
                 pids_ = pids[i * batch_size : (i+1) * batch_size]
-                codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids_)
+                codes_packed, codes_lengths = self.lookup_codes(pids_)
                 idx_ = idx[codes_packed.long()]
                 pruned_codes_strided = StridedTensor(idx_, codes_lengths, use_gpu=self.use_gpu)
                 pruned_codes_padded, pruned_codes_mask = pruned_codes_strided.as_padded_tensor()
@@ -111,7 +124,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 pids = pids[torch.topk(approx_scores, k=config.ndocs).indices]
 
             # Filter docs using full centroid scores
-            codes_packed, codes_lengths = self.embeddings_strided.lookup_codes(pids)
+            codes_packed, codes_lengths = self.lookup_codes(pids_)
             approx_scores = centroid_scores[codes_packed.long()]
             approx_scores_strided = StridedTensor(approx_scores, codes_lengths, use_gpu=self.use_gpu)
             approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
