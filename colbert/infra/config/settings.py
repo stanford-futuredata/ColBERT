@@ -152,6 +152,8 @@ class IndexingSettings:
 
     kmeans_niters: int = DefaultVal(20)
 
+    resume: bool = DefaultVal(False)
+
     @property
     def index_path_(self):
         return self.index_path or os.path.join(self.index_root_, self.index_name)

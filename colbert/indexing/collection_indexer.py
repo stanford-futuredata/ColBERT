@@ -55,7 +55,8 @@ class CollectionIndexer():
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
-            self.train(shared_lists)
+            if not self.config.resume or not self.saver.try_load_codec():
+                self.train(shared_lists)
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
@@ -68,6 +69,15 @@ class CollectionIndexer():
             print_memory_stats(f'RANK:{self.rank}')
 
     def setup(self):
+        if self.config.resume:
+            if self._try_load_plan():
+                Run().print_main(f"#> Loaded plan from {self.plan_path}:")
+                Run().print_main(f"#> num_chunks = {self.num_chunks}")
+                Run().print_main(f"#> num_partitions = {self.num_chunks}")
+                Run().print_main(f"#> num_embeddings_est = {self.num_embeddings_est}")
+                Run().print_main(f"#> avg_doclen_est = {self.avg_doclen_est}")
+                return
+
         self.num_chunks = int(np.ceil(len(self.collection) / self.collection.get_chunksize()))
 
         sampled_pids = self._sample_pids()
@@ -126,6 +136,31 @@ class CollectionIndexer():
 
         return avg_doclen_est
 
+    def _try_load_plan(self):
+        config = self.config
+        self.plan_path = os.path.join(config.index_path_, 'plan.json')
+        if os.path.exists(self.plan_path):
+            with open(self.plan_path, 'r') as f:
+                try:
+                    plan = ujson.load(f)
+                except Exception as e:
+                    return False
+                if not ('num_chunks' in plan and
+                        'num_partitions' in plan and
+                        'num_embeddings_est' in plan and
+                        'avg_doclen_est' in plan):
+                    return False
+
+                # TODO: Verify config matches
+                self.num_chunks = plan['num_chunks']
+                self.num_partitions = plan['num_partitions']
+                self.num_embeddings_est = plan['num_embeddings_est']
+                self.avg_doclen_est = plan['avg_doclen_est']
+
+            return True
+        else:
+            return False
+
     def _save_plan(self):
         if self.rank < 1:
             config = self.config
@@ -140,6 +175,7 @@ class CollectionIndexer():
                 d['avg_doclen_est'] = self.avg_doclen_est
 
                 f.write(ujson.dumps(d, indent=4) + '\n')
+
 
     def train(self, shared_lists):
         if self.rank > 0:
@@ -175,7 +211,7 @@ class CollectionIndexer():
             endpos = offset + sub_sample.size(0)
             sample[offset:endpos] = sub_sample
             offset = endpos
-        
+
         assert endpos == sample.size(0), (endpos, sample.size())
 
         print_memory_stats(f'***2*** \t RANK:{self.rank}')
@@ -252,6 +288,9 @@ class CollectionIndexer():
         with self.saver.thread():
             batches = self.collection.enumerate_batches(rank=self.rank)
             for chunk_idx, offset, passages in tqdm.tqdm(batches, disable=self.rank > 0):
+                if self.config.resume and self.saver.check_chunk_exists(chunk_idx):
+                    Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
+                    continue
                 embs, doclens = self.encoder.encode_passages(passages)
                 assert embs.dtype == torch.float16
 
@@ -272,9 +311,15 @@ class CollectionIndexer():
         self._update_metadata()
 
     def _check_all_files_are_saved(self):
+        Run().print_main("#> Checking all files were saved...")
+        success = True
         for chunk_idx in range(self.num_chunks):
-            # EVENTUALLY: Check those files!
-            pass
+            if not self.saver.check_chunk_exists(chunk_idx):
+                success = False
+                Run().print_main(f"#> ERROR: Could not find chunk {chunk_idx}!")
+                #TODO: Fail here?
+        if success:
+            Run().print_main("Found all files!")
 
     def _collect_embedding_id_offset(self):
         passage_offset = 0
@@ -309,6 +354,8 @@ class CollectionIndexer():
         # A loop seems nice if we can find a size that's large enough for speed yet small enough to fit on GPU!
         # Then it would help nicely for batching later: 1GB.
 
+        Run().print_main("#> Building IVF...")
+
         codes = torch.empty(self.num_embeddings,)
         print_memory_stats(f'RANK:{self.rank}')
 
@@ -317,8 +364,8 @@ class CollectionIndexer():
             chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
 
             codes[offset:offset+chunk_codes.size(0)] = chunk_codes
-        
-        assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size()) 
+
+        assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size())
 
 
         print_memory_stats(f'RANK:{self.rank}')
@@ -341,7 +388,7 @@ class CollectionIndexer():
         #     for local_embedding_idx, partition_idx in enumerate(chunk_codes.tolist()):
         #         embedding_idx = embedding_offset + local_embedding_idx
         #         ivf[partition_idx].append(embedding_idx)
-        
+
         # ivf_lengths = [len(partition) for partition in ivf]
         # ivf = torch.tensor(flatten(ivf), dtype=torch.long)  # FIXME: If num_embeddings > 2B, use torch.long!
 
