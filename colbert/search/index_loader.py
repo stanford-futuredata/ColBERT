@@ -2,6 +2,7 @@ import os
 import ujson
 import torch
 import numpy as np
+import tqdm
 
 from colbert.utils.utils import lengths2offsets, print_message, dotdict, flatten
 from colbert.indexing.codecs.residual import ResidualCodec
@@ -21,9 +22,12 @@ class IndexLoader:
         self._load_embeddings()
 
     def _load_codec(self):
+        print_message(f"#> Loading codec...")
         self.codec = ResidualCodec.load(self.index_path)
 
     def _load_ivf(self):
+        print_message(f"#> Loading IVF...")
+
         if os.path.exists(os.path.join(self.index_path, "ivf.pid.pt")):
             ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pid.pt"), map_location='cpu')
         else:
@@ -43,7 +47,9 @@ class IndexLoader:
     def _load_doclens(self):
         doclens = []
 
-        for chunk_idx in range(self.num_chunks):
+        print_message("#> Loading doclens...")
+
+        for chunk_idx in tqdm.tqdm(range(self.num_chunks)):
             with open(os.path.join(self.index_path, f'doclens.{chunk_idx}.json')) as f:
                 chunk_doclens = ujson.load(f)
                 doclens.extend(chunk_doclens)

@@ -359,14 +359,21 @@ class CollectionIndexer():
         codes = torch.empty(self.num_embeddings,)
         print_memory_stats(f'RANK:{self.rank}')
 
+        Run().print_main("#> Allocated memory for codes")
+
         for chunk_idx in range(self.num_chunks):
             offset = self.embedding_offsets[chunk_idx]
             chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
 
             codes[offset:offset+chunk_codes.size(0)] = chunk_codes
 
+            Run().print_main(f"#> Loaded codes for chunk {chunk_idx}")
+
         assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size())
 
+
+        Run().print_main(f"Finished loading codes")
+        Run().print_main(f"Sorting codes...")
 
         print_memory_stats(f'RANK:{self.rank}')
 
@@ -374,6 +381,8 @@ class CollectionIndexer():
         ivf, values = codes.indices, codes.values
 
         print_memory_stats(f'RANK:{self.rank}')
+
+        Run().print_main(f"Getting unique codes...")
 
         partitions, ivf_lengths = values.unique_consecutive(return_counts=True)
 
@@ -393,6 +402,10 @@ class CollectionIndexer():
         # ivf = torch.tensor(flatten(ivf), dtype=torch.long)  # FIXME: If num_embeddings > 2B, use torch.long!
 
         print_memory_stats(f'RANK:{self.rank}')
+
+        # TODO: Add a flag to control whether we save the original IVF
+        # original_ivf_path = os.path.join(self.config.index_path_, 'ivf.pt')
+        # torch.save((ivf, ivf_lengths.clone()), original_ivf_path)
 
         _, _ = optimize_ivf(ivf, ivf_lengths, self.config.index_path_)
 
