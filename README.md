@@ -1,4 +1,11 @@
-> **Update: if you're looking for [ColBERTv2](https://arxiv.org/abs/2112.01488) code, you can find it alongside a new simpler API, in the branch [`new_api`](https://github.com/stanford-futuredata/ColBERT/tree/new_api).**
+----
+----
+
+**Update: The branch [`new_api`](https://github.com/stanford-futuredata/ColBERT/tree/new_api) contains a new simpler API plus the code for the new [ColBERTv2](https://arxiv.org/abs/2112.01488) model, including a public checkpoint as well as a public release of our LoTTE benchmark.**
+
+----
+
+----
 
 
 # ColBERT
