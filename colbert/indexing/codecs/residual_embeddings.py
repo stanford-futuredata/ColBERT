@@ -1,6 +1,7 @@
 import os
 import torch
 import ujson
+from collections import defaultdict
 
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
 
@@ -8,7 +9,7 @@ from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddin
 class ResidualEmbeddings:
     Strided = ResidualEmbeddingsStrided
 
-    def __init__(self, codes, residuals, mmap_index=False):
+    def __init__(self, codes, residuals, mmap_index=False, pid_to_chunk_metadata=None):
         """
             Supply the already compressed residuals.
         """
@@ -17,6 +18,7 @@ class ResidualEmbeddings:
         if self.mmap_index:
             self.codes = codes
             self.residuals = residuals
+            self.pid_to_chunk_metadata = pid_to_chunk_metadata
 
         # assert isinstance(residuals, bitarray), type(residuals)
         assert codes.size(0) == residuals.size(0), (codes.size(), residuals.size())
@@ -45,19 +47,21 @@ class ResidualEmbeddings:
         codes_offset = 0
         pid_offset = 0
 
-        per_chunk_doclens = {}
-        pid_to_chunk_idx = {}
+        pid_to_chunk_metadata = {}  # pid -> [chunk id, passage doclen, passage offset in the chunk]
 
         for chunk_idx in chunk_idxs:
             with open(os.path.join(index_path, f'{chunk_idx}.metadata.json')) as f:
                 metadata = ujson.load(f)
 
-            for pid in range(pid_offset, pid_offset + metadata["num_passages"]):
-                pid_to_chunk_idx[pid] = chunk_idx
-            pid_offset += metadata["num_passages"]
-
             with open(os.path.join(index_path, f'{chunk_idx}.doclens.json')) as f:
-                per_chunk_doclens[chunk_idx] = ujson.load(f)
+                chunk_doclens = ujson.load(f)
+
+            pid_offset_in_chunk = 0
+            for pid in range(pid_offset, pid_offset + metadata["num_passages"]):
+                pid_doclen = chunk_doclens[pid - pid_offset]
+                pid_to_chunk_metadata[pid] = [chunk_idx, pid_doclen, pid_offset_in_chunk]
+                pid_offset_in_chunk += pid_doclen
+            pid_offset += metadata["num_passages"]
 
             codes_endpos = codes_offset + metadata["num_embeddings"]
 
@@ -77,7 +81,7 @@ class ResidualEmbeddings:
 
         # codes, residuals = codes.cuda(), residuals.cuda()  # FIXME: REMOVE THIS LINE!
 
-        return cls(codes, residuals)
+        return cls(codes, residuals, mmap_index=mmap_index, pid_to_chunk_metadata=pid_to_chunk_metadata)
 
     @classmethod
     def load(cls, index_path, chunk_idx, offset, endpos, packed_dim, mmap_index=False):
@@ -119,17 +123,22 @@ class ResidualEmbeddings:
 
     def lookup_codes(self, pids):
         assert self.mmap_index
-        codes = torch.zeros((sum(self.doclens[pid] for pid in pids]))
+        codes = torch.zeros(sum([self.pid_to_chunk_metadata[pid][1] for pid in pids]))
+
         pids_per_chunk = defaultdict(list)
         for pid in pids:
-            chunk_idx = self.pid_to_chunk_idx[pid]
+            chunk_idx = self.pid_to_chunk_metadata[pid][0]
             pids_per_chunk[chunk_idx].append(pid)
+
         offset = 0
-        for chunk_idx in sorted(chunks.keys()):
+        for chunk_idx in sorted(pids_per_chunk.keys()):
             pids_ = pids_per_chunk[chunk_idx]
             for pid in pids_:
-                codes[offset:offset + self.doclens[pid]] = self.codes[chunk_idx][self.chunk_offsets[pid]:self.chunk_offsets[pid] + doclens[pid]]
-                offset += doclens[pid]
+                pid_doclen = self.pid_to_chunk_metadata[pid][1]
+                pid_offset_in_chunk = self.pid_to_chunk_metadata[pid][2]
+                codes[offset:offset + pid_doclen] = \
+                    self.codes[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen]
+                offset += pid_doclen
 
         return codes
 

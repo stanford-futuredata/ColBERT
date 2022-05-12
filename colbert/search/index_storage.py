@@ -4,6 +4,7 @@ from colbert.utils.utils import flatten, print_message
 
 from colbert.indexing.loaders import load_doclens
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
+from colbert.indexing.codecs import residual_embeddings
 
 from colbert.search.strided_tensor import StridedTensor
 from colbert.search.candidate_generation import CandidateGeneration
