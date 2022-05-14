@@ -144,7 +144,26 @@ class ResidualEmbeddings:
 
     def lookup_pids(self, pids):
         assert self.mmap_index
-        pass
+        print(f"mei-test residuals shape {self.residuals.shape}")
+        packed_dim = self.residuals.shape[2]
+        residuals = torch.zeros(sum([self.pid_to_chunk_metadata[pid][1] for pid in pids]), packed_dim)
+
+        pids_per_chunk = defaultdict(list)
+        for pid in pids:
+            chunk_idx = self.pid_to_chunk_metadata[pid][0]
+            pids_per_chunk[chunk_idx].append(pid)
+
+        offset = 0
+        for chunk_idx in sorted(pids_per_chunk.keys()):
+            pids_ = pids_per_chunk[chunk_idx]
+            for pid in pids_:
+                pid_doclen = self.pid_to_chunk_metadata[pid][1]
+                pid_offset_in_chunk = self.pid_to_chunk_metadata[pid][2]
+                residuals[offset:offset + pid_doclen, :packed_dim] = \
+                    self.residuals[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen, :packed_dim]
+                offset += pid_doclen
+
+        return residuals
 
     def __len__(self):
         return self.codes.size(0)
