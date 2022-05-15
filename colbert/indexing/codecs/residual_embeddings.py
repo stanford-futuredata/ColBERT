@@ -1,9 +1,10 @@
 import os
 import torch
 import ujson
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
+from colbert.utils.utils import print_message
 
 
 class ResidualEmbeddings:
@@ -19,6 +20,7 @@ class ResidualEmbeddings:
             self.codes = codes
             self.residuals = residuals
             self.pid_to_chunk_metadata = pid_to_chunk_metadata
+            return
 
         # assert isinstance(residuals, bitarray), type(residuals)
         assert codes.size(0) == residuals.size(0), (codes.size(), residuals.size())
@@ -47,19 +49,20 @@ class ResidualEmbeddings:
         codes_offset = 0
         pid_offset = 0
 
+        ChunkMetadata = namedtuple('ChunkMetadata', 'chunk_id, passage_doclen, passage_offset')
         pid_to_chunk_metadata = {}  # pid -> [chunk id, passage doclen, passage offset in the chunk]
 
         for chunk_idx in chunk_idxs:
             with open(os.path.join(index_path, f'{chunk_idx}.metadata.json')) as f:
                 metadata = ujson.load(f)
 
-            with open(os.path.join(index_path, f'{chunk_idx}.doclens.json')) as f:
+            with open(os.path.join(index_path, f'doclens.{chunk_idx}.json')) as f:
                 chunk_doclens = ujson.load(f)
 
             pid_offset_in_chunk = 0
             for pid in range(pid_offset, pid_offset + metadata["num_passages"]):
                 pid_doclen = chunk_doclens[pid - pid_offset]
-                pid_to_chunk_metadata[pid] = [chunk_idx, pid_doclen, pid_offset_in_chunk]
+                pid_to_chunk_metadata[pid] = ChunkMetadata(chunk_idx, pid_doclen, pid_offset_in_chunk)
                 pid_offset_in_chunk += pid_doclen
             pid_offset += metadata["num_passages"]
 
@@ -91,7 +94,7 @@ class ResidualEmbeddings:
         return cls(codes, residuals)
 
     @classmethod
-    def load_codes(self, index_path, chunk_idx, offset, endpos, packed_dim, mmap_index=False):
+    def load_codes(self, index_path, chunk_idx, offset=None, endpos=None, packed_dim=None, mmap_index=False):
         codes_path = os.path.join(index_path, f'{chunk_idx}.codes.pt')
 
         if mmap_index:
@@ -123,47 +126,62 @@ class ResidualEmbeddings:
 
     def lookup_codes(self, pids):
         assert self.mmap_index
-        codes = torch.zeros(sum([self.pid_to_chunk_metadata[pid][1] for pid in pids]))
+        # prev_pid = 0
+        # for pid in pids:
+        #     if pid.item() < prev_pid:
+        #         print_message("not in order")
+        #     prev_pid = pid.item()
 
         pids_per_chunk = defaultdict(list)
-        for pid in pids:
-            chunk_idx = self.pid_to_chunk_metadata[pid][0]
-            pids_per_chunk[chunk_idx].append(pid)
+        codes_lengths = torch.zeros(len(pids))
+        codes_size = 0
+        for idx, pid in enumerate(pids):
+            # print_message(f"pid shape: {pid.shape}, {len(pid.shape)}")
+            pid_ = pid.item()
+            chunk_idx, pid_doclen, _ = self.pid_to_chunk_metadata[pid_]
+            pids_per_chunk[chunk_idx].append(pid_)
+            codes_lengths[idx] = pid_doclen
+            codes_size += pid_doclen
+        codes = torch.zeros(codes_size)
 
         offset = 0
         for chunk_idx in sorted(pids_per_chunk.keys()):
             pids_ = pids_per_chunk[chunk_idx]
             for pid in pids_:
-                pid_doclen = self.pid_to_chunk_metadata[pid][1]
-                pid_offset_in_chunk = self.pid_to_chunk_metadata[pid][2]
+                _, pid_doclen, pid_offset_in_chunk = self.pid_to_chunk_metadata[pid]
                 codes[offset:offset + pid_doclen] = \
                     self.codes[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen]
                 offset += pid_doclen
 
-        return codes
+        return codes, codes_lengths
 
     def lookup_pids(self, pids):
         assert self.mmap_index
-        print(f"mei-test residuals shape {self.residuals.shape}")
+        print_message(f"mei-test residuals shape {self.residuals.shape}")
         packed_dim = self.residuals.shape[2]
-        residuals = torch.zeros(sum([self.pid_to_chunk_metadata[pid][1] for pid in pids]), packed_dim)
 
         pids_per_chunk = defaultdict(list)
-        for pid in pids:
-            chunk_idx = self.pid_to_chunk_metadata[pid][0]
-            pids_per_chunk[chunk_idx].append(pid)
+        residuals_lengths = torch.zeros(len(pids))
+        residuals_size = 0
+        for idx, pid in enumerate(pids):
+            print_message(f"pid shape: {pid.shape}, {len(pid.shape)}")
+            pid_ = pid.item()
+            chunk_idx, pid_doclen, _ = self.pid_to_chunk_metadata[pid_]
+            pids_per_chunk[chunk_idx].append(pid_)
+            residuals_lengths[idx] = pid_doclen
+            residuals_size += pid_doclen
+        residuals = torch.zeros(residuals_size)
 
         offset = 0
         for chunk_idx in sorted(pids_per_chunk.keys()):
             pids_ = pids_per_chunk[chunk_idx]
             for pid in pids_:
-                pid_doclen = self.pid_to_chunk_metadata[pid][1]
-                pid_offset_in_chunk = self.pid_to_chunk_metadata[pid][2]
+                _, pid_doclen, pid_offset_in_chunk = self.pid_to_chunk_metadata[pid]
                 residuals[offset:offset + pid_doclen, :packed_dim] = \
                     self.residuals[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen, :packed_dim]
                 offset += pid_doclen
 
-        return residuals
+        return residuals, residuals_lengths
 
     def __len__(self):
         return self.codes.size(0)
