@@ -11,9 +11,10 @@ from colbert.utils.utils import print_message
 
 
 class FaissIndex():
-    def __init__(self, dim, partitions):
+    def __init__(self, dim, partitions, m=16):
         self.dim = dim
         self.partitions = partitions
+        self.m = m
 
         self.gpu = FaissIndexGPU()
         self.quantizer, self.index = self._create_index()
@@ -21,7 +22,7 @@ class FaissIndex():
 
     def _create_index(self):
         quantizer = faiss.IndexFlatL2(self.dim)  # faiss.IndexHNSWFlat(dim, 32)
-        index = faiss.IndexIVFPQ(quantizer, self.dim, self.partitions, 16, 8)
+        index = faiss.IndexIVFPQ(quantizer, self.dim, self.partitions, self.m, 8)
 
         return quantizer, index
 

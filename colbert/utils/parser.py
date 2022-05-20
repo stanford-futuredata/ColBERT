@@ -78,6 +78,7 @@ class Arguments():
         self.add_argument('--index_root', dest='index_root', required=True)
         self.add_argument('--index_name', dest='index_name', required=True)
         self.add_argument('--partitions', dest='partitions', default=None, type=int)
+        self.add_argument('--m', dest='m', default=16, type=int)
 
     def add_retrieval_input(self):
         self.add_index_use_input()

@@ -37,11 +37,11 @@ def load_sample(samples_paths, sample_fraction=None):
     return sample
 
 
-def prepare_faiss_index(slice_samples_paths, partitions, sample_fraction=None):
+def prepare_faiss_index(slice_samples_paths, partitions, m=16, sample_fraction=None):
     training_sample = load_sample(slice_samples_paths, sample_fraction=sample_fraction)
 
     dim = training_sample.shape[-1]
-    index = FaissIndex(dim, partitions)
+    index = FaissIndex(dim, partitions, m)
 
     print_message("#> Training with the vectors...")
 
@@ -84,7 +84,7 @@ def index_faiss(args):
 
         assert not os.path.exists(output_path), output_path
 
-        index = prepare_faiss_index(slice_samples_paths, args.partitions, args.sample)
+        index = prepare_faiss_index(slice_samples_paths, args.partitions, args.m, args.sample)
 
         loaded_parts = queue.Queue(maxsize=1)
 
