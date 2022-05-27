@@ -73,6 +73,8 @@ void* decompress(void* args) {
             }
         }
     }
+
+    return NULL;
 }
 
 torch::Tensor decompress_residuals(

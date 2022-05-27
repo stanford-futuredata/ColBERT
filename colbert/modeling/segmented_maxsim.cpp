@@ -42,6 +42,8 @@ void* max(void* args) {
         }
         max_scores_offset += max_args->nquery_vectors;
     }
+
+    return NULL;
 }
 
 torch::Tensor segmented_maxsim(const torch::Tensor scores,
