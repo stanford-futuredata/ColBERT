@@ -83,6 +83,7 @@ class ResidualEmbeddings:
             codes_offset = codes_endpos
 
         # codes, residuals = codes.cuda(), residuals.cuda()  # FIXME: REMOVE THIS LINE!
+        print(f"code is {codes}")
 
         return cls(codes, residuals, mmap_index=mmap_index, pid_to_chunk_metadata=pid_to_chunk_metadata)
 
@@ -116,12 +117,26 @@ class ResidualEmbeddings:
 
         return torch.load(residuals_path, map_location='cpu')
 
-    def save(self, path_prefix):
+    def save(self, index_path, chunk_idx):
+        path_prefix = os.path.join(index_path, str(chunk_idx))
         codes_path = f'{path_prefix}.codes.pt'
         residuals_path = f'{path_prefix}.residuals.pt'  # f'{path_prefix}.residuals.bn'
 
-        torch.save(self.codes, codes_path)
-        torch.save(self.residuals, residuals_path)
+        print(f"saving code {self.codes}, {self.codes.shape[0]}")
+        if self.mmap_index:
+            print("using mmap")
+            codes_size = self.codes.shape[0]
+            storage = torch.IntStorage.from_file(codes_path, True, codes_size)
+            torch.IntTensor(storage).copy_(self.codes)
+
+            dim, nbits = get_dim_and_nbits(index_path)
+            packed_dim = dim // 8 * nbits
+            residuals_size = codes_size * packed_dim
+            storage = torch.ByteStorage.from_file(residuals_path, True, residuals_size)
+            torch.ByteTensor(storage).copy_(self.residuals)
+        else:
+            torch.save(self.codes, codes_path)
+            torch.save(self.residuals, residuals_path)
         # _save_bitarray(self.residuals, residuals_path)
 
     def lookup_codes(self, pids):
@@ -136,13 +151,12 @@ class ResidualEmbeddings:
         codes_lengths = torch.zeros(len(pids))
         codes_size = 0
         for idx, pid in enumerate(pids):
-            # print_message(f"pid shape: {pid.shape}, {len(pid.shape)}")
             pid_ = pid.item()
             chunk_idx, pid_doclen, _ = self.pid_to_chunk_metadata[pid_]
             pids_per_chunk[chunk_idx].append(pid_)
             codes_lengths[idx] = pid_doclen
             codes_size += pid_doclen
-        codes = torch.zeros(codes_size)
+        codes = torch.zeros(codes_size, dtype=torch.int32)
 
         offset = 0
         for chunk_idx in sorted(pids_per_chunk.keys()):
@@ -153,32 +167,30 @@ class ResidualEmbeddings:
                     self.codes[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen]
                 offset += pid_doclen
 
-        return codes, codes_lengths
+        return codes, codes_lengths.long()
 
     def lookup_pids(self, pids):
         assert self.mmap_index
-        print_message(f"mei-test residuals shape {self.residuals.shape}")
-        packed_dim = self.residuals.shape[2]
+        packed_dim = self.residuals[0].shape[1]
 
         pids_per_chunk = defaultdict(list)
         residuals_lengths = torch.zeros(len(pids))
         residuals_size = 0
         for idx, pid in enumerate(pids):
-            print_message(f"pid shape: {pid.shape}, {len(pid.shape)}")
             pid_ = pid.item()
             chunk_idx, pid_doclen, _ = self.pid_to_chunk_metadata[pid_]
             pids_per_chunk[chunk_idx].append(pid_)
             residuals_lengths[idx] = pid_doclen
             residuals_size += pid_doclen
-        residuals = torch.zeros(residuals_size)
+        residuals = torch.zeros(residuals_size, packed_dim, dtype=torch.uint8)
 
         offset = 0
         for chunk_idx in sorted(pids_per_chunk.keys()):
             pids_ = pids_per_chunk[chunk_idx]
             for pid in pids_:
                 _, pid_doclen, pid_offset_in_chunk = self.pid_to_chunk_metadata[pid]
-                residuals[offset:offset + pid_doclen, :packed_dim] = \
-                    self.residuals[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen, :packed_dim]
+                residuals[offset:offset + pid_doclen] = \
+                    self.residuals[chunk_idx][pid_offset_in_chunk:pid_offset_in_chunk + pid_doclen]
                 offset += pid_doclen
 
         return residuals, residuals_lengths

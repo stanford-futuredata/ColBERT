@@ -314,7 +314,7 @@ class CollectionIndexer():
 
         for chunk_idx in range(self.num_chunks):
             offset = self.embedding_offsets[chunk_idx]
-            chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
+            chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx, mmap_index=self.config.mmap_index)
 
             codes[offset:offset+chunk_codes.size(0)] = chunk_codes
         
