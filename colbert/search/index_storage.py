@@ -4,6 +4,7 @@ from colbert.utils.utils import flatten, print_message
 
 from colbert.indexing.loaders import load_doclens
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
+from colbert.indexing.codecs import residual_embeddings
 
 from colbert.search.strided_tensor import StridedTensor
 from colbert.search.candidate_generation import CandidateGeneration
@@ -124,7 +125,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 pids = pids[torch.topk(approx_scores, k=config.ndocs).indices]
 
             # Filter docs using full centroid scores
-            codes_packed, codes_lengths = self.lookup_codes(pids_)
+            codes_packed, codes_lengths = self.lookup_codes(pids)
             approx_scores = centroid_scores[codes_packed.long()]
             approx_scores_strided = StridedTensor(approx_scores, codes_lengths, use_gpu=self.use_gpu)
             approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()

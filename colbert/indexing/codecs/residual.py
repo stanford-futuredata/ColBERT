@@ -40,6 +40,7 @@ class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
     def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None):
+        self.mmap_index = config.mmap_index
         self.use_gpu = config.total_visible_gpus > 0
         if self.use_gpu > 0:
             self.centroids = centroids.cuda().half()
@@ -159,7 +160,7 @@ class ResidualCodec:
         codes = torch.cat(codes)
         residuals = torch.cat(residuals)
 
-        return ResidualCodec.Embeddings(codes, residuals)
+        return ResidualCodec.Embeddings(codes, residuals, mmap_index=self.mmap_index)
 
     def binarize(self, residuals):
         residuals = torch.bucketize(residuals.float(), self.bucket_cutoffs).to(dtype=torch.uint8)
