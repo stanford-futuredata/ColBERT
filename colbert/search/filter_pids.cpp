@@ -64,6 +64,8 @@ void* maxsim(void* args) {
         maxsim_args->approx_scores.push(std::make_pair(score, pid));
         seen_codes.clear();
     }
+
+    return NULL;
 }
 
 void filter_pids_helper(int ncentroids, int nquery_vectors, int npids,
