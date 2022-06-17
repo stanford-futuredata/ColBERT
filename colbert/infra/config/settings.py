@@ -150,7 +150,7 @@ class IndexingSettings:
 
     nbits: int = DefaultVal(1)
 
-    kmeans_niters: int = DefaultVal(20)
+    kmeans_niters: int = DefaultVal(4)
 
     resume: bool = DefaultVal(False)
 
