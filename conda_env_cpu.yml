@@ -10,6 +10,7 @@ dependencies:
   - pip:
     - bitarray
     - gitpython
+    - ninja
     - scipy
     - spacy
     - tqdm
