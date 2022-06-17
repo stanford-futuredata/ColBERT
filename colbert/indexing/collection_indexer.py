@@ -221,7 +221,9 @@ class CollectionIndexer():
 
         print_memory_stats(f'***3*** \t RANK:{self.rank}')
 
-        sample, sample_heldout = sample.split(int(sample.size(0) - min(.5 * sample.size(0), 50_000)), dim=0)
+        heldout_fraction = 0.05
+        heldout_size = int(min(heldout_fraction * sample.size(0), 50_000))
+        sample, sample_heldout = sample.split([sample.size(0) - heldout_size, heldout_size], dim=0)
 
         print_memory_stats(f'***4*** \t RANK:{self.rank}')
 
