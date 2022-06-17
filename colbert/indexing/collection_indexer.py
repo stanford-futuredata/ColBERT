@@ -361,20 +361,17 @@ class CollectionIndexer():
         codes = torch.empty(self.num_embeddings,)
         print_memory_stats(f'RANK:{self.rank}')
 
-        Run().print_main("#> Allocated memory for codes")
+        Run().print_main("#> Loading codes...")
 
-        for chunk_idx in range(self.num_chunks):
+        for chunk_idx in tqdm.tqdm(range(self.num_chunks)):
             offset = self.embedding_offsets[chunk_idx]
             chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
 
             codes[offset:offset+chunk_codes.size(0)] = chunk_codes
 
-            Run().print_main(f"#> Loaded codes for chunk {chunk_idx}")
-
         assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size())
 
 
-        Run().print_main(f"Finished loading codes")
         Run().print_main(f"Sorting codes...")
 
         print_memory_stats(f'RANK:{self.rank}')
