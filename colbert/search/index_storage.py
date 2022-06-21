@@ -25,6 +25,7 @@ filter_pids_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
+    verbose=True,
 )
 
 decompress_residuals_cpp = load(
@@ -35,6 +36,7 @@ decompress_residuals_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
+    verbose=True
 )
 
 class IndexScorer(IndexLoader, CandidateGeneration):

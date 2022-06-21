@@ -27,14 +27,9 @@ if torch.cuda.is_available():
                 pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
             ),
         ],
+        verbose=True
     )
 
-"""
-import line_profiler
-import atexit
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
-"""
 
 class ResidualCodec:
     Embeddings = ResidualEmbeddings

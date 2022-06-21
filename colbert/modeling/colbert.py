@@ -17,6 +17,7 @@ segmented_maxsim_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
+    verbose=True,
 )
 
 
