@@ -17,7 +17,7 @@ segmented_maxsim_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
-    verbose=True,
+    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
 )
 
 

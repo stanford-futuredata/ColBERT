@@ -25,7 +25,7 @@ filter_pids_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
-    verbose=True,
+    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
 )
 
 decompress_residuals_cpp = load(
@@ -36,7 +36,7 @@ decompress_residuals_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
-    verbose=True
+    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
 )
 
 class IndexScorer(IndexLoader, CandidateGeneration):

@@ -7,12 +7,6 @@ from colbert.utils.utils import flatten
 from .strided_tensor_core import StridedTensorCore, _create_mask, _create_view
 
 
-"""
-import line_profiler
-import atexit
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
-"""
 import os
 import pathlib
 from torch.utils.cpp_extension import load
@@ -24,6 +18,7 @@ segmented_lookup_cpp = load(
         ),
     ],
     extra_cflags=["-O3"],
+    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
 )
 
 

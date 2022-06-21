@@ -27,7 +27,7 @@ if torch.cuda.is_available():
                 pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
             ),
         ],
-        verbose=True
+        verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
     )
 
 
