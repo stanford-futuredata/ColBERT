@@ -8,20 +8,16 @@ from colbert.infra import ColBERTConfig, RunConfig, Run
 from colbert.data import Queries
 
 CKPT = "/dfs/scratch0/okhattab/share/2021/checkpoints/msmarco.psg.kldR2.nway64.ib__colbert-400000"
-STACKEXCHANGE_DATA_PATH = "/future/u/xmgui/ColBERT/docs/downloads/lotte"
+STACKEXCHANGE_DATA_PATH = "/future/u/xmgui/testdata"
 EXPERIMENT_DIR = "/future/u/xmgui/ColBERT/experiments"
 
-STACKEXCHANGE_DATASETS = [
-    "lifestyle",
-]
 
-
-def build_index(dataset, dataset_path, split, k):
+def build_index(dataset_path):
     nbits = 2  # encode each dimension with 2 bits
     doc_maxlen = 300  # truncate passages at 300 tokens
-    collection = os.path.join(dataset_path, dataset, split, 'collection.tsv')
-    index_name = f'{dataset}.{split}.{nbits}bits.latest'
-    experiment = (f"{dataset}.{split}.nbits={nbits}",)
+    collection = os.path.join(dataset_path, 'cs224u.collection.tsv')
+    index_name = f'e2etest.{nbits}bits.latest'
+    experiment = (f"e2etest.nbits={nbits}",)
 
     with Run().context(RunConfig(nranks=4)):
         config = ColBERTConfig(
@@ -36,8 +32,6 @@ def build_index(dataset, dataset_path, split, k):
         config = ColBERTConfig(
             root=EXPERIMENT_DIR,
             experiment=experiment,
-            nprobe=2,
-            ncandidates=8192,
         )
         searcher = Searcher(
             index=index_name,
@@ -47,20 +41,19 @@ def build_index(dataset, dataset_path, split, k):
         return searcher
 
 
-def search(searcher, dataset, dataset_path, split, query_type, k):
+def search(searcher, dataset_path, query_type, k):
     queries = os.path.join(
-        dataset_path, dataset, split, f"questions.{query_type}.tsv"
+        dataset_path, f"questions.{query_type}.tsv"
     )
     queries = Queries(path=queries)
     ranking = searcher.search_all(queries, k=k)
-    output_path = ranking.save(f"{dataset}.{query_type}.ranking.tsv")
+    output_path = ranking.save(f"e2etest.{query_type}.ranking.tsv")
     return output_path
 
 
-def evaluate_dataset(dataset, dataset_path, split, query_type, k, rankings_path):
-    data_path = os.path.join(dataset_path, dataset, split)
+def evaluate_dataset(dataset_path, query_type, k, rankings_path):
     if not os.path.exists(rankings_path):
-        print(f"[query_type={query_type}, dataset={dataset}] Success@{k}: ???")
+        print(f"[query_type={query_type}] Success@{k}: ???")
         return
     rankings = defaultdict(list)
     with open(rankings_path, "r") as f:
@@ -75,7 +68,7 @@ def evaluate_dataset(dataset, dataset_path, split, query_type, k, rankings_path)
             assert rank == len(rankings[qid])
 
     success = 0
-    qas_path = os.path.join(data_path, f"qas.{query_type}.jsonl")
+    qas_path = os.path.join(dataset_path, f"qas.{query_type}.jsonl")
 
     # check if the generated ranking's top k intersects with the provided answer
     num_total_qids = 0
@@ -90,19 +83,17 @@ def evaluate_dataset(dataset, dataset_path, split, query_type, k, rankings_path)
             if len(set(rankings[qid][:k]).intersection(answer_pids)) > 0:
                 success += 1
     print(
-        f"[query_type={query_type}, dataset={dataset}] "
+        f"[query_type={query_type}] "
         f"Success@{k}: {success / num_total_qids * 100:.1f}"
     )
 
 
 def main():
-    split = "dev"
     k = 5
-    for dataset in STACKEXCHANGE_DATASETS:
-        searcher = build_index(dataset, STACKEXCHANGE_DATA_PATH, split, k)
-        for query_type in ["search", "forum"]:
-            rankings_path = search(searcher, dataset, STACKEXCHANGE_DATA_PATH, split, query_type, k)
-            evaluate_dataset(dataset, STACKEXCHANGE_DATA_PATH, split, query_type, k, rankings_path)
+    searcher = build_index(STACKEXCHANGE_DATA_PATH)
+    for query_type in ["search", "forum"]:
+        rankings_path = search(searcher, STACKEXCHANGE_DATA_PATH, query_type, k)
+        evaluate_dataset(STACKEXCHANGE_DATA_PATH, query_type, k, rankings_path)
 
 
 if __name__ == "__main__":
