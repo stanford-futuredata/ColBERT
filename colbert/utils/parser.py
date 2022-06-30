@@ -14,6 +14,7 @@ class Arguments():
         self.parser = ArgumentParser(description=description)
         self.checks = []
 
+        self.add_argument('--lm', dest='lm', default='bert-base-uncased')
         self.add_argument('--root', dest='root', default='experiments')
         self.add_argument('--experiment', dest='experiment', default='dirty')
         self.add_argument('--run', dest='run', default=Run.name)
