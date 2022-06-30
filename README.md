@@ -22,6 +22,11 @@ These rich interactions allow ColBERT to surpass the quality of _single-vector_ 
 
 ----
 
+## ColBERTv1
+
+The ColBERTv1 code from the SIGIR'20 paper is in the [`colbertv1` branch](https://github.com/stanford-futuredata/ColBERT/tree/colbertv1)). See [here](#branches) for more information on other branches.
+
+
 ## Installation
 
 ColBERT requires Python 3.7+ and Pytorch 1.9+ and uses the [HuggingFace Transformers](https://github.com/huggingface/transformers) library.
