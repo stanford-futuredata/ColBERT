@@ -1,3 +1,13 @@
+----
+----
+
+**WARNING: This branch has been deprecated! Please use the [`main` branch](https://github.com/stanford-futuredata/ColBERT/tree/main) instead.**
+
+----
+
+----
+
+
 # ColBERT: Binarization Branch
 
 ### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds.
