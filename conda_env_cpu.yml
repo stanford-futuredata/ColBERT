@@ -1,4 +1,4 @@
-name: colbert-v0.4-cpu
+name: colbert
 channels:
   - pytorch
   - conda-forge

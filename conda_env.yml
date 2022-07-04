@@ -1,4 +1,4 @@
-name: colbert-v0.4
+name: colbert
 channels:
   - pytorch
   - nvidia
