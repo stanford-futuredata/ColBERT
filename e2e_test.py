@@ -1,4 +1,6 @@
 import os
+import sys
+import getopt
 from collections import namedtuple
 from datasets import load_dataset
 from utility.utils.dpr import has_answer, DPR_normalize
@@ -6,9 +8,9 @@ from utility.utils.dpr import has_answer, DPR_normalize
 from colbert import Indexer, Searcher
 from colbert.infra import ColBERTConfig, RunConfig, Run
 
-CKPT = "/dfs/scratch0/okhattab/share/2021/checkpoints/msmarco.psg.kldR2.nway64.ib__colbert-400000"
-DATA_PATH = "/future/u/xmgui/testdata"
-EXPERIMENT_DIR = "/future/u/xmgui/ColBERT/experiments"
+CKPT = ""
+DATA_PATH = ""
+EXPERIMENT_DIR = ""
 
 SquadExample = namedtuple("SquadExample",  "id title context question answers")
 
@@ -66,7 +68,43 @@ def get_squad_split(squad, split="validation"):
             for eid, title, context, question, answers in data]
 
 
-def main():
+def main(argv):
+    global CKPT
+    global DATA_PATH
+    global EXPERIMENT_DIR
+
+    # args = sys.argv[1:]
+    # print(f"args {args}")
+    i = 0
+    # while i + 1 < len(args):
+    #     match args[i]:
+    #         case "-ckpt":
+    #             CKPT = args[i+1]
+    #         case "-data":
+    #             DATA_PATH = args[i+1]
+    #         case "-expdir":
+    #             EXPERIMENT_DIR = args[i+1]
+    #     i += 2
+
+    # Parse the command line arguments
+    try:
+        opts, args = getopt.getopt(argv, "hc:d:e:", ["ckpt=", "data=", "expdir="])
+    except getopt.GetoptError:
+        print('test.py -c <ckpt> -d <datapath> -e <experimentdir>')
+        sys.exit()
+    for opt, arg in opts:
+        if opt == '-h':
+            print('test.py -c <ckpt> -d <datapath> -e <experimentdir>')
+            sys.exit()
+        elif opt in ("-c", "--ckpt"):
+            CKPT = arg
+        elif opt in ("-d", "--data"):
+            DATA_PATH = arg
+        elif opt in ("-e", "--expdir"):
+            EXPERIMENT_DIR = arg
+    assert CKPT != "" and DATA_PATH != "" and EXPERIMENT_DIR != "", "missing required argument"
+
+    # Start the test
     k = 5
     searcher = build_index(DATA_PATH)
 
@@ -74,7 +112,8 @@ def main():
     squad_dev = get_squad_split(squad)
     success_rate = success_at_k(searcher, squad_dev, k)
     assert success_rate > 0.7, f"success rate at {success_rate} is lower than expected"
+    print(f"test passed with succeed rate {success_rate}")
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
