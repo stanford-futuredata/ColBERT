@@ -13,7 +13,6 @@ dependencies:
   - torchaudio
   - torchvision
   - pip:
-    - cupy-cuda110
     - bitarray
     - gitpython
     - jupyter
