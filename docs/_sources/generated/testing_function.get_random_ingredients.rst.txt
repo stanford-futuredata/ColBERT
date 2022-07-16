@@ -1,6 +1,0 @@
-﻿testing\_function.get\_random\_ingredients
-==========================================
-
-.. currentmodule:: testing_function
-
-.. autodata:: get_random_ingredients
