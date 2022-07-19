@@ -1,6 +1,5 @@
 import os
-import sys
-import getopt
+import argparse
 from collections import namedtuple
 from datasets import load_dataset
 from utility.utils.dpr import has_answer, DPR_normalize
@@ -22,7 +21,7 @@ def build_index(dataset_path):
     index_name = f'e2etest.{nbits}bits.latest'
     experiment = (f"e2etest.nbits={nbits}",)
 
-    with Run().context(RunConfig(nranks=4)):
+    with Run().context(RunConfig(nranks=1)):
         config = ColBERTConfig(
             doc_maxlen=doc_maxlen,
             nbits=nbits,
@@ -68,41 +67,23 @@ def get_squad_split(squad, split="validation"):
             for eid, title, context, question, answers in data]
 
 
-def main(argv):
+def main():
     global CKPT
     global DATA_PATH
     global EXPERIMENT_DIR
 
-    # args = sys.argv[1:]
-    # print(f"args {args}")
-    i = 0
-    # while i + 1 < len(args):
-    #     match args[i]:
-    #         case "-ckpt":
-    #             CKPT = args[i+1]
-    #         case "-data":
-    #             DATA_PATH = args[i+1]
-    #         case "-expdir":
-    #             EXPERIMENT_DIR = args[i+1]
-    #     i += 2
-
     # Parse the command line arguments
-    try:
-        opts, args = getopt.getopt(argv, "hc:d:e:", ["ckpt=", "data=", "expdir="])
-    except getopt.GetoptError:
-        print('test.py -c <ckpt> -d <datapath> -e <experimentdir>')
-        sys.exit()
-    for opt, arg in opts:
-        if opt == '-h':
-            print('test.py -c <ckpt> -d <datapath> -e <experimentdir>')
-            sys.exit()
-        elif opt in ("-c", "--ckpt"):
-            CKPT = arg
-        elif opt in ("-d", "--data"):
-            DATA_PATH = arg
-        elif opt in ("-e", "--expdir"):
-            EXPERIMENT_DIR = arg
-    assert CKPT != "" and DATA_PATH != "" and EXPERIMENT_DIR != "", "missing required argument"
+    parser = argparse.ArgumentParser(description="Start end-to-end test.")
+    parser.add_argument("--ckpt", type=str, required=True,
+                        help="index checkpoint")
+    parser.add_argument("--data", type=str, required=True,
+                        help="data set path")
+    parser.add_argument("--expdir", type=str, required=True,
+                        help="experiment directory")
+    args = vars(parser.parse_args())
+    CKPT = args["ckpt"]
+    DATA_PATH = args["data"]
+    EXPERIMENT_DIR = args["expdir"]
 
     # Start the test
     k = 5
@@ -116,4 +97,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
