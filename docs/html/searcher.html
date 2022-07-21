@@ -6,17 +6,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Searcher &#8212; ColBERT v2 documentation</title>
-    <link rel="stylesheet" type="text/css" href="./pygments.css" />
-    <link rel="stylesheet" type="text/css" href="./alabaster.css" />
-    <script id="documentation_options" data-url_root="./" src="./documentation_options.js"></script>
-    <script src="./jquery.js"></script>
-    <script src="./underscore.js"></script>
-    <script src="./doctools.js"></script>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="prev" title="Indexer" href="indexer.html" />
    
-  <link rel="stylesheet" type="text/css" href="./custom.css" />
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
   
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
@@ -49,17 +49,50 @@
 <dl class="py function">
 <dt id="searcher.Searcher.configure">
 <code class="sig-prename descclassname"><span class="pre">searcher.Searcher.</span></code><code class="sig-name descname"><span class="pre">configure</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kw_args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#searcher.Searcher.configure" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Configure indexing argument for ColBERT retriever</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>kw_args</strong> (<em>Dictionary</em>) – Chosen arguments</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt id="searcher.Searcher.encode">
 <code class="sig-prename descclassname"><span class="pre">searcher.Searcher.</span></code><code class="sig-name descname"><span class="pre">encode</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span> </span><span class="pre">colbert.data.Queries</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#searcher.Searcher.encode" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Encode text queries for ColBERT retriever</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>text</strong> (<em>TextQueries</em>) – Given text queries</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Encoded queries</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Queries</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt id="searcher.Searcher.search">
 <code class="sig-prename descclassname"><span class="pre">searcher.Searcher.</span></code><code class="sig-name descname"><span class="pre">search</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#searcher.Searcher.search" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Search selected query text in given ColBERT index</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>text</strong> (<em>int</em>) – Single string text for query</p></li>
+<li><p><strong>k</strong> – Number of top retrieved results to return</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Indices of top results</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>List[int]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt id="searcher.Searcher._search_all_Q">
@@ -138,7 +171,7 @@
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
-      <a href="searcher.rst.txt"
+      <a href="_sources/searcher.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 

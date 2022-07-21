@@ -14,11 +14,25 @@ class Trainer:
         self.collection = collection
 
     def configure(self, **kw_args):
+        """
+        Configure training argument for ColBERT retriever 
+
+        :param kw_args: Chosen arguments
+        :type kw_args: Dictionary
+        """
         self.config.configure(**kw_args)
 
     def train(self, checkpoint='bert-base-uncased'):
         """
             Note that config.checkpoint is ignored. Only the supplied checkpoint here is used.
+        """
+
+        """
+        Trains ColBERT retriever using selected checkpoints
+        Note that config.checkpoint is ignored. Only the supplied checkpoint here is used.
+
+        :param checkpoint: Checkpoint for starting training. Default is 'bert-base-uncased'
+        :type checkpoint: str
         """
 
         # Resources don't come from the config object. They come from the input parameters.
@@ -32,5 +46,11 @@ class Trainer:
 
 
     def best_checkpoint_path(self):
+        """
+        Returns best performing checkpoint of ColBERT retriever
+
+        :return: Best checkpoint path
+        :rtype: Path
+        """
         return self._best_checkpoint_path
 

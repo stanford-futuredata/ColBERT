@@ -26,12 +26,30 @@ class Indexer:
         self.configure(checkpoint=checkpoint)
 
     def configure(self, **kw_args):
+        """
+        Configure indexing argument for ColBERT retriever 
+
+        :param kw_args: Chosen arguments
+        :type kw_args: Dictionary
+        """
         self.config.configure(**kw_args)
 
     def get_index(self):
+        """
+        Returns index path of generated ColBERT index
+
+        :return: Index path
+        :rtype: Path
+        """
         return self.index_path
 
     def erase(self):
+        """
+        Erase given ColBERT index
+
+        :return: Deleted index path
+        :rtype: Path
+        """
         assert self.index_path is not None
         directory = self.index_path
         deleted = []
@@ -56,6 +74,18 @@ class Indexer:
         return deleted
 
     def index(self, name, collection, overwrite=False):
+        """
+        Generate index for ColBERT retriever
+
+        :param name: Name of new index
+        :type name: str
+        :param collection: Collection selected for indexing
+        :type collection: Path
+        :param overwrite: Overwrite given index name, if already created
+        :type overwrite: bool
+        :return: Index path
+        :rtype: Path
+        """
         assert overwrite in [True, False, 'reuse', 'resume']
 
         self.configure(collection=collection, index_name=name, resume=overwrite=='resume')

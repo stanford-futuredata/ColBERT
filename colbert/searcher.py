@@ -45,9 +45,23 @@ class Searcher:
         print_memory_stats()
 
     def configure(self, **kw_args):
+        """
+        Configure indexing argument for ColBERT retriever 
+
+        :param kw_args: Chosen arguments
+        :type kw_args: Dictionary
+        """
         self.config.configure(**kw_args)
 
     def encode(self, text: TextQueries):
+        """
+        Encode text queries for ColBERT retriever
+
+        :param text: Given text queries
+        :type text: TextQueries
+        :return: Encoded queries
+        :rtype: Queries
+        """
         queries = text if type(text) is list else [text]
         bsize = 128 if len(queries) > 128 else None
 
@@ -57,10 +71,30 @@ class Searcher:
         return Q
 
     def search(self, text: str, k=10):
+        """
+        Search selected query text in given ColBERT index
+
+        :param text: Single string text for query
+        :type text: str
+        :param k: Number of top retrieved results to return
+        :type text: int
+        :return: Indices of top results 
+        :rtype: List[int]
+        """
         Q = self.encode(text)
         return self.dense_search(Q, k)
 
     def search_all(self, queries: TextQueries, k=10):
+        """
+        Search all queries in given ColBERT index
+
+        :param queries: Given queries to search
+        :type queries: TextQueries
+        :param k: Number of top retrieved results to return
+        :type text: int
+        :return: Indices of top results 
+        :rtype: List[int]
+        """
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
