@@ -77,9 +77,9 @@ class Searcher:
         :param text: Single string text for query
         :type text: str
         :param k: Number of top retrieved results to return
-        :type text: int
-        :return: Indices of top results 
-        :rtype: List[int]
+        :type k: int
+        :return: Indices of top results with their scores
+        :rtype: List[int], List[int], List[int]
         """
         Q = self.encode(text)
         return self.dense_search(Q, k)
@@ -91,9 +91,9 @@ class Searcher:
         :param queries: Given queries to search
         :type queries: TextQueries
         :param k: Number of top retrieved results to return
-        :type text: int
+        :type k: int
         :return: Indices of top results 
-        :rtype: List[int]
+        :rtype: Ranking
         """
         queries = Queries.cast(queries)
         queries_ = list(queries.values())

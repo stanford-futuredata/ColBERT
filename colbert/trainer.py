@@ -15,7 +15,7 @@ class Trainer:
 
     def configure(self, **kw_args):
         """
-        Configure training argument for ColBERT retriever 
+        Configure training arguments for ColBERT retriever 
 
         :param kw_args: Chosen arguments
         :type kw_args: Dictionary

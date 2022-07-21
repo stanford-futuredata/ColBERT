@@ -47,8 +47,8 @@ class Indexer:
         """
         Erase given ColBERT index
 
-        :return: Deleted index path
-        :rtype: Path
+        :return: List of deleted files
+        :rtype: List[str]
         """
         assert self.index_path is not None
         directory = self.index_path

@@ -6,17 +6,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Searcher &#8212; ColBERT v2 documentation</title>
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script src="_static/jquery.js"></script>
-    <script src="_static/underscore.js"></script>
-    <script src="_static/doctools.js"></script>
+    <link rel="stylesheet" href="./pygments.css" type="text/css" />
+    <link rel="stylesheet" href="./alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="./documentation_options.js"></script>
+    <script src="./jquery.js"></script>
+    <script src="./underscore.js"></script>
+    <script src="./doctools.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="prev" title="Indexer" href="indexer.html" />
    
-  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  <link rel="stylesheet" href="./custom.css" type="text/css" />
   
   
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
@@ -81,15 +81,15 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>text</strong> (<em>int</em>) – Single string text for query</p></li>
-<li><p><strong>k</strong> – Number of top retrieved results to return</p></li>
+<li><p><strong>text</strong> (<em>str</em>) – Single string text for query</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – Number of top retrieved results to return</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Indices of top results</p>
+<dd class="field-even"><p>Indices of top results with their scores</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>List[int]</p>
+<dd class="field-odd"><p>List[int], List[int], List[int]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -171,7 +171,7 @@
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
-      <a href="_sources/searcher.rst.txt"
+      <a href="./searcher.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 
