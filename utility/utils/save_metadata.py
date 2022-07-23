@@ -12,9 +12,12 @@ def get_metadata_only():
     args = dotdict()
 
     args.hostname = socket.gethostname()
-    args.git_branch = git.Repo(search_parent_directories=True).active_branch.name
-    args.git_hash = git.Repo(search_parent_directories=True).head.object.hexsha
-    args.git_commit_datetime = str(git.Repo(search_parent_directories=True).head.object.committed_datetime)
+    try:
+        args.git_branch = git.Repo(search_parent_directories=True).active_branch.name
+        args.git_hash = git.Repo(search_parent_directories=True).head.object.hexsha
+        args.git_commit_datetime = str(git.Repo(search_parent_directories=True).head.object.committed_datetime)
+    except git.exc.InvalidGitRepositoryError as e:
+        pass
     args.current_datetime = time.strftime('%b %d, %Y ; %l:%M%p %Z (%z)')
     args.cmd = ' '.join(sys.argv)
 

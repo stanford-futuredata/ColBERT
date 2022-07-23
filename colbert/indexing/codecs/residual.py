@@ -4,10 +4,6 @@ EVENTUALLY: Tune the batch sizes selected here for a good balance of speed and g
 
 import os
 import torch
-try:
-    import cupy
-except ImportError as e:
-    assert not torch.cuda.is_available(), "cupy must be installed in GPU mode"
 import numpy as np
 from itertools import product
 
@@ -27,6 +23,19 @@ if torch.cuda.is_available():
                 pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
             ),
         ],
+        verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+    )
+    packbits_cpp = load(
+        name="packbits_cpp",
+        sources=[
+            os.path.join(
+                pathlib.Path(__file__).parent.resolve(), "packbits.cpp"
+            ),
+            os.path.join(
+                pathlib.Path(__file__).parent.resolve(), "packbits.cu"
+            ),
+        ],
+        verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
     )
 
 class ResidualCodec:
@@ -56,6 +65,8 @@ class ResidualCodec:
             self.bucket_weights = self.bucket_weights.to(torch.float32)
 
         self.arange_bits = torch.arange(0, self.nbits, device='cuda' if self.use_gpu else 'cpu', dtype=torch.uint8)
+
+        self.rank = config.rank
 
         # We reverse the residual bits because arange_bits as
         # currently constructed produces results with the reverse
@@ -165,11 +176,10 @@ class ResidualCodec:
         assert self.dim % (self.nbits * 8) == 0, (self.dim, self.nbits)
 
         if self.use_gpu:
-            residuals_packed = cupy.packbits(cupy.asarray(residuals.contiguous().flatten()))
+            residuals_packed = packbits_cpp.packbits_cpp(residuals.contiguous().flatten())
         else:
             residuals_packed = np.packbits(np.asarray(residuals.contiguous().flatten()))
         residuals_packed = torch.as_tensor(residuals_packed, dtype=torch.uint8)
-
         residuals_packed = residuals_packed.reshape(residuals.size(0), self.dim // 8 * self.nbits)
 
         return residuals_packed
