@@ -19,7 +19,7 @@ def init(rank):
 
     ALREADY_INITALIZED = True
 
-    if is_distributed:
+    if is_distributed and torch.cuda.is_available():
         num_gpus = torch.cuda.device_count()
         print(f'nranks = {nranks} \t num_gpus = {num_gpus} \t device={rank % num_gpus}')
 

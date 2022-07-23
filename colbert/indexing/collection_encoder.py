@@ -8,6 +8,7 @@ class CollectionEncoder():
     def __init__(self, config, checkpoint):
         self.config = config
         self.checkpoint = checkpoint
+        self.use_gpu = self.config.total_visible_gpus > 0
 
     def encode_passages(self, passages):
         Run().print(f"#> Encoding {len(passages)} passages..")
@@ -23,7 +24,7 @@ class CollectionEncoder():
             # But ideally this batching happens internally inside docFromText.
             for passages_batch in batch(passages, self.config.bsize * 50):
                 embs_, doclens_ = self.checkpoint.docFromText(passages_batch, bsize=self.config.bsize,
-                                                              keep_dims='flatten', showprogress=False)
+                                                              keep_dims='flatten', showprogress=(not self.use_gpu))
                 embs.append(embs_)
                 doclens.extend(doclens_)
 

@@ -5,14 +5,16 @@ channels:
   - defaults
 dependencies:
   - python=3.8
+  - faiss-cpu
   - pip=21.0
-  - pytorch-cpu=1.9.0
+  - pytorch-cpu
   - pip:
     - bitarray
+    - datasets
     - gitpython
     - ninja
     - scipy
     - spacy
     - tqdm
-    - transformers==4.10.0
+    - transformers
     - ujson

@@ -38,11 +38,15 @@ class CollectionIndexer():
         self.config = config
         self.rank, self.nranks = self.config.rank, self.config.nranks
 
+        self.use_gpu = self.config.total_visible_gpus > 0
+
         if self.config.rank == 0:
             self.config.help()
 
         self.collection = Collection.cast(collection)
-        self.checkpoint = Checkpoint(self.config.checkpoint, colbert_config=self.config).cuda()
+        self.checkpoint = Checkpoint(self.config.checkpoint, colbert_config=self.config)
+        if self.use_gpu:
+            self.checkpoint = self.checkpoint.cuda()
 
         self.encoder = CollectionEncoder(config, self.checkpoint)
         self.saver = IndexSaver(config)
@@ -117,22 +121,41 @@ class CollectionIndexer():
 
         local_sample_embs, doclens = self.encoder.encode_passages(local_sample)
 
-        self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
-        torch.distributed.all_reduce(self.num_sample_embs)
+        if torch.cuda.is_available():
+            self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
+            torch.distributed.all_reduce(self.num_sample_embs)
 
-        avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-        avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
-        torch.distributed.all_reduce(avg_doclen_est)
+            avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+            avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
+            torch.distributed.all_reduce(avg_doclen_est)
 
-        nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
-        torch.distributed.all_reduce(nonzero_ranks)
+            nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
+            torch.distributed.all_reduce(nonzero_ranks)
+        else:
+            if torch.distributed.is_initialized():
+                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
+                torch.distributed.all_reduce(self.num_sample_embs)
+
+                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+                avg_doclen_est = torch.tensor([avg_doclen_est]).cpu()
+                torch.distributed.all_reduce(avg_doclen_est)
+
+                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cpu()
+                torch.distributed.all_reduce(nonzero_ranks)
+            else:
+                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
+
+                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+                avg_doclen_est = torch.tensor([avg_doclen_est]).cpu()
+
+                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cpu()
 
         avg_doclen_est = avg_doclen_est.item() / nonzero_ranks.item()
         self.avg_doclen_est = avg_doclen_est
 
         Run().print(f'avg_doclen_est = {avg_doclen_est} \t len(local_sample) = {len(local_sample):,}')
 
-        torch.save(local_sample_embs, os.path.join(self.config.index_path_, f'sample.{self.rank}.pt'))
+        torch.save(local_sample_embs.half(), os.path.join(self.config.index_path_, f'sample.{self.rank}.pt'))
 
         return avg_doclen_est
 
@@ -230,7 +253,8 @@ class CollectionIndexer():
         return sample, sample_heldout
 
     def _train_kmeans(self, sample, shared_lists):
-        torch.cuda.empty_cache()
+        if self.use_gpu:
+            torch.cuda.empty_cache()
 
         do_fork_for_faiss = False  # set to True to free faiss GPU-0 memory at the cost of one more copy of `sample`.
 
@@ -254,16 +278,23 @@ class CollectionIndexer():
             args_ = args_ + [[[sample]]]
             centroids = compute_faiss_kmeans(*args_)
 
-        centroids = torch.nn.functional.normalize(centroids, dim=-1).half()
+        centroids = torch.nn.functional.normalize(centroids, dim=-1)
+        if self.use_gpu:
+            centroids = centroids.half()
+        else:
+            centroids = centroids.float()
 
         return centroids
 
     def _compute_avg_residual(self, centroids, heldout):
         compressor = ResidualCodec(config=self.config, centroids=centroids, avg_residual=None)
 
-        heldout_reconstruct = compressor.compress_into_codes(heldout, out_device='cuda')
-        heldout_reconstruct = compressor.lookup_centroids(heldout_reconstruct, out_device='cuda')
-        heldout_avg_residual = heldout.cuda() - heldout_reconstruct
+        heldout_reconstruct = compressor.compress_into_codes(heldout, out_device='cuda' if self.use_gpu else 'cpu')
+        heldout_reconstruct = compressor.lookup_centroids(heldout_reconstruct, out_device='cuda' if self.use_gpu else 'cpu')
+        if self.use_gpu:
+            heldout_avg_residual = heldout.cuda() - heldout_reconstruct
+        else:
+            heldout_avg_residual = heldout - heldout_reconstruct
 
         avg_residual = torch.abs(heldout_avg_residual).mean(dim=0).cpu()
         print([round(x, 3) for x in avg_residual.squeeze().tolist()])
@@ -294,7 +325,11 @@ class CollectionIndexer():
                     Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
                     continue
                 embs, doclens = self.encoder.encode_passages(passages)
-                assert embs.dtype == torch.float16
+                if self.use_gpu:
+                    assert embs.dtype == torch.float16
+                else:
+                    assert embs.dtype == torch.float32
+                    embs = embs.half()
 
                 Run().print_main(f"#> Saving chunk {chunk_idx}: \t {len(passages):,} passages "
                                  f"and {embs.size(0):,} embeddings. From #{offset:,} onward.")
@@ -388,23 +423,7 @@ class CollectionIndexer():
         # All partitions should be non-empty. (We can use torch.histc otherwise.)
         assert partitions.size(0) == self.num_partitions, (partitions.size(), self.num_partitions)
 
-        # ivf = [[] for _ in range(self.num_partitions)]
-        # for chunk_idx in range(self.num_chunks):
-        #     embedding_offset = self.embedding_offsets[chunk_idx]
-        #     chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
-
-        #     for local_embedding_idx, partition_idx in enumerate(chunk_codes.tolist()):
-        #         embedding_idx = embedding_offset + local_embedding_idx
-        #         ivf[partition_idx].append(embedding_idx)
-
-        # ivf_lengths = [len(partition) for partition in ivf]
-        # ivf = torch.tensor(flatten(ivf), dtype=torch.long)  # FIXME: If num_embeddings > 2B, use torch.long!
-
         print_memory_stats(f'RANK:{self.rank}')
-
-        # TODO: Add a flag to control whether we save the original IVF
-        # original_ivf_path = os.path.join(self.config.index_path_, 'ivf.pt')
-        # torch.save((ivf, ivf_lengths.clone()), original_ivf_path)
 
         _, _ = optimize_ivf(ivf, ivf_lengths, self.config.index_path_)
 
@@ -424,10 +443,12 @@ class CollectionIndexer():
 
 
 def compute_faiss_kmeans(dim, num_partitions, kmeans_niters, shared_lists, return_value_queue=None):
-    kmeans = faiss.Kmeans(dim, num_partitions, niter=kmeans_niters, gpu=True, verbose=True, seed=123)
+    use_gpu = torch.cuda.is_available()
+    kmeans = faiss.Kmeans(dim, num_partitions, niter=kmeans_niters, gpu=use_gpu, verbose=True, seed=123)
 
     sample = shared_lists[0][0]
     sample = sample.float().numpy()
+
     kmeans.train(sample)
 
     centroids = torch.from_numpy(kmeans.centroids)

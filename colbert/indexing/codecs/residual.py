@@ -38,7 +38,6 @@ if torch.cuda.is_available():
         verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
     )
 
-
 class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
@@ -62,8 +61,8 @@ class ResidualCodec:
 
         self.bucket_cutoffs = bucket_cutoffs
         self.bucket_weights = bucket_weights
-        if not self.use_gpu:
-            self.bucket_weights = bucket_weights.to(torch.float32)
+        if not self.use_gpu and self.bucket_weights is not None:
+            self.bucket_weights = self.bucket_weights.to(torch.float32)
 
         self.arange_bits = torch.arange(0, self.nbits, device='cuda' if self.use_gpu else 'cpu', dtype=torch.uint8)
 
@@ -140,7 +139,7 @@ class ResidualCodec:
         avgresidual_path = os.path.join(index_path, 'avg_residual.pt')
         buckets_path = os.path.join(index_path, 'buckets.pt')
 
-        torch.save(self.centroids, centroids_path)
+        torch.save(self.centroids.half(), centroids_path)
         torch.save((self.bucket_cutoffs, self.bucket_weights), buckets_path)
 
         if torch.is_tensor(self.avg_residual):
@@ -152,7 +151,8 @@ class ResidualCodec:
         codes, residuals = [], []
 
         for batch in embs.split(1 << 18):
-            batch = batch.cuda().half()
+            if self.use_gpu:
+                batch = batch.cuda().half()
             codes_ = self.compress_into_codes(batch, out_device=batch.device)
             centroids_ = self.lookup_centroids(codes_, out_device=batch.device)
 
@@ -175,7 +175,11 @@ class ResidualCodec:
         assert self.dim % 8 == 0
         assert self.dim % (self.nbits * 8) == 0, (self.dim, self.nbits)
 
-        residuals_packed = packbits_cpp.packbits_cpp(residuals.contiguous().flatten())
+        if self.use_gpu:
+            residuals_packed = packbits_cpp.packbits_cpp(residuals.contiguous().flatten())
+        else:
+            residuals_packed = np.packbits(np.asarray(residuals.contiguous().flatten()))
+        residuals_packed = torch.as_tensor(residuals_packed, dtype=torch.uint8)
         residuals_packed = residuals_packed.reshape(residuals.size(0), self.dim // 8 * self.nbits)
 
         return residuals_packed
@@ -190,7 +194,10 @@ class ResidualCodec:
 
         bsize = (1 << 29) // self.centroids.size(0)
         for batch in embs.split(bsize):
-            indices = (self.centroids @ batch.T.cuda().half()).max(dim=0).indices.to(device=out_device)
+            if self.use_gpu:
+                indices = (self.centroids @ batch.T.cuda().half()).max(dim=0).indices.to(device=out_device)
+            else:
+                indices = (self.centroids @ batch.T.cpu().float()).max(dim=0).indices.to(device=out_device)
             codes.append(indices)
 
         return torch.cat(codes)
