@@ -2,29 +2,40 @@ from struct import pack
 import torch
 from torch._C import device
 
-from colbert.utils.utils import flatten
+from colbert.utils.utils import flatten, print_message
 
 from .strided_tensor_core import StridedTensorCore, _create_mask, _create_view
-
 
 import os
 import pathlib
 from torch.utils.cpp_extension import load
-segmented_lookup_cpp = load(
-    name="segmented_lookup_cpp",
-    sources=[
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "segmented_lookup.cpp"
-        ),
-    ],
-    extra_cflags=["-O3"],
-    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
-)
 
 
 class StridedTensor(StridedTensorCore):
     def __init__(self, packed_tensor, lengths, dim=None, use_gpu=True):
         super().__init__(packed_tensor, lengths, dim=dim, use_gpu=use_gpu)
+
+        StridedTensor.try_load_torch_extensions(use_gpu)
+
+    @classmethod
+    def try_load_torch_extensions(cls, use_gpu):
+        if hasattr(cls, "loaded_extensions") or use_gpu:
+            return
+
+        print_message(f"Loading segmented_lookup_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
+        segmented_lookup_cpp = load(
+            name="segmented_lookup_cpp",
+            sources=[
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "segmented_lookup.cpp"
+                ),
+            ],
+            extra_cflags=["-O3"],
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+        )
+        cls.segmented_lookup = segmented_lookup_cpp.segmented_lookup_cpp
+
+        cls.loaded_extensions = True
 
     @classmethod
     def pad_packed(cls, packed_tensor, lengths):
@@ -80,7 +91,7 @@ class StridedTensor(StridedTensorCore):
 
             tensor = tensor[mask]
         else:
-            tensor = segmented_lookup_cpp.segmented_lookup_cpp(self.tensor, pids, lengths, offsets)
+            tensor = StridedTensor.segmented_lookup(self.tensor, pids, lengths, offsets)
 
         return tensor, lengths
 

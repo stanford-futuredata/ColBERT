@@ -17,34 +17,47 @@ import os
 import pathlib
 from torch.utils.cpp_extension import load
 
-filter_pids_cpp = load(
-    name="filter_pids_cpp",
-    sources=[
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "filter_pids.cpp"
-        ),
-    ],
-    extra_cflags=["-O3"],
-    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
-)
-
-decompress_residuals_cpp = load(
-    name="decompress_residuals_cpp",
-    sources=[
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
-        ),
-    ],
-    extra_cflags=["-O3"],
-    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
-)
 
 class IndexScorer(IndexLoader, CandidateGeneration):
     def __init__(self, index_path, use_gpu=True):
         super().__init__(index_path=index_path, use_gpu=use_gpu)
 
+        IndexScorer.try_load_torch_extensions(use_gpu)
+
         self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
 
+    @classmethod
+    def try_load_torch_extensions(cls, use_gpu):
+        if hasattr(cls, "loaded_extensions") or use_gpu:
+            return
+
+        print_message(f"Loading filter_pids_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
+        filter_pids_cpp = load(
+            name="filter_pids_cpp",
+            sources=[
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "filter_pids.cpp"
+                ),
+            ],
+            extra_cflags=["-O3"],
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+        )
+        cls.filter_pids = filter_pids_cpp.filter_pids_cpp
+
+        print_message(f"Loading decompress_residuals_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
+        decompress_residuals_cpp = load(
+            name="decompress_residuals_cpp",
+            sources=[
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
+                ),
+            ],
+            extra_cflags=["-O3"],
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+        )
+        cls.decompress_residuals = decompress_residuals_cpp.decompress_residuals_cpp
+
+        cls.loaded_extensions = True
     def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
         return self.embeddings_strided.lookup_eids(embedding_ids, codes=codes, out_device=out_device)
 
@@ -121,7 +134,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             if config.ndocs // 4 < len(approx_scores):
                 pids = pids[torch.topk(approx_scores, k=(config.ndocs // 4)).indices]
         else:
-            pids = filter_pids_cpp.filter_pids_cpp(
+            pids = IndexScorer.filter_pids(
                     pids, centroid_scores, self.embeddings.codes, self.doclens,
                     self.embeddings_strided.codes_strided.offsets, idx, config.ndocs
                 )
@@ -130,7 +143,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         if self.use_gpu:
             D_packed, D_mask = self.lookup_pids(pids)
         else:
-            D_packed = decompress_residuals_cpp.decompress_residuals_cpp(
+            D_packed = IndexScorer.decompress_residuals(
                     pids,
                     self.doclens,
                     self.embeddings_strided.codes_strided.offsets,

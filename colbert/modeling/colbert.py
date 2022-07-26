@@ -9,16 +9,6 @@ import string
 import os
 import pathlib
 from torch.utils.cpp_extension import load
-segmented_maxsim_cpp = load(
-    name="segmented_maxsim_cpp",
-    sources=[
-        os.path.join(
-            pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
-        ),
-    ],
-    extra_cflags=["-O3"],
-    verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
-)
 
 
 class ColBERT(BaseColBERT):
@@ -30,10 +20,32 @@ class ColBERT(BaseColBERT):
         super().__init__(name, colbert_config)
         self.use_gpu = colbert_config.total_visible_gpus > 0
 
+        ColBERT.try_load_torch_extensions(self.use_gpu)
+
         if self.colbert_config.mask_punctuation:
             self.skiplist = {w: True
                              for symbol in string.punctuation
                              for w in [symbol, self.raw_tokenizer.encode(symbol, add_special_tokens=False)[0]]}
+
+    @classmethod
+    def try_load_torch_extensions(cls, use_gpu):
+        if hasattr(cls, "loaded_extensions") or use_gpu:
+            return
+
+        print_message(f"Loading segmented_maxsim_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
+        segmented_maxsim_cpp = load(
+            name="segmented_maxsim_cpp",
+            sources=[
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
+                ),
+            ],
+            extra_cflags=["-O3"],
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+        )
+        cls.segmented_maxsim = segmented_maxsim_cpp.segmented_maxsim_cpp
+
+        cls.loaded_extensions = True
 
     def forward(self, Q, D):
         Q = self.query(*Q)
@@ -187,4 +199,4 @@ def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
 
         return colbert_score_reduce(scores_padded, scores_mask, config)
     else:
-        return segmented_maxsim_cpp.segmented_maxsim_cpp(scores, D_lengths)
+        return ColBERT.segmented_maxsim(scores, D_lengths)

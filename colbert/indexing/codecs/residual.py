@@ -9,40 +9,20 @@ from itertools import product
 
 from colbert.infra.config import ColBERTConfig
 from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
+from colbert.utils.utils import print_message
 
-if torch.cuda.is_available():
-    import pathlib
-    from torch.utils.cpp_extension import load
-    decompress_residuals_cpp = load(
-        name="decompress_residuals_cpp",
-        sources=[
-            os.path.join(
-                pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
-            ),
-            os.path.join(
-                pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
-            ),
-        ],
-        verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
-    )
-    packbits_cpp = load(
-        name="packbits_cpp",
-        sources=[
-            os.path.join(
-                pathlib.Path(__file__).parent.resolve(), "packbits.cpp"
-            ),
-            os.path.join(
-                pathlib.Path(__file__).parent.resolve(), "packbits.cu"
-            ),
-        ],
-        verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
-    )
+import pathlib
+from torch.utils.cpp_extension import load
+
 
 class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
     def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None):
         self.use_gpu = config.total_visible_gpus > 0
+
+        ResidualCodec.try_load_torch_extensions(self.use_gpu)
+
         if self.use_gpu > 0:
             self.centroids = centroids.cuda().half()
         else:
@@ -115,6 +95,43 @@ class ResidualCodec:
                 self.decompression_lookup_table = self.decompression_lookup_table.cuda()
 
     @classmethod
+    def try_load_torch_extensions(cls, use_gpu):
+        if hasattr(cls, "loaded_extensions") or not use_gpu:
+            return
+
+        print_message(f"Loading decompress_residuals_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
+        decompress_residuals_cpp = load(
+            name="decompress_residuals_cpp",
+            sources=[
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cpp"
+                ),
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "decompress_residuals.cu"
+                ),
+            ],
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+        )
+        cls.decompress_residuals = decompress_residuals_cpp.decompress_residuals_cpp
+
+        print_message(f"Loading packbits_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
+        packbits_cpp = load(
+            name="packbits_cpp",
+            sources=[
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "packbits.cpp"
+                ),
+                os.path.join(
+                    pathlib.Path(__file__).parent.resolve(), "packbits.cu"
+                ),
+            ],
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
+        )
+        cls.packbits = packbits_cpp.packbits_cpp
+
+        cls.loaded_extensions = True
+
+    @classmethod
     def load(cls, index_path):
         config = ColBERTConfig.load_from_index(index_path)
         centroids_path = os.path.join(index_path, 'centroids.pt')
@@ -176,7 +193,7 @@ class ResidualCodec:
         assert self.dim % (self.nbits * 8) == 0, (self.dim, self.nbits)
 
         if self.use_gpu:
-            residuals_packed = packbits_cpp.packbits_cpp(residuals.contiguous().flatten())
+            residuals_packed = ResidualCodec.packbits(residuals.contiguous().flatten())
         else:
             residuals_packed = np.packbits(np.asarray(residuals.contiguous().flatten()))
         residuals_packed = torch.as_tensor(residuals_packed, dtype=torch.uint8)
@@ -231,7 +248,7 @@ class ResidualCodec:
         for codes_, residuals_ in zip(codes.split(1 << 15), residuals.split(1 << 15)):
             if self.use_gpu:
                 codes_, residuals_ = codes_.cuda(), residuals_.cuda()
-                centroids_ = decompress_residuals_cpp.decompress_residuals_cpp(
+                centroids_ = ResidualCodec.decompress_residuals(
                     residuals_,
                     self.bucket_weights,
                     self.reversed_bit_map,
