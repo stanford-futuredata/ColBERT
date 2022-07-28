@@ -56,20 +56,20 @@ class Searcher:
 
         return Q
 
-    def search(self, text: str, k=10):
+    def search(self, text: str, k=10, filter_fn=None):
         Q = self.encode(text)
-        return self.dense_search(Q, k)
+        return self.dense_search(Q, k, filter_fn=filter_fn)
 
-    def search_all(self, queries: TextQueries, k=10):
+    def search_all(self, queries: TextQueries, k=10, filter_fn=None):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
         Q = self.encode(queries_)
 
-        return self._search_all_Q(queries, Q, k)
+        return self._search_all_Q(queries, Q, k, filter_fn=filter_fn)
 
-    def _search_all_Q(self, queries, Q, k):
-        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], k)))
+    def _search_all_Q(self, queries, Q, k, filter_fn=None):
+        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], k, filter_fn=filter_fn)))
                            for query_idx in tqdm(range(Q.size(0)))]
 
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
@@ -82,7 +82,7 @@ class Searcher:
 
         return Ranking(data=data, provenance=provenance)
 
-    def dense_search(self, Q: torch.Tensor, k=10):
+    def dense_search(self, Q: torch.Tensor, k=10, filter_fn=None):
         if k <= 10:
             if self.config.ncells is None:
                 self.configure(ncells=1)
@@ -105,6 +105,6 @@ class Searcher:
             if self.config.ndocs is None:
                 self.configure(ndocs=max(k * 4, 4096))
 
-        pids, scores = self.ranker.rank(self.config, Q)
+        pids, scores = self.ranker.rank(self.config, Q, filter_fn=filter_fn)
 
         return pids[:k], list(range(1, k+1)), scores[:k]

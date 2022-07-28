@@ -74,9 +74,13 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         all_pids = torch.unique(self.emb2pid[embedding_ids.long()].cuda(), sorted=False)
         return all_pids
 
-    def rank(self, config, Q):
+    def rank(self, config, Q, filter_fn=None):
         with torch.inference_mode():
             pids, centroid_scores = self.retrieve(config, Q)
+
+            if filter_fn is not None:
+                pids = filter_fn(pids)
+
             scores, pids = self.score_pids(config, Q, pids, centroid_scores)
 
             scores_sorter = scores.sort(descending=True)
