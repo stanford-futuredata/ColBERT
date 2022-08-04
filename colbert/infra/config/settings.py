@@ -86,6 +86,16 @@ class RunSettings:
     def device_(self):
         return self.gpus_[self.rank % self.nranks]
 
+    
+    
+@dataclass
+class TokenizerSettings:
+    query_token_id: str = DefaultVal("[unused0]")
+    doc_token_id: str = DefaultVal("[unused1]")
+    query_token: str = DefaultVal("[Q]")
+    doc_token: str = DefaultVal("[D]")
+        
+        
 
 @dataclass
 class ResourceSettings:
@@ -142,7 +152,8 @@ class TrainingSettings:
     distillation_alpha: float = DefaultVal(1.0)
 
     ignore_scores: bool = DefaultVal(False)
-
+    
+    model_name: str = DefaultVal(None)
 
 @dataclass
 class IndexingSettings:

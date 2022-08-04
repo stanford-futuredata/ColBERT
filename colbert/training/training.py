@@ -116,7 +116,6 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
                 else:
                     loss = nn.CrossEntropyLoss()(scores, labels[:scores.size(0)])
-                
                 if config.use_ib_negatives:
                     if config.rank < 1:
                         print('\t\t\t\t', loss.item(), ib_loss.item())

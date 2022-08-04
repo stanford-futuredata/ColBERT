@@ -1,11 +1,14 @@
 import os
 import torch
+import sys
 
 from colbert.utils.utils import torch_load_dnn
 
 from transformers import AutoTokenizer
-from colbert.modeling.hf_colbert import HF_ColBERT
+from colbert.modeling.hf_colbert import class_factory
 from colbert.infra.config import ColBERTConfig
+
+
 
 
 class BaseColBERT(torch.nn.Module):
@@ -16,13 +19,14 @@ class BaseColBERT(torch.nn.Module):
     Like HF, evaluation mode is the default.
     """
 
-    def __init__(self, name, colbert_config=None):
+    def __init__(self, name_or_path, colbert_config=None):
         super().__init__()
 
-        self.name = name
-        self.colbert_config = ColBERTConfig.from_existing(ColBERTConfig.load_from_checkpoint(name), colbert_config)
-        self.model = HF_ColBERT.from_pretrained(name, colbert_config=self.colbert_config)
-        self.raw_tokenizer = AutoTokenizer.from_pretrained(self.model.base)
+        self.colbert_config = ColBERTConfig.from_existing(ColBERTConfig.load_from_checkpoint(name_or_path), colbert_config)
+        self.name = self.colbert_config.model_name
+        HF_ColBERT = class_factory(self.name)
+        self.model = HF_ColBERT.from_pretrained(name_or_path, colbert_config=self.colbert_config)
+        self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
 
         self.eval()
 
@@ -32,7 +36,7 @@ class BaseColBERT(torch.nn.Module):
 
     @property
     def bert(self):
-        return self.model.bert
+        return self.model.LM
 
     @property
     def linear(self):
@@ -63,12 +67,13 @@ if __name__ == '__main__':
     torch.manual_seed(12345)
 
     with Run().context(RunConfig(gpus=2)):
-        m = BaseColBERT('bert-base-uncased', colbert_config=ColBERTConfig(Run().config, doc_maxlen=300, similarity='l2'))
+        m = BaseColBERT('xlm-roberta-base', colbert_config=ColBERTConfig(Run().config, doc_maxlen=300, similarity='l2',model_name='xlm-roberta-base'))
+        print("PARAMETERS", m.bert.parameters())
         m.colbert_config.help()
         print(m.linear.weight)
-        m.save('/future/u/okhattab/tmp/2021/08/model.deleteme2/')
+        m.save('/tmp/2021/08/model.deleteme2/')
 
-    m2 = BaseColBERT('/future/u/okhattab/tmp/2021/08/model.deleteme2/')
+    m2 = BaseColBERT('/tmp/2021/08/model.deleteme2/')
     m2.colbert_config.help()
     print(m2.linear.weight)
 

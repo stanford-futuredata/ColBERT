@@ -1,6 +1,6 @@
 import torch
 
-from colbert.modeling.hf_colbert import HF_ColBERT
+from colbert.modeling.hf_colbert import class_factory
 from colbert.infra import ColBERTConfig
 from colbert.modeling.tokenization.utils import _split_into_batches
 from colbert.utils.utils import batch
@@ -8,18 +8,19 @@ from colbert.utils.utils import batch
 
 class QueryTokenizer():
     def __init__(self, config: ColBERTConfig):
+        HF_ColBERT = class_factory(config.checkpoint)
         self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
 
         self.config = config
         self.query_maxlen = config.query_maxlen
         self.background_maxlen = 512 - self.query_maxlen + 1  # FIXME: Make this configurable
 
-        self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')
+        self.Q_marker_token, self.Q_marker_token_id = config.query_token, self.tok.convert_tokens_to_ids(config.query_token_id)
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
         self.mask_token, self.mask_token_id = self.tok.mask_token, self.tok.mask_token_id
-
-        assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
+        self.pad_token,self.pad_token_id = self.tok.pad_token,self.tok.pad_token_id
+#         assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
         self.used = False
 
     def tokenize(self, batch_text, add_special_tokens=False):
@@ -61,7 +62,7 @@ class QueryTokenizer():
 
         # postprocess for the [Q] marker and the [MASK] augmentation
         ids[:, 1] = self.Q_marker_token_id
-        ids[ids == 0] = self.mask_token_id
+        ids[ids == self.pad_token_id] = self.mask_token_id
 
         if context is not None:
             assert len(context) == len(batch_text), (len(context), len(batch_text))
