@@ -19,8 +19,8 @@ class Checkpoint(ColBERT):
         super().__init__(name, colbert_config)
         assert self.training is False
 
-        self.query_tokenizer = QueryTokenizer(self.colbert_config)
-        self.doc_tokenizer = DocTokenizer(self.colbert_config)
+        self.query_tokenizer = QueryTokenizer(self.colbert_config, self.raw_tokenizer)
+        self.doc_tokenizer = DocTokenizer(self.colbert_config, self.raw_tokenizer)
 
         self.amp_manager = MixedPrecisionManager(True)
 

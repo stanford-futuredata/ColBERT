@@ -7,19 +7,22 @@ from colbert.utils.utils import batch
 
 
 class QueryTokenizer():
-    def __init__(self, config: ColBERTConfig):
-        self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
+    def __init__(self, config: ColBERTConfig, tok):
+        self.tok = tok
 
         self.config = config
         self.query_maxlen = config.query_maxlen
         self.background_maxlen = 512 - self.query_maxlen + 1  # FIXME: Make this configurable
 
-        self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')
+        self.Q_marker_token = '[Q]'
+        if '[unused0]' in self.tok.vocab:
+            self.Q_marker_token_id = self.tok.convert_tokens_to_ids('[unused0]')
+        else:
+            self.Q_marker_token_id = self.tok.convert_tokens_to_ids(self.Q_marker_token)
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
         self.mask_token, self.mask_token_id = self.tok.mask_token, self.tok.mask_token_id
 
-        assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
         self.used = False
 
     def tokenize(self, batch_text, add_special_tokens=False):
