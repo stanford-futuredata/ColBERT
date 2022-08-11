@@ -18,6 +18,9 @@ __pycache__/
 # mac
 .DS_Store
 
+# pip install
+*.egg-info
+
 # Other
 .vscode
 *.tsv
