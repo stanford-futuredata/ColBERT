@@ -64,7 +64,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         print(f"#> LR will use {config.warmup} warmup steps and linear decay over {config.maxsteps} steps.")
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=config.warmup,
                                                     num_training_steps=config.maxsteps)
-    
+
     warmup_bert = config.warmup_bert
     if warmup_bert is not None:
         set_bert_grad(colbert, False)
@@ -116,6 +116,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
                 else:
                     loss = nn.CrossEntropyLoss()(scores, labels[:scores.size(0)])
+
                 if config.use_ib_negatives:
                     if config.rank < 1:
                         print('\t\t\t\t', loss.item(), ib_loss.item())
@@ -145,7 +146,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         ckpt_path = manage_checkpoints(config, colbert, optimizer, batch_idx+1, savepath=None, consumed_all_triples=True)
 
         return ckpt_path  # TODO: This should validate and return the best checkpoint, not just the last one.
-    
+
 
 
 def set_bert_grad(colbert, value):

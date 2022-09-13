@@ -9,8 +9,6 @@ from colbert.modeling.hf_colbert import class_factory
 from colbert.infra.config import ColBERTConfig
 
 
-
-
 class BaseColBERT(torch.nn.Module):
     """
     Shallow module that wraps the ColBERT parameters, custom configuration, and underlying tokenizer.
