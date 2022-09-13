@@ -2,9 +2,9 @@ import importlib
 from unicodedata import name
 import torch.nn as nn
 import transformers
-from transformers import BertPreTrainedModel, BertModel, AutoTokenizer,AutoModel,AutoConfig
+from transformers import BertPreTrainedModel, BertModel, AutoTokenizer, AutoModel, AutoConfig
 from transformers import RobertaModel, RobertaPreTrainedModel
-from transformers import XLMRobertaModel,XLMRobertaConfig
+from transformers import XLMRobertaModel, XLMRobertaConfig
 from transformers import ElectraModel, ElectraPreTrainedModel
 from transformers import DebertaV2Model, DebertaV2PreTrainedModel
 from colbert.utils.utils import torch_load_dnn
@@ -15,78 +15,73 @@ class XLMRobertaPreTrainedModel(RobertaPreTrainedModel):
     usage examples.
     """
 
-    config_class = XLMRobertaConfig 
+    config_class = XLMRobertaConfig
 
 
 base_class_mapping={
-    "roberta-base":RobertaPreTrainedModel,
-    "google/electra-base-discriminator":ElectraPreTrainedModel,
-    "xlm-roberta-base":XLMRobertaPreTrainedModel,
-    "xlm-roberta-large":XLMRobertaPreTrainedModel,
-    "bert-base-uncased":BertPreTrainedModel,
-    "bert-large-uncased":BertPreTrainedModel,
-    "microsoft/mdeberta-v3-base":DebertaV2PreTrainedModel,
-    "bert-base-multilingual-uncased":BertPreTrainedModel
-    
-    
+    "roberta-base": RobertaPreTrainedModel,
+    "google/electra-base-discriminator": ElectraPreTrainedModel,
+    "xlm-roberta-base": XLMRobertaPreTrainedModel,
+    "xlm-roberta-large": XLMRobertaPreTrainedModel,
+    "bert-base-uncased": BertPreTrainedModel,
+    "bert-large-uncased": BertPreTrainedModel,
+    "microsoft/mdeberta-v3-base": DebertaV2PreTrainedModel,
+    "bert-base-multilingual-uncased": BertPreTrainedModel
+
+
 }
 
 model_object_mapping = {
-    "roberta-base":RobertaModel,
-    "google/electra-base-discriminator":ElectraModel,
-    "xlm-roberta-base":XLMRobertaModel,
-    "xlm-roberta-large":XLMRobertaModel,
-    "bert-base-uncased":BertModel,
-    "bert-large-uncased":BertModel,
-    "microsoft/mdeberta-v3-base":DebertaV2Model,
-    "bert-base-multilingual-uncased":BertModel
-    
+    "roberta-base": RobertaModel,
+    "google/electra-base-discriminator": ElectraModel,
+    "xlm-roberta-base": XLMRobertaModel,
+    "xlm-roberta-large": XLMRobertaModel,
+    "bert-base-uncased": BertModel,
+    "bert-large-uncased": BertModel,
+    "microsoft/mdeberta-v3-base": DebertaV2Model,
+    "bert-base-multilingual-uncased": BertModel
+
 }
 
 
+transformers_module = dir(transformers)
 
-
-transformers_module =dir(transformers)
-
-def find_class_names(model_type,class_type):
-    model_type = model_type.replace("-","").lower()
+def find_class_names(model_type, class_type):
+    model_type = model_type.replace("-", "").lower()
     for item in transformers_module:
-        if model_type+class_type==item.lower():
+        if model_type + class_type == item.lower():
             return item
-        
+
     return None
 
 
 def class_factory(name_or_path):
-    # class_obj = base_class_mapping.get(name_or_path)
     loadedConfig  = AutoConfig.from_pretrained(name_or_path)
     model_type = loadedConfig.model_type
-    pretrained_class = find_class_names(model_type,'pretrainedmodel')
-    model_class = find_class_names(model_type,'model')
-    
-    if pretrained_class != None:
-        pretrained_class_object = getattr(transformers,pretrained_class)
+    pretrained_class = find_class_names(model_type, 'pretrainedmodel')
+    model_class = find_class_names(model_type, 'model')
+
+    if pretrained_class is not None:
+        pretrained_class_object = getattr(transformers, pretrained_class)
     elif model_type == 'xlm-roberta':
         pretrained_class_object = XLMRobertaPreTrainedModel
-    elif base_class_mapping.get(name_or_path)!=None:
+    elif base_class_mapping.get(name_or_path) is not None:
         pretrained_class_object = base_class_mapping.get(name_or_path)
     else:
-        raise RuntimeError("Could not find correct pretrained class for the model type in  transformers library ")
-    
+        raise ValueError("Could not find correct pretrained class for the model type {model_type} in transformers library")
+
     if model_class != None:
-        model_class_object = getattr(transformers,model_class)
-    elif model_object_mapping.get(name_or_path)!=None:
+        model_class_object = getattr(transformers, model_class)
+    elif model_object_mapping.get(name_or_path) is not None:
         model_class_object = model_object_mapping.get(name_or_path)
     else:
-        raise RuntimeError("Could not find correct model class for the model type in  transformers library ")
-    
-    
+        raise ValueError("Could not find correct model class for the model type {model_type} in transformers library")
 
-    
+
     class HF_ColBERT(pretrained_class_object):
         """
             Shallow wrapper around HuggingFace transformers. All new parameters should be defined at this level.
-            
+
             This makes sure `{from,save}_pretrained` and `init_weights` are applied to new parameters correctly.
         """
         _keys_to_ignore_on_load_unexpected = [r"cls"]
@@ -97,7 +92,7 @@ def class_factory(name_or_path):
             self.config = config
             self.dim = colbert_config.dim
             self.linear = nn.Linear(config.hidden_size, colbert_config.dim, bias=False)
-            setattr(self,self.base_model_prefix,model_class_object(config))
+            setattr(self,self.base_model_prefix, model_class_object(config))
 
             # if colbert_config.relu:
             #     self.score_scaler = nn.Linear(1, 1)
@@ -110,10 +105,10 @@ def class_factory(name_or_path):
 
         @property
         def LM(self):
-            base_model_prefix = getattr(self,"base_model_prefix")
-            return getattr(self,base_model_prefix)
-        
-        
+            base_model_prefix = getattr(self, "base_model_prefix")
+            return getattr(self, base_model_prefix)
+
+
         @classmethod
         def from_pretrained(cls, name_or_path, colbert_config):
             if name_or_path.endswith('.dnn'):
@@ -145,18 +140,5 @@ def class_factory(name_or_path):
             obj.base = name_or_path
 
             return obj
-        
+
     return HF_ColBERT
-
-
-
-
-
-
-"""
-TODO: It's easy to write a class generator that takes "name_or_path" and loads AutoConfig to check the Architecture's
-      name, finds that name's *PreTrainedModel and *Model in dir(transformers), and then basically repeats the above.
-
-      It's easy for the BaseColBERT class to instantiate things from there.
-"""
-

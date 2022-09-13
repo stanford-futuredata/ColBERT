@@ -153,7 +153,7 @@ class TrainingSettings:
 
     ignore_scores: bool = DefaultVal(False)
     
-    model_name: str = DefaultVal(None)
+    model_name: str = DefaultVal("bert-base-uncased")
 
 @dataclass
 class IndexingSettings:

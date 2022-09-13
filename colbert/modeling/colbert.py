@@ -27,7 +27,7 @@ class ColBERT(BaseColBERT):
                              for symbol in string.punctuation
                              for w in [symbol, self.raw_tokenizer.encode(symbol, add_special_tokens=False)[0]]}
         self.pad_token = self.raw_tokenizer.pad_token_id
-        
+
 
     @classmethod
     def try_load_torch_extensions(cls, use_gpu):
@@ -88,7 +88,7 @@ class ColBERT(BaseColBERT):
 
         mask = torch.tensor(self.mask(input_ids, skiplist=[]), device=self.device).unsqueeze(2).float()
         Q = Q * mask
-        
+
         return torch.nn.functional.normalize(Q, p=2, dim=2)
 
     def doc(self, input_ids, attention_mask, keep_dims=True):
@@ -114,7 +114,7 @@ class ColBERT(BaseColBERT):
         return D
 
     def score(self, Q, D_padded, D_mask):
-        # assert self.colbert_config.similarity == 'cosine'        
+        # assert self.colbert_config.similarity == 'cosine'
         if self.colbert_config.similarity == 'l2':
             assert self.colbert_config.interaction == 'colbert'
             return (-1.0 * ((Q.unsqueeze(2) - D_padded.unsqueeze(1))**2).sum(-1)).max(-1).values.sum(-1)
