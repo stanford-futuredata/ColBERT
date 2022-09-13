@@ -393,7 +393,7 @@ class CollectionIndexer():
 
         Run().print_main("#> Building IVF...")
 
-        codes = torch.empty(self.num_embeddings,)
+        codes = torch.zeros(self.num_embeddings,).long()
         print_memory_stats(f'RANK:{self.rank}')
 
         Run().print_main("#> Loading codes...")
@@ -406,7 +406,6 @@ class CollectionIndexer():
 
         assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size())
 
-
         Run().print_main(f"Sorting codes...")
 
         print_memory_stats(f'RANK:{self.rank}')
@@ -418,10 +417,8 @@ class CollectionIndexer():
 
         Run().print_main(f"Getting unique codes...")
 
-        partitions, ivf_lengths = values.unique_consecutive(return_counts=True)
-
-        # All partitions should be non-empty. (We can use torch.histc otherwise.)
-        assert partitions.size(0) == self.num_partitions, (partitions.size(), self.num_partitions)
+        ivf_lengths = torch.bincount(values, minlength=self.num_partitions)
+        assert ivf_lengths.size(0) == self.num_partitions
 
         print_memory_stats(f'RANK:{self.rank}')
 
