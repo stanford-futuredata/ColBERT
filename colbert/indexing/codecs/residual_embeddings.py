@@ -23,6 +23,8 @@ class ResidualEmbeddings:
         self.codes = codes.to(torch.int32)  # (num_embeddings,) int32
         self.residuals = residuals   # (num_embeddings, compressed_dim) uint8
 
+        self._mmap_index = True
+
     @classmethod
     def load_chunks(cls, index_path, chunk_idxs, num_embeddings):
         num_embeddings += 512  # pad for access with strides
@@ -74,8 +76,24 @@ class ResidualEmbeddings:
         codes_path = f'{path_prefix}.codes.pt'
         residuals_path = f'{path_prefix}.residuals.pt'  # f'{path_prefix}.residuals.bn'
 
-        torch.save(self.codes, codes_path)
-        torch.save(self.residuals, residuals_path)
+        if self._mmap_index:
+            # TODO
+            print("using mmap to save codes and residuals")
+
+            # mmap codes
+            codes_size = len(self)
+            storage = torch.IntStorage.from_file(filename=codes_path, shared=True, size=codes_size);
+            torch.IntTensor(storage).copy_(self.codes)
+
+            # mmap residuals
+            dim, nbits = get_dim_and_nbits(index_path)
+            packed_dim = dim // 8 * nbits
+            residuals_size = codecs_size * packed_dim
+            storage = torch.ByteStorage.from_file(filename=residuals_path, shared=True, size=residuals_size);
+            torch.ByteTensor(storage).copy_(self.residuals)
+        else:
+           torch.save(self.codes, codes_path)
+           torch.save(self.residuals, residuals_path)
         # _save_bitarray(self.residuals, residuals_path)
 
     def __len__(self):
