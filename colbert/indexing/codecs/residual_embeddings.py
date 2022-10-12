@@ -49,8 +49,6 @@ class ResidualEmbeddings:
 
             codes_offset = codes_endpos
 
-        # codes, residuals = codes.cuda(), residuals.cuda()  # FIXME: REMOVE THIS LINE!
-
         return cls(codes, residuals)
 
     @classmethod
