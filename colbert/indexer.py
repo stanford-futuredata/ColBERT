@@ -80,5 +80,6 @@ class Indexer:
         shared_lists = [manager.list() for _ in range(self.config.nranks)]
         shared_queues = [manager.Queue(maxsize=1) for _ in range(self.config.nranks)]
 
+        # encodes collection into index using the CollectionIndexer class
         launcher = Launcher(encode)
         launcher.launch(self.config, collection, shared_lists, shared_queues)
