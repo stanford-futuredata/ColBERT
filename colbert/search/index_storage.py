@@ -1,7 +1,4 @@
-# comment
-
 import torch
-
 
 from colbert.utils.utils import flatten, print_message
 
