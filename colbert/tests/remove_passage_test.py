@@ -8,7 +8,7 @@ from collections import namedtuple
 from datasets import load_dataset
 import tqdm
 
-from colbert import Indexer, Searcher, IncrementalIndexer
+from colbert import Indexer, Searcher, PassageRemover
 from colbert.infra import ColBERTConfig, RunConfig, Run
 
 SquadExample = namedtuple("SquadExample", "id title context question answers")
@@ -52,7 +52,7 @@ def get_squad_split(squad, split="validation"):
 
 
 def remove_passage(index_path, pid):
-    incremental_indexer = IncrementalIndexer(index_path)
+    incremental_indexer = PassageAppender(index_path)
     incremental_indexer.remove_passage(pid)
     return
 
@@ -64,10 +64,10 @@ def main(args):
     # Set up the test
     k = 5
     searcher, index_path = build_index_and_init_searcher(checkpoint, collection, experiment_dir)
-#     squad = load_dataset("squad")
-#     squad_dev = get_squad_split(squad)
-#     question = squad_dev[0].question
-    question = "Which NFL team represented the AFC at Super Bowl 50?" # first question in squad's train set
+    squad = load_dataset("squad")
+    squad_dev = get_squad_split(squad)
+    question = squad_dev[10].question
+#     question = "Which NFL team represented the AFC at Super Bowl 50?" # first question in squad's train set
     
     # Search full index
     results = searcher.search(question, k=k)
@@ -77,7 +77,8 @@ def main(args):
         print(f"\t [{passage_id}] \t\t {passage_score:.1f} \t\t {searcher.collection[passage_id]}")
     
     # Remove top passage
-    remove_passage(index_path, top_k_ids[0])
+    incremental_indexer = PassageRemover(index_path)
+    incremental_indexer.remove_passage(top_k_ids[0])
     
     # Error input check: remove invalid pid
 #     remove_passage(index_path, 10000)

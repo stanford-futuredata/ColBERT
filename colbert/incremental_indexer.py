@@ -12,7 +12,7 @@ from colbert.indexing.codecs.residual import ResidualCodec
 from colbert.indexing.utils import optimize_ivf
 from colbert.search.strided_tensor import StridedTensor
 
-class IncrementalIndexer:
+class PassageRemover:
 
     def __init__(self, index_path):
         self.index_path = index_path
@@ -149,5 +149,3 @@ class IncrementalIndexer:
         metadata_path = os.path.join(self.index_path, 'metadata.json')
         with open(metadata_path, 'w') as output_metadata:
             ujson.dump(self.metadata, output_metadata)
-
-        
