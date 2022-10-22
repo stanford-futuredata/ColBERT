@@ -13,19 +13,6 @@ from colbert.indexing.utils import optimize_ivf
 from colbert.search.strided_tensor import StridedTensor
 
 class IncrementalIndexer:
-        
-#     def remove_passage(self, pid):
-#         pass
-#         # Loading Approach 1: Naively load everything then use overall offsets
-#         # Calculate embedding (offset, offset+doclen) from index.doclens and pid
-#         # Remove data in above range from index.embeddings
-#         # Modify doclen & overall metadata
-#         # Modify ivf: remove pid from all centroids
-#         # ??? Individual CHUNK metadata.json never loaded in IndexLoader -- do we use this info ever?
-        
-#         # Storing
-
-# add(passage:str, title: optional str) -> pid: int
 
     def __init__(self, index_path):
         self.index_path = index_path
@@ -67,10 +54,14 @@ class IncrementalIndexer:
 
         doclens = torch.tensor(doclens)
         return doclens
+    
+    def _load_chunk_codes(self, chunk_idx):
+        codes_path = os.path.join(self.index_path, f'{chunk_idx}.codes.pt')
+        return torch.load(codes_path, map_location='cpu')
 
-    def _load_chunk_embeddings(self, chunk_idx):
-        embeddings = ResidualCodec.Embeddings.load(self.index_path, chunk_idx)
-        return embeddings
+    def _load_chunk_residuals(self, chunk_idx):
+        residuals_path = os.path.join(self.index_path, f'{chunk_idx}.residuals.pt')
+        return torch.load(residuals_path, map_location='cpu')
     
     def _load_chunk_metadata(self, chunk_idx):
         with open(os.path.join(self.index_path, f'{chunk_idx}.metadata.json')) as f:
@@ -107,18 +98,56 @@ class IncrementalIndexer:
         
     def remove_passage(self, pid):
         chunk_idx = self._get_chunk_idx(pid)
-        print(chunk_idx)
         
         chunk_metadata = self._load_chunk_metadata(chunk_idx)
-        doclens, embs = self._load_chunk_doclens(chunk_idx), self._load_chunk_embeddings(chunk_idx)
+        i = pid - chunk_metadata['passage_offset']
+        doclens = self._load_chunk_doclens(chunk_idx)
+        codes, residuals = self._load_chunk_codes(chunk_idx), self._load_chunk_residuals(chunk_idx)
         print(doclens.size())
         print(self.metadata)
-        
-        # remove embeddings from codes and residuals
-        # change doclen for passage to 0
-        # modify chunk_metadata['num_embeddings'] and ['embedding_offset'] (minus num_embs_removed)
-        # modify num_embeddings in overall metadata (minus num_embs_removed)
         
         # remove pid from inv.pid.pt
         # this step alone should prevent the passage from being returned as result
         self._remove_pid_from_ivf(pid)
+        
+        # remove embeddings from codes and residuals
+        start = sum(doclens[:i])
+        end = start + doclens[i]
+        codes = torch.cat((codes[:start], codes[end:]))
+        residuals = torch.cat((residuals[:start], residuals[end:]))
+        
+        codes_path = os.path.join(self.index_path, f'{chunk_idx}.codes.pt')
+        residuals_path = os.path.join(self.index_path, f'{chunk_idx}.residuals.pt')
+
+        torch.save(codes, codes_path)
+        torch.save(residuals, residuals_path)
+        
+        # change doclen for passage to 0
+        doclens = doclens.tolist()
+        doclen_to_remove = doclens[i]
+        doclens[i] = 0
+        doclens_path = os.path.join(self.index_path, f'doclens.{chunk_idx}.json')
+        with open(doclens_path, 'w') as output_doclens:
+            ujson.dump(doclens, output_doclens)
+        
+        # modify chunk_metadata['num_embeddings'] for chunk_idx
+        chunk_metadata['num_embeddings'] -= doclen_to_remove
+        chunk_metadata_path = os.path.join(self.index_path, f'{chunk_idx}.metadata.json')
+        with open(chunk_metadata_path, 'w') as output_chunk_metadata:
+            ujson.dump(chunk_metadata, output_chunk_metadata)
+        
+        # modify chunk_metadata['embedding_offset'] for all later chunks (minus num_embs_removed)
+        for idx in range(chunk_idx + 1, self.metadata['num_chunks']):
+            metadata = self._load_chunk_metadata(idx)
+            metadata['embedding_offset'] -= doclen_to_remove
+            metadata_path = os.path.join(self.index_path, f'{idx}.metadata.json')
+            with open(metadata_path, 'w') as output_chunk_metadata:
+                ujson.dump(metadata, output_chunk_metadata)
+            
+        # modify num_embeddings in overall metadata (minus num_embs_removed)
+        self.metadata['num_embeddings'] -= doclen_to_remove
+        metadata_path = os.path.join(self.index_path, 'metadata.json')
+        with open(metadata_path, 'w') as output_metadata:
+            ujson.dump(self.metadata, output_metadata)
+
+        
