@@ -46,14 +46,15 @@ class IncrementalIndexer:
             ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pt"), map_location='cpu')
             ivf, ivf_lengths = optimize_ivf(ivf, ivf_lengths, self.index_path)
 
-        if False:
-            ivf = ivf.tolist()
-            ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]
-        else:
-            # ivf, ivf_lengths = ivf.cuda(), torch.LongTensor(ivf_lengths).cuda()  # FIXME: REMOVE THIS LINE!
-            ivf = StridedTensor(ivf, ivf_lengths, use_gpu=False)
+#         if False:
+#             ivf = ivf.tolist()
+#             ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]
+#         else:
+#             # ivf, ivf_lengths = ivf.cuda(), torch.LongTensor(ivf_lengths).cuda()  # FIXME: REMOVE THIS LINE!
+#             ivf = StridedTensor(ivf, ivf_lengths, use_gpu=False)
 
         self.ivf = ivf
+        self.ivf_lengths = ivf_lengths
         
     def _load_chunk_doclens(self, chunk_idx):
         doclens = []
@@ -77,8 +78,32 @@ class IncrementalIndexer:
         return chunk_metadata
     
     def _get_chunk_idx(self, pid):
-        # TODO: implement this
-        return 0
+        for i in range(self.metadata['num_chunks']):
+            chunk_metadata = self._load_chunk_metadata(i)
+            if chunk_metadata['passage_offset'] <= pid and chunk_metadata['passage_offset'] + chunk_metadata['num_passages'] > pid:
+                return i
+        raise ValueError('Passage ID out of range')
+    
+    def _remove_pid_from_ivf(self, pid):
+        new_ivf = []
+        new_ivf_lengths = []
+        runner = 0
+        for l in self.ivf_lengths.tolist():
+            num_removed = 0
+            for i in range(runner, runner + l):
+                if self.ivf[i] != pid:
+                    new_ivf.append(self.ivf[i])
+                else:
+                    num_removed += 1
+            runner += l
+            new_ivf_lengths.append(l - num_removed)
+            
+        assert runner == len(self.ivf.tolist())
+        assert sum(new_ivf_lengths) == len(new_ivf)
+        
+        optimized_ivf_path = os.path.join(self.index_path, 'ivf.pid.pt')
+        torch.save((torch.tensor(new_ivf), torch.tensor(new_ivf_lengths)), optimized_ivf_path)
+        print_message(f"#> Saved optimized IVF to {optimized_ivf_path}")
         
     def remove_passage(self, pid):
         chunk_idx = self._get_chunk_idx(pid)
@@ -87,5 +112,13 @@ class IncrementalIndexer:
         chunk_metadata = self._load_chunk_metadata(chunk_idx)
         doclens, embs = self._load_chunk_doclens(chunk_idx), self._load_chunk_embeddings(chunk_idx)
         print(doclens.size())
+        print(self.metadata)
         
-        #
+        # remove embeddings from codes and residuals
+        # change doclen for passage to 0
+        # modify chunk_metadata['num_embeddings'] and ['embedding_offset'] (minus num_embs_removed)
+        # modify num_embeddings in overall metadata (minus num_embs_removed)
+        
+        # remove pid from inv.pid.pt
+        # this step alone should prevent the passage from being returned as result
+        self._remove_pid_from_ivf(pid)

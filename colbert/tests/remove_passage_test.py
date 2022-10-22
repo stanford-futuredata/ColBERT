@@ -1,3 +1,7 @@
+# Current command to run test: 
+# python -m colbert.tests.remove_passage_test --checkpoint "/dfs/scratch0/okhattab/share/2021/checkpoints/msmarco.psg.kldR2.nway64.ib__colbert-400000" --expdir ./experiments --collection /future/u/xrsong/ColBERT/docs/data/collection.small.tsv
+
+
 import os
 import argparse
 from collections import namedtuple
@@ -75,11 +79,22 @@ def main(args):
     # Remove top passage
     remove_passage(index_path, top_k_ids[0])
     
+    # Error input check: remove invalid pid
+#     remove_passage(index_path, 10000)
+    
     # Search after removal
+    config = ColBERTConfig(
+            root=experiment_dir,
+            experiment="removetest.nbits=1",
+        )
+    searcher = Searcher(
+            index="removetest.nbits=1",
+            config=config,
+        )
     results = searcher.search(question, k=k)
     top_k_ids_after = []
     for passage_id, passage_rank, passage_score in zip(*results):
-        top_k_ids.append(passage_id)
+        top_k_ids_after.append(passage_id)
 #         print(f"\t [{passage_id}] \t\t {passage_score:.1f} \t\t {searcher.collection[passage_id]}")
     
     # Test that top passage is removed
