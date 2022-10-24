@@ -60,6 +60,27 @@ def remove_passage(index_path, pid):
     return
 
 def main(args):
+    
+    '''
+    new api
+    
+    searcher, index_path = build_index_and_init_searcher(checkpoint, collection, experiment_dir)
+    results = searcher.search(question, k=k)
+    top_k_ids = []
+    for passage_id, passage_rank, passage_score in zip(*results):
+        top_k_ids.append(passage_id)
+        print(f"\t [{passage_id}] \t\t {passage_score:.1f} \t\t {searcher.collection[passage_id]}")
+        
+    updater = IndexUpdater(searcher, checkpoint)
+    updater.remove(top_k_ids)
+    
+    results = searcher.search(question, k=k)
+    TODO: perform checks compare results
+    
+    updater.add(passages)
+    TODO: perform checks compare results
+    
+    '''
     checkpoint = args.checkpoint
     collection = args.collection
     experiment_dir = args.expdir
