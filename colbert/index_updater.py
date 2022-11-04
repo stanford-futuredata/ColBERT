@@ -31,12 +31,13 @@ class IndexUpdater:
         
         
     def remove(self, pids, persist_to_disk=False):
-        for pid in pids:
-            print(f"removing {pid}...")
-            self._remove_pid_from_ivf(pid, persist_to_disk)
-            if persist_to_disk:
-                self._load_metadata()
+        self._remove_pid_from_ivf(pids, persist_to_disk)
+        
+        if persist_to_disk:
+            self._load_metadata()
+            for pid in pids:
                 self._remove_passage_from_disk(pid)
+
     
     def add(self, pids, persist_to_disk=False):
         if not self.checkpoint:
@@ -56,19 +57,19 @@ class IndexUpdater:
         self.curr_ivf = ivf
         self.curr_ivf_lengths = ivf_lengths
         
-    def _remove_pid_from_ivf(self, pid, persist_to_disk):
+    def _remove_pid_from_ivf(self, pids, persist_to_disk):
         new_ivf = []
         new_ivf_lengths = []
         runner = 0
-        for l in self.curr_ivf_lengths.tolist():
+        for length in self.curr_ivf_lengths.tolist():
             num_removed = 0
-            for i in range(runner, runner + l):
-                if self.curr_ivf[i] != pid:
+            for i in range(runner, runner + length):
+                if self.curr_ivf[i] not in pids:
                     new_ivf.append(self.curr_ivf[i])
                 else:
                     num_removed += 1
-            runner += l
-            new_ivf_lengths.append(l - num_removed)
+            runner += length
+            new_ivf_lengths.append(length - num_removed)
             
         assert runner == len(self.curr_ivf.tolist())
         assert sum(new_ivf_lengths) == len(new_ivf)
@@ -85,10 +86,10 @@ class IndexUpdater:
         
         if persist_to_disk:
             optimized_ivf_path = os.path.join(self.index_path, 'ivf.pid.pt')
-            torch.save((torch.tensor(new_ivf), torch.tensor(new_ivf_lengths)), optimized_ivf_path)
+            torch.save((self.curr_ivf, self.curr_ivf_lengths), optimized_ivf_path)
             print_message(f"#> Saved optimized IVF to {optimized_ivf_path}")
+            
     
-        print(f"removed {pid} from ivf")
     
     def _load_metadata(self):
         with open(os.path.join(self.index_path, 'metadata.json')) as f:
@@ -133,8 +134,6 @@ class IndexUpdater:
         i = pid - chunk_metadata['passage_offset']
         doclens = self._load_chunk_doclens(chunk_idx)
         codes, residuals = self._load_chunk_codes(chunk_idx), self._load_chunk_residuals(chunk_idx)
-        print(doclens.size())
-        print(self.metadata)
         
         # remove embeddings from codes and residuals
         start = sum(doclens[:i])

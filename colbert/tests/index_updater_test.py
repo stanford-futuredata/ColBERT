@@ -104,7 +104,7 @@ def main(args):
     index_updater = IndexUpdater(config, searcher)
     
 # Remove n passages from top-k results (no persisting to disk)
-    n = 3
+    n = 2
     index_updater.remove(top_k_ids[:n], persist_to_disk=False)
     
 # Search again without reloading the searcher
