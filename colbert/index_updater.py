@@ -16,6 +16,7 @@ from colbert.modeling.checkpoint import Checkpoint
 from colbert.utils.utils import print_message, batch
 from colbert.data import Collection
 from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
+from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
 from colbert.indexing.utils import optimize_ivf
 
 class IndexUpdater:
@@ -23,26 +24,150 @@ class IndexUpdater:
     def __init__(self, config, searcher, checkpoint=None):
         self.config = config
         self.searcher = searcher
+        self.has_checkpoint = False
         if checkpoint:
+            self.has_checkpoint = True
             self.checkpoint = Checkpoint(checkpoint, config)
             self.encoder = CollectionEncoder(config, self.checkpoint)
         self.index_path = searcher.index
         self._load_disk_ivf()
+        self.removed_pids = []
         
-        
-    def remove(self, pids, persist_to_disk=False):
-        self._remove_pid_from_ivf(pids, persist_to_disk)
-        
-        if persist_to_disk:
-            self._load_metadata()
-            for pid in pids:
-                self._remove_passage_from_disk(pid)
-
+    def remove(self, pids):
+        self._remove_pid_from_ivf(pids)
+        self.removed_pids.extend(pids)
     
-    def add(self, pids, persist_to_disk=False):
-        if not self.checkpoint:
+    def add_passage(self, passage):
+        if not self.has_checkpoint:
             raise ValueError("No checkpoint was provided at IndexUpdater initialization.")
-        # TODO: implement the add-passage functionalities
+        start_pid = len(self.searcher.ranker.doclens.tolist())
+        
+        # extend doclens and embs of self.searcher.ranker
+        embs, doclens = self.encoder.encode_passages(passage)
+        compressed_embs = self.searcher.ranker.codec.compress(embs)
+        print("Compressing codes...")
+        print(compressed_embs.codes)
+        
+#         import pdb
+#         pdb.set_trace()
+        
+        # !!!!!!!!!!!!!!!!
+        # TODO: WRITE COMMENT ABOUT WHAT HAPPENED W THIS 512
+        self.searcher.ranker.embeddings.codes = torch.cat((self.searcher.ranker.embeddings.codes[:-512], compressed_embs.codes, self.searcher.ranker.embeddings.codes[-512:]))
+        self.searcher.ranker.embeddings.residuals = torch.cat((self.searcher.ranker.embeddings.residuals[:-512], compressed_embs.residuals, self.searcher.ranker.embeddings.residuals[-512:]), dim=0)
+        print(self.searcher.ranker.doclens)
+        self.searcher.ranker.doclens = torch.cat((self.searcher.ranker.doclens, torch.tensor(doclens)))
+        print(self.searcher.ranker.doclens)
+        
+        # update ivf of index updater
+        partitions, _ = self._build_passage_partitions(compressed_embs.codes)
+        self._add_pid_to_ivf(partitions, start_pid)
+        
+        return start_pid
+        
+#     def add(self, passages):
+#         if not self.has_checkpoint:
+#             raise ValueError("No checkpoint was provided at IndexUpdater initialization.")
+            
+#         # find first pid to be added
+#         start_pid = len(self.searcher.ranker.doclens.tolist())
+#         curr_pid = start_pid
+        
+#         # extend doclens and embs of self.searcher.ranker
+#         embs, doclens = self.encoder.encode_passages(passages)
+#         compressed_embs = self.searcher.ranker.codec.compress(embs)
+#         self.searcher.ranker.embeddings.codes = torch.cat((self.searcher.ranker.embeddings.codes, compressed_embs.codes))
+#         self.searcher.ranker.embeddings.residuals = torch.cat((self.searcher.ranker.embeddings.residuals, compressed_embs.residuals))
+#         print(self.searcher.ranker.doclens)
+#         self.searcher.ranker.doclens = torch.cat((self.searcher.ranker.doclens, torch.tensor(doclens)))
+#         print(self.searcher.ranker.doclens)
+        
+        
+#         # build partitions for each pid and update updater's current ivf
+#         start = 0
+#         for doclen in doclens:
+            
+#             end = start + doclen
+#             codes = compressed_embs.codes[start:end]
+#             partitions, _ = self._build_passage_partitions(codes)
+#             self._add_pid_to_ivf(partitions, curr_pid)
+            
+#             start = end
+#             curr_pid += 1
+            
+#         assert start == sum(doclens)
+        
+#         # update new ivf in searcher
+#         new_ivf_tensor = StridedTensor(self.curr_ivf, self.curr_ivf_lengths, use_gpu=False)
+#         assert new_ivf_tensor != self.searcher.ranker.ivf
+#         self.searcher.ranker.ivf = new_ivf_tensor
+        
+#         print(f"Added {len(passages)} passages from pid {start_pid}.")
+#         return [i for i in range(start_pid, start_pid + len(passages))]
+        
+    def add(self, passages):
+        pids = []
+        for passage in passages:
+            pid = self.add_passage([passage])
+            pids.append(pid)
+            
+        # update new ivf in searcher
+        new_ivf_tensor = StridedTensor(self.curr_ivf, self.curr_ivf_lengths, use_gpu=False)
+        assert new_ivf_tensor != self.searcher.ranker.ivf
+        self.searcher.ranker.ivf = new_ivf_tensor
+        
+        self.searcher.ranker.embeddings_strided = ResidualEmbeddingsStrided(self.searcher.ranker.codec, self.searcher.ranker.embeddings, self.searcher.ranker.doclens)
+        return pids
+    
+    def _build_passage_partitions(self, codes):
+        codes = codes.sort()
+        ivf, values = codes.indices, codes.values
+        partitions, ivf_lengths = values.unique_consecutive(return_counts=True)
+        return partitions, ivf_lengths
+    
+    def _add_pid_to_ivf(self, partitions, pid):
+        new_ivf = []
+        new_ivf_lengths = []
+        old_ivf = self.curr_ivf.tolist()
+        old_ivf_lengths = self.curr_ivf_lengths.tolist()
+        
+        partitions_runner = 0
+        ivf_runner = 0
+        for i in range(len(old_ivf_lengths)):
+            # first copy partition pids to new ivf
+            new_ivf.extend(old_ivf[ivf_runner : ivf_runner + old_ivf_lengths[i]])
+            new_ivf_lengths.append(old_ivf_lengths[i])
+            ivf_runner += old_ivf_lengths[i]
+            
+            # add pid if i in partitions
+            if partitions_runner < len(partitions) and i == partitions[partitions_runner]:
+                new_ivf.append(pid)
+                new_ivf_lengths[-1] += 1
+                partitions_runner += 1
+            
+        assert ivf_runner == len(old_ivf)
+        assert sum(new_ivf_lengths) == len(new_ivf)
+        
+        self.curr_ivf = torch.tensor(new_ivf)
+        self.curr_ivf_lengths = torch.tensor(new_ivf_lengths)
+        
+    def persist_to_disk(self):
+        
+        # propagate all removed passages to disk
+        self._load_metadata()
+        for pid in self.removed_pids:
+            self._remove_passage_from_disk(pid)
+            
+        # propagate all added passages to disk
+        # TODO: implement this
+        self._load_metadata()
+        
+        
+        # save current ivf to disk
+        optimized_ivf_path = os.path.join(self.index_path, 'ivf.pid.pt')
+        torch.save((self.curr_ivf, self.curr_ivf_lengths), optimized_ivf_path)
+        print_message(f"#> Saved optimized IVF to {optimized_ivf_path}")
+    
         
     def _load_disk_ivf(self):
         print_message(f"#> Loading IVF...")
@@ -57,7 +182,7 @@ class IndexUpdater:
         self.curr_ivf = ivf
         self.curr_ivf_lengths = ivf_lengths
         
-    def _remove_pid_from_ivf(self, pids, persist_to_disk):
+    def _remove_pid_from_ivf(self, pids):
         new_ivf = []
         new_ivf_lengths = []
         runner = 0
@@ -83,13 +208,6 @@ class IndexUpdater:
         
         self.curr_ivf = new_ivf
         self.curr_ivf_lengths = new_ivf_lengths
-        
-        if persist_to_disk:
-            optimized_ivf_path = os.path.join(self.index_path, 'ivf.pid.pt')
-            torch.save((self.curr_ivf, self.curr_ivf_lengths), optimized_ivf_path)
-            print_message(f"#> Saved optimized IVF to {optimized_ivf_path}")
-            
-    
     
     def _load_metadata(self):
         with open(os.path.join(self.index_path, 'metadata.json')) as f:

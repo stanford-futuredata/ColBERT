@@ -101,11 +101,11 @@ def main(args):
         experiment=experiment,
     )
     
-    index_updater = IndexUpdater(config, searcher)
+    index_updater = IndexUpdater(config, searcher, checkpoint)
     
 # Remove n passages from top-k results (no persisting to disk)
-    n = 2
-    index_updater.remove(top_k_ids[:n], persist_to_disk=False)
+    n = 1
+    index_updater.remove(top_k_ids[:n])
     
 # Search again without reloading the searcher
     results = searcher.search(question, k=k)
@@ -121,52 +121,77 @@ def main(args):
         print(top_k_ids_after)
         
         print("Removal FAILED!!!")
-        
-# Reload the searcher and search again
-    config = ColBERTConfig(
-            root=experiment_dir,
-            experiment=experiment,
-        )
-    searcher = Searcher(
-            index=experiment,
-            config=config,
-        )
-    results = searcher.search(question, k=k)
-    top_k_ids_after = []
-    for passage_id, passage_rank, passage_score in zip(*results):
-        top_k_ids_after.append(passage_id)
 
-# Now we expect that nothing is removed from disk
-    if top_k_ids == top_k_ids_after:
-        print("Disk data INTACT")
-    else:
-        print("Disk data CHANGED !!!")
-        
-# Remove passages again with persisting to disk   
-    index_updater.remove(top_k_ids[:n], persist_to_disk=True)
+# Add the removed passage back
+    passage_removed = "Diego on May 24, 1984 during their May 23–25, 1984 meetings in Washington, D.C. This was the first Super Bowl to be played at Jack Murphy Stadium (now currently known as Qualcomm Stadium) in San Diego, California. Fourteen cities were part of the bidding process, which was scheduled to award four Super Bowls (XXI, XXII, XXIII, and XXIV). The bidding cities included: Anaheim, Detroit, Houston, Jacksonville, Miami, Minneapolis, New Orleans, Pasadena, Philadelphia, San Francisco, San Diego, Seattle, Tampa, and Tempe. The Philadelphia host committee assembled what was considered a strong, but long-shot bid, hoping to win the first outdoor Super"   
+    new_pids = index_updater.add([passage_removed])
+    print(new_pids)
     
-# Reload the searcher and search again
-    config = ColBERTConfig(
-            root=experiment_dir,
-            experiment=experiment,
-        )
-    searcher = Searcher(
-            index=experiment,
-            config=config,
-        )
+# Search again without reloading the searcher
     results = searcher.search(question, k=k)
-    top_k_ids_after = []
+    top_k_ids_after_append = []
     for passage_id, passage_rank, passage_score in zip(*results):
-        top_k_ids_after.append(passage_id)
+        top_k_ids_after_append.append(passage_id)
         
-# Now passages should also have been removed in disk
-    if top_k_ids[n:] == top_k_ids_after[:-n] and top_k_ids_after[-n:] != top_k_ids[:n]:
-        print("Removal from disk SUCCEEDED")
+    print(top_k_ids_after_append)
+    
+    if top_k_ids[1:] == top_k_ids_after_append[1:] and top_k_ids_after_append[0] == new_pids[0]:
+        print("Re-append SUCCEEDED")
     else:
-        print(top_k_ids)
-        print(top_k_ids_after)
+        print("Re-append FAILED!!!")
         
-        print("Removal from disk FAILED!!!")
+        
+        
+        
+        
+        
+        
+# # Reload the searcher and search again
+#     config = ColBERTConfig(
+#             root=experiment_dir,
+#             experiment=experiment,
+#         )
+#     searcher = Searcher(
+#             index=experiment,
+#             config=config,
+#         )
+#     results = searcher.search(question, k=k)
+#     top_k_ids_after = []
+#     for passage_id, passage_rank, passage_score in zip(*results):
+#         top_k_ids_after.append(passage_id)
+
+# # Now we expect that nothing is removed from disk
+#     if top_k_ids == top_k_ids_after:
+#         print("Disk data INTACT")
+#     else:
+#         print("Disk data CHANGED !!!")
+        
+# # Remove passages again with persisting to disk   
+#     index_updater.remove(top_k_ids[:n])
+#     index_updater.persist_to_disk()
+    
+# # Reload the searcher and search again
+#     config = ColBERTConfig(
+#             root=experiment_dir,
+#             experiment=experiment,
+#         )
+#     searcher = Searcher(
+#             index=experiment,
+#             config=config,
+#         )
+#     results = searcher.search(question, k=k)
+#     top_k_ids_after = []
+#     for passage_id, passage_rank, passage_score in zip(*results):
+#         top_k_ids_after.append(passage_id)
+        
+# # Now passages should also have been removed in disk
+#     if top_k_ids[n:] == top_k_ids_after[:-n] and top_k_ids_after[-n:] != top_k_ids[:n]:
+#         print("Removal from disk SUCCEEDED")
+#     else:
+#         print(top_k_ids)
+#         print(top_k_ids_after)
+        
+#         print("Removal from disk FAILED!!!")
         
 
 # TODO: Add testing for re-appending passages
