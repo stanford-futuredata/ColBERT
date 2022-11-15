@@ -122,6 +122,7 @@ def main(args):
         
         print("Removal FAILED!!!")
 
+        
 # Add the removed passage back
     passage_removed = "Diego on May 24, 1984 during their May 23–25, 1984 meetings in Washington, D.C. This was the first Super Bowl to be played at Jack Murphy Stadium (now currently known as Qualcomm Stadium) in San Diego, California. Fourteen cities were part of the bidding process, which was scheduled to award four Super Bowls (XXI, XXII, XXIII, and XXIV). The bidding cities included: Anaheim, Detroit, Houston, Jacksonville, Miami, Minneapolis, New Orleans, Pasadena, Philadelphia, San Francisco, San Diego, Seattle, Tampa, and Tempe. The Philadelphia host committee assembled what was considered a strong, but long-shot bid, hoping to win the first outdoor Super"   
     new_pids = index_updater.add([passage_removed])
@@ -136,15 +137,26 @@ def main(args):
     print(top_k_ids_after_append)
     
     if top_k_ids[1:] == top_k_ids_after_append[1:] and top_k_ids_after_append[0] == new_pids[0]:
-        print("Re-append SUCCEEDED")
+        print("REAPPEND SUCCEEDED")
     else:
-        print("Re-append FAILED!!!")
+        print("REAPPEND FAILED!!!")
         
+# Add 4 more removed passages  
+    new_pids.extend(index_updater.add([passage_removed, passage_removed, passage_removed, passage_removed]))
+    
+# Search again without reloading the searcher
+    results = searcher.search(question, k=k)
+    top_k_ids_after_append = []
+    for passage_id, passage_rank, passage_score in zip(*results):
+        top_k_ids_after_append.append(passage_id)
         
-        
-        
-        
-        
+    print(top_k_ids_after_append)
+    
+    if set(top_k_ids_after_append) == set(new_pids): # all results should now be the newly appended passages
+        print("REAPPEND 4 more SUCCEEDED")
+    else:
+        print("REAPPEND 4 more FAILED!!!")
+    
         
 # # Reload the searcher and search again
 #     config = ColBERTConfig(
