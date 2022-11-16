@@ -108,6 +108,8 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         if self.use_gpu:
             approx_scores = []
 
+            idx = idx.cuda()
+
             # Filter docs using pruned centroid scores
             for i in range(0, ceil(len(pids) / batch_size)):
                 pids_ = pids[i * batch_size : (i+1) * batch_size]

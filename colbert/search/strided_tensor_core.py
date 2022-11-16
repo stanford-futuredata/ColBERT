@@ -6,16 +6,7 @@ import numpy as np
 from colbert.utils.utils import flatten
 
 
-"""
-import line_profiler
-import atexit
-profile = line_profiler.LineProfiler()
-atexit.register(profile.print_stats)
-"""
-
-
 class StridedTensorCore:
-    # # @profile
     def __init__(self, packed_tensor, lengths, dim=None, use_gpu=True):
         self.dim = dim
         self.tensor = packed_tensor
