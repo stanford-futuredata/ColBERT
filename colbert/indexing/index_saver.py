@@ -78,7 +78,7 @@ class IndexSaver():
 
     def _write_chunk_to_disk(self, chunk_idx, offset, compressed_embs, doclens):
         path_prefix = os.path.join(self.config.index_path_, str(chunk_idx))
-        compressed_embs.save(path_prefix)
+        compressed_embs.save(path_prefix, self.config.dim, self.config.nbits)
 
         doclens_path = os.path.join(self.config.index_path_, f'doclens.{chunk_idx}.json')
         with open(doclens_path, 'w') as output_doclens:

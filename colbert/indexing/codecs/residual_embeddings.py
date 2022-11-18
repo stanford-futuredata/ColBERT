@@ -70,29 +70,26 @@ class ResidualEmbeddings:
 
         return torch.load(residuals_path, map_location='cpu')
 
-    def save(self, path_prefix):
+    def save(self, path_prefix, dim, nbits):
         codes_path = f'{path_prefix}.codes.pt'
         residuals_path = f'{path_prefix}.residuals.pt'  # f'{path_prefix}.residuals.bn'
 
         if self._mmap_index:
-            # TODO
             print("using mmap to save codes and residuals")
 
             # mmap codes
-            codes_size = len(self)
-            storage = torch.IntStorage.from_file(filename=codes_path, shared=True, size=codes_size);
+            codes_size = self.codes.shape[0]
+            storage = torch.IntStorage.from_file(filename=codes_path, shared=True, size=codes_size)
             torch.IntTensor(storage).copy_(self.codes)
 
             # mmap residuals
-            dim, nbits = get_dim_and_nbits(index_path)
             packed_dim = dim // 8 * nbits
-            residuals_size = codecs_size * packed_dim
-            storage = torch.ByteStorage.from_file(filename=residuals_path, shared=True, size=residuals_size);
-            torch.ByteTensor(storage).copy_(self.residuals)
+            residuals_size = codes_size * packed_dim
+            storage = torch.ByteStorage.from_file(filename=residuals_path, shared=True, size=residuals_size)
+            torch.ByteTensor(storage).copy_(torch.flatten(self.residuals))
         else:
-           torch.save(self.codes, codes_path)
-           torch.save(self.residuals, residuals_path)
-        # _save_bitarray(self.residuals, residuals_path)
+            torch.save(self.codes, codes_path)
+            torch.save(self.residuals, residuals_path)
 
     def __len__(self):
         return self.codes.size(0)
