@@ -19,7 +19,7 @@ from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
 from colbert.indexing.utils import optimize_ivf
 
-DEFAULT_CHUNKSIZE = 100
+DEFAULT_CHUNKSIZE = 25000
 
 class IndexUpdater:
     
@@ -34,37 +34,14 @@ class IndexUpdater:
         self.index_path = searcher.index
         self._load_disk_ivf()
         self.removed_pids = []
-        self.first_new_embs = searcher.ranker.embeddings.codes.size(dim=0)
+        self.first_new_emb = sum(self.searcher.ranker.doclens.tolist())
         self.first_new_pid = len(self.searcher.ranker.doclens.tolist())
+        print("IndexUpdater CONSTRUCTOR")
+        print(self.first_new_emb, self.first_new_pid)
         
     def remove(self, pids):
         self._remove_pid_from_ivf(pids)
         self.removed_pids.extend(pids)
-    
-#     def add_passage(self, passage):
-#         if not self.has_checkpoint:
-#             raise ValueError("No checkpoint was provided at IndexUpdater initialization.")
-#         start_pid = len(self.searcher.ranker.doclens.tolist())
-        
-#         # extend doclens and embs of self.searcher.ranker
-#         embs, doclens = self.encoder.encode_passages(passage)
-#         compressed_embs = self.searcher.ranker.codec.compress(embs)
-#         print("Compressing codes...")
-#         print(compressed_embs.codes)
-        
-#         # !!!!!!!!!!!!!!!!
-#         # TODO: WRITE COMMENT ABOUT WHAT HAPPENED W THIS 512
-#         self.searcher.ranker.embeddings.codes = torch.cat((self.searcher.ranker.embeddings.codes[:-512], compressed_embs.codes, self.searcher.ranker.embeddings.codes[-512:]))
-#         self.searcher.ranker.embeddings.residuals = torch.cat((self.searcher.ranker.embeddings.residuals[:-512], compressed_embs.residuals, self.searcher.ranker.embeddings.residuals[-512:]), dim=0)
-#         print(self.searcher.ranker.doclens)
-#         self.searcher.ranker.doclens = torch.cat((self.searcher.ranker.doclens, torch.tensor(doclens)))
-#         print(self.searcher.ranker.doclens)
-        
-#         # update ivf of index updater
-#         partitions, _ = self._build_passage_partitions(compressed_embs.codes)
-#         self._add_pid_to_ivf(partitions, start_pid)
-        
-#         return start_pid
         
     def add(self, passages):
         if not self.has_checkpoint:
@@ -109,20 +86,7 @@ class IndexUpdater:
         
         print(f"Added {len(passages)} passages from pid {start_pid}.")
         return [i for i in range(start_pid, start_pid + len(passages))]
-        
-#     def add(self, passages):
-#         pids = []
-#         for passage in passages:
-#             pid = self.add_passage([passage])
-#             pids.append(pid)
-            
-#         # update new ivf in searcher
-#         new_ivf_tensor = StridedTensor(self.curr_ivf, self.curr_ivf_lengths, use_gpu=False)
-#         assert new_ivf_tensor != self.searcher.ranker.ivf
-#         self.searcher.ranker.ivf = new_ivf_tensor
-        
-#         self.searcher.ranker.embeddings_strided = ResidualEmbeddingsStrided(self.searcher.ranker.codec, self.searcher.ranker.embeddings, self.searcher.ranker.doclens)
-#         return pids
+
     
     def _build_passage_partitions(self, codes):
         codes = codes.sort()
@@ -172,24 +136,101 @@ class IndexUpdater:
         
         # calculate avg # passages per chunk
         curr_num_chunks = self.metadata['num_chunks']
-        last_chunk_metadata = _load_chunk_metadata(curr_num_chunks - 1)
+        last_chunk_metadata = self._load_chunk_metadata(curr_num_chunks - 1)
         if curr_num_chunks == 1:
             avg_chunksize = DEFAULT_CHUNKSIZE
         else:
             avg_chunksize = last_chunk_metadata['passage_offset'] / (curr_num_chunks - 1)
-            
+        print(avg_chunksize)
         # calculate space left in last chunk
         last_chunk_capacity = max(0, avg_chunksize - last_chunk_metadata['num_passages'])
-        
+        print(last_chunk_capacity)
         # divide passages into chunks -> [last chunk], [new chunk 1], ... record: num_new_chunks
+        pid_start = self.first_new_pid
+        emb_start = self.first_new_emb
+        pid_last = len(self.searcher.ranker.doclens.tolist())
+        emb_last = emb_start + sum(self.searcher.ranker.doclens.tolist()[pid_start:])
         
+        # first populate last chunk
+        if last_chunk_capacity > 0:
+            pid_end = min(pid_last, pid_start + last_chunk_capacity)
+            emb_end = emb_start + sum(self.searcher.ranker.doclens.tolist()[pid_start: pid_end])
+            print(f"last chunk: {emb_start} to {emb_end}")
+            # TODO: write to last chunk
+            self._write_to_last_chunk(pid_start, pid_end, emb_start, emb_end)
+            pid_start = pid_end
+            emb_start = emb_end
+        
+        while pid_start < pid_last:
+            pid_end = min(pid_last, pid_start + avg_chunksize)
+            emb_end = emb_start + sum(self.searcher.ranker.doclens.tolist()[pid_start: pid_end])
+            # TODO: write new chunk with id = curr_num_chunks
+            
+            # create chunk metadata
+            chunk_metadata = {'passage_offset': pid_start, 'num_passages': pid_end - pid_start, 'embedding_ofset':emb_start , 'num_embeddings': emb_end - emb_start}
+            chunk_metadata_path = os.path.join(self.index_path, f'{curr_num_chunks}.metadata.json')
+            with open(chunk_metadata_path, 'w') as output_chunk_metadata:
+                ujson.dump(chunk_metadata, output_chunk_metadata)
+            print(curr_num_chunks, chunk_metadata)
+            
+            curr_num_chunks += 1
+            pid_start = pid_end
+            emb_start = emb_end
+        
+        assert pid_start == pid_last
+        assert emb_start == emb_last
+        
+        # update metadata
+        print("updating metadata for added passages...")
+        self.metadata['num_chunks'] = curr_num_chunks
+        self.metadata['num_embeddings'] = sum(self.searcher.ranker.doclens.tolist())
+        metadata_path = os.path.join(self.index_path, 'metadata.json')
+        with open(metadata_path, 'w') as output_metadata:
+            ujson.dump(self.metadata, output_metadata)
         
         # save current ivf to disk
         optimized_ivf_path = os.path.join(self.index_path, 'ivf.pid.pt')
+        
+#         import pdb
+#         pdb.set_trace()
+        
         torch.save((self.curr_ivf, self.curr_ivf_lengths), optimized_ivf_path)
         print_message(f"#> Saved optimized IVF to {optimized_ivf_path}")
     
+    def _write_to_last_chunk(self, pid_start, pid_end, emb_start, emb_end):
         
+        print(f"writing {pid_end - pid_start} passages to the last chunk...")
+        num_chunks = self.metadata['num_chunks']
+        # append to current last chunk
+        curr_embs = ResidualEmbeddings.load(self.index_path, num_chunks - 1)
+        
+#         curr_embs.codes = torch.cat((curr_embs.codes[:-512], self.searcher.ranker.embeddings.codes[emb_start:emb_end], curr_embs.codes[-512:]))
+#         curr_embs.residuals = torch.cat((curr_embs.residuals[:-512], self.searcher.ranker.embeddings.residuals[emb_start:emb_end], curr_embs.residuals[-512:]))
+
+        curr_embs.codes = torch.cat((curr_embs.codes, self.searcher.ranker.embeddings.codes[emb_start:emb_end]))
+        curr_embs.residuals = torch.cat((curr_embs.residuals, self.searcher.ranker.embeddings.residuals[emb_start:emb_end]))
+        path_prefix = os.path.join(self.index_path, f'{num_chunks - 1}')
+        curr_embs.save(path_prefix)
+        
+        # update doclen
+        curr_doclens = self._load_chunk_doclens(num_chunks - 1).tolist()
+        curr_doclens.extend(self.searcher.ranker.doclens.tolist()[pid_start:pid_end])
+        doclens_path = os.path.join(self.index_path, f'doclens.{num_chunks - 1}.json')
+        with open(doclens_path, 'w') as output_doclens:
+            ujson.dump(curr_doclens, output_doclens)
+        
+        # update chunk metadata
+        print("updating metadata of current last chunk...")
+        chunk_metadata = self._load_chunk_metadata(num_chunks - 1)
+        chunk_metadata['num_passages'] += pid_end - pid_start
+        chunk_metadata['num_embeddings'] += emb_end - emb_start
+        chunk_metadata_path = os.path.join(self.index_path, f'{num_chunks - 1}.metadata.json')
+        with open(chunk_metadata_path, 'w') as output_chunk_metadata:
+            ujson.dump(chunk_metadata, output_chunk_metadata)
+            
+    def _write_to_new_chunk(self, chunk_idx, pid_start, pid_end, emb_start, emb_end):
+        pass
+            
     def _load_disk_ivf(self):
         print_message(f"#> Loading IVF...")
 
@@ -314,3 +355,46 @@ class IndexUpdater:
         with open(metadata_path, 'w') as output_metadata:
             ujson.dump(self.metadata, output_metadata)
     
+
+    
+#     def add_passage(self, passage):
+#         if not self.has_checkpoint:
+#             raise ValueError("No checkpoint was provided at IndexUpdater initialization.")
+#         start_pid = len(self.searcher.ranker.doclens.tolist())
+        
+#         # extend doclens and embs of self.searcher.ranker
+#         embs, doclens = self.encoder.encode_passages(passage)
+#         compressed_embs = self.searcher.ranker.codec.compress(embs)
+#         print("Compressing codes...")
+#         print(compressed_embs.codes)
+        
+#         # !!!!!!!!!!!!!!!!
+#         # TODO: WRITE COMMENT ABOUT WHAT HAPPENED W THIS 512
+#         self.searcher.ranker.embeddings.codes = torch.cat((self.searcher.ranker.embeddings.codes[:-512], compressed_embs.codes, self.searcher.ranker.embeddings.codes[-512:]))
+#         self.searcher.ranker.embeddings.residuals = torch.cat((self.searcher.ranker.embeddings.residuals[:-512], compressed_embs.residuals, self.searcher.ranker.embeddings.residuals[-512:]), dim=0)
+#         print(self.searcher.ranker.doclens)
+#         self.searcher.ranker.doclens = torch.cat((self.searcher.ranker.doclens, torch.tensor(doclens)))
+#         print(self.searcher.ranker.doclens)
+        
+#         # update ivf of index updater
+#         partitions, _ = self._build_passage_partitions(compressed_embs.codes)
+#         self._add_pid_to_ivf(partitions, start_pid)
+        
+#         return start_pid
+
+
+
+        
+#     def add(self, passages):
+#         pids = []
+#         for passage in passages:
+#             pid = self.add_passage([passage])
+#             pids.append(pid)
+            
+#         # update new ivf in searcher
+#         new_ivf_tensor = StridedTensor(self.curr_ivf, self.curr_ivf_lengths, use_gpu=False)
+#         assert new_ivf_tensor != self.searcher.ranker.ivf
+#         self.searcher.ranker.ivf = new_ivf_tensor
+        
+#         self.searcher.ranker.embeddings_strided = ResidualEmbeddingsStrided(self.searcher.ranker.codec, self.searcher.ranker.embeddings, self.searcher.ranker.doclens)
+#         return pids

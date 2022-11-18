@@ -114,6 +114,7 @@ def main(args):
         top_k_ids_after.append(passage_id)
 
 # Test that top passage is removed
+    print(top_k_ids_after)
     if top_k_ids[n:] == top_k_ids_after[:-n] and top_k_ids_after[-n:] != top_k_ids[:n]:
         print("Removal SUCCEEDED")
     else:
@@ -140,6 +141,7 @@ def main(args):
         print("REAPPEND SUCCEEDED")
     else:
         print("REAPPEND FAILED!!!")
+    
         
 # Add 4 more removed passages  
     new_pids.extend(index_updater.add([passage_removed, passage_removed, passage_removed, passage_removed]))
@@ -157,21 +159,33 @@ def main(args):
     else:
         print("REAPPEND 4 more FAILED!!!")
     
+    index_updater.persist_to_disk()
         
-# # Reload the searcher and search again
-#     config = ColBERTConfig(
-#             root=experiment_dir,
-#             experiment=experiment,
-#         )
-#     searcher = Searcher(
-#             index=experiment,
-#             config=config,
-#         )
-#     results = searcher.search(question, k=k)
-#     top_k_ids_after = []
-#     for passage_id, passage_rank, passage_score in zip(*results):
-#         top_k_ids_after.append(passage_id)
+# Reload the searcher and search again
+    config = ColBERTConfig(
+            root=experiment_dir,
+            experiment=experiment,
+        )
+    searcher = Searcher(
+            index=experiment,
+            config=config,
+        )
+    results = searcher.search(question, k=k)
+    top_k_ids_reload = []
+    for passage_id, passage_rank, passage_score in zip(*results):
+        top_k_ids_reload.append(passage_id)
+        
+    # Now we expect the new 5 identical passages to be returned as seearch results
+        
+    print(top_k_ids_reload)
+    
+    if set(top_k_ids_reload) == set(new_pids): # all results should now be the newly appended passages
+        print("RELOAD SUCCEEDED")
+    else:
+        print("RELOAD FAILED!!!")
 
+
+        
 # # Now we expect that nothing is removed from disk
 #     if top_k_ids == top_k_ids_after:
 #         print("Disk data INTACT")
