@@ -159,9 +159,11 @@ def main(args):
     else:
         print("REAPPEND 4 more FAILED!!!")
     
-    index_updater.persist_to_disk()
         
-# Reload the searcher and search again
+# Persist to disk, reload the searcher and search again
+
+    index_updater.persist_to_disk()
+
     config = ColBERTConfig(
             root=experiment_dir,
             experiment=experiment,
@@ -175,7 +177,7 @@ def main(args):
     for passage_id, passage_rank, passage_score in zip(*results):
         top_k_ids_reload.append(passage_id)
         
-    # Now we expect the new 5 identical passages to be returned as seearch results
+# Now we expect the new 5 identical passages to be returned as seearch results
         
     print(top_k_ids_reload)
     

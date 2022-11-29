@@ -19,7 +19,7 @@ from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
 from colbert.indexing.utils import optimize_ivf
 
-DEFAULT_CHUNKSIZE = 25000
+DEFAULT_CHUNKSIZE = 2
 
 class IndexUpdater:
     
@@ -165,11 +165,12 @@ class IndexUpdater:
             pid_end = min(pid_last, pid_start + avg_chunksize)
             emb_end = emb_start + sum(self.searcher.ranker.doclens.tolist()[pid_start: pid_end])
             # TODO: write new chunk with id = curr_num_chunks
+            self._write_to_new_chunk(curr_num_chunks, pid_start, pid_end, emb_start, emb_end)
             
             # create chunk metadata
-            chunk_metadata = {'passage_offset': pid_start, 'num_passages': pid_end - pid_start, 'embedding_ofset':emb_start , 'num_embeddings': emb_end - emb_start}
+            chunk_metadata = {'passage_offset': pid_start, 'num_passages': pid_end - pid_start, 'embedding_offset':emb_start , 'num_embeddings': emb_end - emb_start}
             chunk_metadata_path = os.path.join(self.index_path, f'{curr_num_chunks}.metadata.json')
-            with open(chunk_metadata_path, 'w') as output_chunk_metadata:
+            with open(chunk_metadata_path, 'w+') as output_chunk_metadata:
                 ujson.dump(chunk_metadata, output_chunk_metadata)
             print(curr_num_chunks, chunk_metadata)
             
@@ -229,7 +230,18 @@ class IndexUpdater:
             ujson.dump(chunk_metadata, output_chunk_metadata)
             
     def _write_to_new_chunk(self, chunk_idx, pid_start, pid_end, emb_start, emb_end):
-        pass
+        
+        # save embeddings
+        print(f'writing {pid_end - pid_start} passages to chunk {chunk_idx}...')
+        curr_embs = ResidualEmbeddings(self.searcher.ranker.embeddings.codes[emb_start:emb_end], self.searcher.ranker.embeddings.residuals[emb_start:emb_end])
+        path_prefix = os.path.join(self.index_path, f'{chunk_idx}')
+        curr_embs.save(path_prefix)
+        
+        # create doclen json file
+        curr_doclens = self.searcher.ranker.doclens.tolist()[pid_start:pid_end]
+        doclens_path = os.path.join(self.index_path, f'doclens.{chunk_idx}.json')
+        with open(doclens_path, 'w+') as output_doclens:
+            ujson.dump(curr_doclens, output_doclens)
             
     def _load_disk_ivf(self):
         print_message(f"#> Loading IVF...")
