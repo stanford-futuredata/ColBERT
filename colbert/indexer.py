@@ -48,7 +48,7 @@ class Indexer:
         
         if len(deleted):
             print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
-            time.sleep(20)
+            #time.sleep(20)
 
             for filename in deleted:
                 os.remove(filename)
