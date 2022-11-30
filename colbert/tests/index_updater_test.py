@@ -8,7 +8,7 @@ from collections import namedtuple
 from datasets import load_dataset
 import tqdm
 
-from colbert import Indexer, Searcher, PassageRemover, PassageAppender, IndexUpdater
+from colbert import Indexer, Searcher, IndexUpdater
 from colbert.infra import ColBERTConfig, RunConfig, Run
 
 SquadExample = namedtuple("SquadExample", "id title context question answers")
@@ -124,7 +124,7 @@ def main(args):
     new_pids.extend(index_updater.add([passage_removed, passage_removed, passage_removed, passage_removed]))
     
 # Search again without reloading the searcher
-# Now we expect the new 5 identical ids of the top passage to be returned as seearch results
+# Now we expect the pids of the 5 newly added identical top passages to be returned as seearch results
     results = searcher.search(question, k=k)
     top_k_ids_after_append = []
     for passage_id, passage_rank, passage_score in zip(*results):
