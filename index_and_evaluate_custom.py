@@ -74,8 +74,10 @@ def evaluate(index=True):
 
 # Testing
 # TODO:
+    #0. Both test seems to be working -- need to find a way to enlarge the scale
     #1. Removal from ivf is SLOW (like 5min per pid...)
-    #2. Add passages back to see if they are retrieved again
+    #2. Code for removal break when I try to make pids into a set (line 270 index updater)
+    #3. Add passages back to see if they are retrieved again
     
         # REMOVAL
         for question in questions:

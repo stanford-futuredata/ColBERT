@@ -268,8 +268,8 @@ class IndexUpdater:
         runner = 0
         progress = 0
         l = len(self.curr_ivf_lengths.tolist())
-        pids = set(pids)
-        print(pids)
+#         pids = set(pids)
+#         print(pids)
         for length in self.curr_ivf_lengths.tolist():
             progress += 1
             print(f'{progress / l * 100}%')
