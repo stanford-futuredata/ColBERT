@@ -71,7 +71,9 @@ class IndexUpdater:
         these pids will no longer apppear in future searches with this searcher
         to erase passage data from index, call persist_to_disk() after calling remove()
         '''
+        print('running remove()...')
         self._remove_pid_from_ivf(pids)
+        print('pids removed')
         self.removed_pids.extend(pids)
         
     def add(self, passages):
@@ -264,7 +266,13 @@ class IndexUpdater:
         new_ivf = []
         new_ivf_lengths = []
         runner = 0
+        progress = 0
+        l = len(self.curr_ivf_lengths.tolist())
+        pids = set(pids)
+        print(pids)
         for length in self.curr_ivf_lengths.tolist():
+            progress += 1
+            print(f'{progress / l * 100}%')
             num_removed = 0
             for i in range(runner, runner + length):
                 if self.curr_ivf[i] not in pids:
