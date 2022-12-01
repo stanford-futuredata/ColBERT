@@ -60,7 +60,6 @@ def evaluate(index=True):
         queries = "/dfs/scratch1/okhattab/data/MSMARCO/queries.dev.small.tsv"
         queries = Queries(path=queries)
         questions = list(queries.values())[:1]
-        print(questions)
         
         if torch.cuda.device_count() < 1:
             print(f"No GPU detected, setting num_threads to 1...")
@@ -86,8 +85,8 @@ def evaluate(index=True):
             for passage_id, passage_rank, passage_score in zip(*results):
                 top_k_ids.append(passage_id)
             
-            # remove 2 passages from top_k passages
-            removed_pids = random.choices(top_k_ids, k=2)
+            # remove m passages from top_k passages
+            removed_pids = random.choices(top_k_ids, k=100)
             config = ColBERTConfig(
                 doc_maxlen=128,
                 nbits=nbits,
@@ -96,19 +95,18 @@ def evaluate(index=True):
                 experiment=experiment,
             )
             index_updater = IndexUpdater(config, searcher, CKPT)
-            print('updater initialized!')
             index_updater.remove(removed_pids)
-            print('pids removed!')
             # search for the top_k passages again
             results = searcher.search(question, k=k)
             top_k_ids_after_remove = []
             for passage_id, passage_rank, passage_score in zip(*results):
                 top_k_ids_after_remove.append(passage_id)
             # check that the removed passages do not appear in new results
-            print(removed_pids)
+            print(f'Pids to be removed are: {removed_pids}')
             intersection = list(set(removed_pids) & set(top_k_ids_after_remove))
-            print(intersection)
+            print(f'Intersection between new results and removed pids is: {intersection}')
             assert len(intersection) == 0
+            print('REMOVAL SUCCEEDED')
             
         # ADD
         new_queries = "/future/u/xrsong/data/MSMARCO/queries.tsv"
@@ -116,17 +114,19 @@ def evaluate(index=True):
         new_queries = list(new_queries.values())
         index_updater = IndexUpdater(config, searcher, CKPT)
         pids = index_updater.add(new_queries)
+        print(f'Added new passages with the following pids: {pids}')
     
         for i in range(len(new_queries)):
             pid = pids[i]
-            print(pid)
+            print(f'Searching with passage {pid} as query...')
             question = new_queries[i]
             results = searcher.search(question, k=100)
             top_k_ids = []
             for passage_id, passage_rank, passage_score in zip(*results):
                 top_k_ids.append(passage_id)
-            print(top_k_ids[:5])
+            print(f'Top 5 results for query {pid} are {top_k_ids[:5]}.')
             assert pid in top_k_ids
+        print('ADD SUCCEEDED')
             
 def main():
     evaluate(index=False)

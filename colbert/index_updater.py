@@ -71,10 +71,10 @@ class IndexUpdater:
         these pids will no longer apppear in future searches with this searcher
         to erase passage data from index, call persist_to_disk() after calling remove()
         '''
-        print('running remove()...')
+        print(f'Removing pids: {pids}...')
         self._remove_pid_from_ivf(pids)
-        print('pids removed')
         self.removed_pids.extend(pids)
+        print(f'Pids {pids} have been removed')
         
     def add(self, passages):
         '''
@@ -266,28 +266,33 @@ class IndexUpdater:
         new_ivf = []
         new_ivf_lengths = []
         runner = 0
-        progress = 0
-        l = len(self.curr_ivf_lengths.tolist())
-#         pids = set(pids)
-#         print(pids)
+        pids = set(pids)
+        
+        # construct mask of where pids to be removed appear in ivf
+        mask = torch.isin(self.curr_ivf, torch.tensor(list(pids)))
+        indices = mask.nonzero()
+        
+        # modify ivf_length for removed pids
+        
+        # calculate end-indices of each centroid section in ivf
+        section_end_indices = []
+        c = 0
         for length in self.curr_ivf_lengths.tolist():
-            progress += 1
-            print(f'{progress / l * 100}%')
-            num_removed = 0
-            for i in range(runner, runner + length):
-                if self.curr_ivf[i] not in pids:
-                    new_ivf.append(self.curr_ivf[i])
-                else:
-                    num_removed += 1
-            runner += length
-            new_ivf_lengths.append(length - num_removed)
+            c += length
+            section_end_indices.append(c)
             
-        assert runner == len(self.curr_ivf.tolist())
-        assert sum(new_ivf_lengths) == len(new_ivf)
+        # record the number of pids removed from each centroid section
+        removed_len = [0 for _ in range(len(section_end_indices))]
+        j = 0
+        for ind in indices:
+            while ind >= section_end_indices[j]:
+                j += 1
+            removed_len[j] += 1
         
-        new_ivf = torch.tensor(new_ivf)
-        new_ivf_lengths = torch.tensor(new_ivf_lengths)
-        
+        # update changes
+        new_ivf = torch.masked_select(self.curr_ivf, ~mask)
+        new_ivf_lengths = self.curr_ivf_lengths - torch.tensor(removed_len)
+
         new_ivf_tensor = StridedTensor(new_ivf, new_ivf_lengths, use_gpu=False)
         assert new_ivf_tensor != self.searcher.ranker.ivf
         self.searcher.ranker.ivf = new_ivf_tensor
