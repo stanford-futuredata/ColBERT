@@ -61,16 +61,21 @@ class ResidualEmbeddings:
     @classmethod
     def load_codes(self, index_path, chunk_idx):
         codes_path = os.path.join(index_path, f'{chunk_idx}.codes.pt')
-        return torch.load(codes_path, map_location='cpu')
+        codes_size = get_codes_size(index_path, chunk_idx)
+        storage = torch.IntStorage.from_file(filename=codes_path, shared=False, size=codes_size)
+
+        return torch.IntTensor(storage)
 
     @classmethod
     def load_residuals(self, index_path, chunk_idx):
-        residuals_path = os.path.join(index_path, f'{chunk_idx}.residuals.pt')  # f'{chunk_idx}.residuals.bn'
-        # return _load_bitarray(residuals_path)
+        residuals_path = os.path.join(index_path, f'{chunk_idx}.residuals.pt')
+        residuals_size, codes_size, packed_dim = get_residuals_size(index_path, chunk_idx)
+        storage = torch.ByteStorage.from_file(filename=residuals_path, shared=False, size=residuals_size)
+        ret = torch.ByteTensor(storage)
+        unflatten = torch.nn.Unflatten(0, (codes_size, packed_dim))
+        return unflatten(ret)
 
-        return torch.load(residuals_path, map_location='cpu')
-
-    def save(self, path_prefix, dim, nbits):
+    def save(self, path_prefix, dim, nbits, config):
         codes_path = f'{path_prefix}.codes.pt'
         residuals_path = f'{path_prefix}.residuals.pt'  # f'{path_prefix}.residuals.bn'
 
@@ -79,6 +84,7 @@ class ResidualEmbeddings:
 
             # mmap codes
             codes_size = self.codes.shape[0]
+            config.codes_size = codes_size
             storage = torch.IntStorage.from_file(filename=codes_path, shared=True, size=codes_size)
             torch.IntTensor(storage).copy_(self.codes)
 
@@ -106,3 +112,17 @@ def get_dim_and_nbits(index_path):
     assert (dim * nbits) % 8 == 0, (dim, nbits, dim * nbits)
 
     return dim, nbits
+
+def get_codes_size(index_path, chunk_idx):
+    # TODO: Ideally load this using ColBERTConfig.load_from_index!
+    with open(os.path.join(index_path, f'{chunk_idx}.metadata.json')) as f:
+        metadata = ujson.load(f)
+
+    return metadata['codes_size']
+
+def get_residuals_size(index_path, chunk_idx):
+    codes_size = get_codes_size(index_path, chunk_idx)
+    dim, nbits = get_dim_and_nbits(index_path)
+
+    packed_dim = dim // 8 * nbits
+    return codes_size * packed_dim, codes_size, packed_dim
