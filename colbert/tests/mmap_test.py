@@ -1,33 +1,63 @@
-import os
 import argparse
+import os, psutil
 from multiprocessing import Process
 
 # <TODO> : populate this file!
-TestData = os.path.join('./', 'mmap_test_data.pt')
+TargetFile = 'mmap_test_data.pt'
+TestFile= os.path.join('./', TargetFile)
+
+# <TODO> : get correct file size
+FILE_SIZE = 10000
+BYTE_SIZE = 1
+
 NUM_READ_CYCLES = 10
-SAMPLE_PERIOD_MSEC = 10
+
+# wait 10 msec to poll
+SAMPLE_PERIOD_SEC = 0.01
 
 
-# <TODO>
-def write_mmapped(target_dir, test_data):
+def write_mmapped(target_dir):
+    test_data = torch.load(TestFile, map_location='cpu')
+
     # write using mmap API
-    pass
+    storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=True, size=FILE_SIZE)
+    torch.ByteTensor(storage).copy_(test_data)
 
 
-# <TODO>
-def write_to_disk(target_dir, test_data):
+def write_to_disk(target_dir):
+    test_data = torch.load(TestFile, map_location='cpu')
+
     # write to disk not using mmap
-    pass
+    torch.save(test_data, os.path.join(target_dir, TargetFile))
 
 
-# <TODO>
-def read_into_buffer(read_buf_size, target_dir):
+def read_into_buffer(mmap, read_buf_size, target_dir):
     # create memory buffer, read into it NUM_READ_CYCLES times
     print("Starting worker process {}".format(os.getpid()))
-    pass
+
+    mem_buf = torch.empty(FILE_SIZE*NUM_READ_CYCLES, BYTE_SIZE, dtype=torch.uint8)
+    buf_start = 0
+    buf_end = FILE_SIZE
+
+    if mmap:
+        storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=False, size=FILE_SIZE)
+
+    for i in xrange(NUM_READ_CYCLES):
+        # initialize buffer
+
+        # read into buffer
+        if mmap:
+            mem_buf[buf_start:buf_end] = torch.ByteTensor(storage)
+        else:
+            mem_buf[buf_start:buf_end] = torch.load(os.path.join(target, TargetFile), map_location='cpu')
+
+        buf_start = buf_end
+        buf_end = buf_end + FILE_SIZE
+
+    return
 
 
-# run_test(mmap: bool) <TODO>
+# run_test(mmap: bool)
 #   mmap -          if true, use memory mapping to save files to disk
 #                   else, save to disk and load entire files into memory
 #   target_dir -    where to write the file to
@@ -48,7 +78,8 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
 
     results = []
 
-    for _ in xrange(test_iter):
+    for i in xrange(test_iter):
+        print("Starting iteration {}".format(i))
         # Write test data to disk using mmap or not
         if mmap:
             write_mmapped(target_dir)
@@ -62,13 +93,16 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
 
         # While the worker is not finished, periodically track memory usage
         cur_result = []
+        worker_mem_proc = psutil.Process(worker_pid)
         while worker_proc.is_alive():
-            # <TODO>: get memory usage, save, wait SAMPLE_PERIOD_MSEC
-            continue
+            cur_result.append(worker_mem_proc.memory_info().rss)
+            sleep(SAMPLE_PERIOD_SEC)
 
         worker_proc.join()
 
-        results.append(sum(cur_result)/len(cur_result))
+        result = sum(cur_result)/len(cur_result)
+        results.append(result)
+        print("iter {} = {}".format(i, result))
 
     return results
 
@@ -80,23 +114,32 @@ def main(args):
     read_buf_size = args.read_buf_size
 
     # Start the test
-    print("Starting MMap stress test")
+    print("\nStarting MMap stress test\n")
 
     # Run the test without MMap, save memory usage stats
+    print("Starting control test")
     control_results = run_test(mamp=False, target_dir, test_iter, read_buf_size)
 
     # Run the test again with MMap, save memory usage stats
+    print("Starting mmap test")
     mmap_results = run_test(mmap=True, target_dir, test_iter, read_buf_size)
 
     # Cleanup
-    print("Finished MMap stress test")
+    print("\nFinished MMap stress test\n")
 
     # Results
-    # <TODO>
     # print table and generate graph with results of memory mapping the
     #   files and not, in terms of memory pressure
 
-    print("Results:")
+    print("Results\n-------")
+    print("Control Test:\niter    memory usage")
+    for i in range(len(control_results)):
+        print("{} {}".format(i, control_results[i]))
+
+    print("MMap Test:\niter    memory usage")
+    for i in range(len(mmap_results)):
+        print("{} {}".format(i, mmap_results[i]))
+
 
 
 if __name__ == "__main__":
