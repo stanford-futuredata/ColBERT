@@ -7,7 +7,7 @@ import torch
 TargetFile = 'mmap_test_data.pt'
 TestFile= os.path.join('./colbert/tests', TargetFile)
 
-FILE_SIZE = 120930656
+TEST_FILE_SIZE = 120930656
 BYTE_SIZE = 1
 
 NUM_READ_CYCLES = 10
@@ -38,8 +38,6 @@ def read_into_buffer(mmap, read_buf_size, target_dir):
     target_path = os.path.join(target_dir, TargetFile)
 
     mem_buf = torch.empty(FILE_SIZE, BYTE_SIZE, dtype=torch.uint8)
-    buf_start = 0
-    buf_end = FILE_SIZE
 
     if mmap:
         storage = torch.ByteStorage.from_file(filename=target_path, shared=False, size=FILE_SIZE)
@@ -52,9 +50,6 @@ def read_into_buffer(mmap, read_buf_size, target_dir):
             mem_buf = torch.ByteTensor(storage)
         else:
             mem_buf = torch.load(target_path, map_location='cpu')
-
-        buf_start = buf_end
-        buf_end = buf_end + FILE_SIZE
 
     return
 
