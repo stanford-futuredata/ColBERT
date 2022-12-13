@@ -39,7 +39,6 @@ class IndexLoader:
             ivf = ivf.tolist()
             ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]
         else:
-            # ivf, ivf_lengths = ivf.cuda(), torch.LongTensor(ivf_lengths).cuda()  # FIXME: REMOVE THIS LINE!
             ivf = StridedTensor(ivf, ivf_lengths, use_gpu=self.use_gpu)
 
         self.ivf = ivf
