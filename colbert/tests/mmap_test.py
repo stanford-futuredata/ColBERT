@@ -20,7 +20,7 @@ def write_mmapped(target_dir):
     test_data = torch.load(TestFile, map_location='cpu')
 
     # write using mmap API
-    storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=True, size=FILE_SIZE)
+    storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=True, size=TEST_FILE_SIZE)
     torch.ByteTensor(storage).copy_(torch.flatten(test_data))
 
 
@@ -37,14 +37,12 @@ def read_into_buffer(mmap, read_buf_size, target_dir):
 
     target_path = os.path.join(target_dir, TargetFile)
 
-    mem_buf = torch.empty(FILE_SIZE, BYTE_SIZE, dtype=torch.uint8)
+    mem_buf = torch.empty(read_buf_size, BYTE_SIZE, dtype=torch.uint8)
 
     if mmap:
-        storage = torch.ByteStorage.from_file(filename=target_path, shared=False, size=FILE_SIZE)
+        storage = torch.ByteStorage.from_file(filename=target_path, shared=False, size=read_buf_size)
 
     for i in range(NUM_READ_CYCLES):
-        # initialize buffer
-
         # read into buffer
         if mmap:
             mem_buf = torch.ByteTensor(storage)
@@ -85,14 +83,16 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
 
         # Spawn a process and track the worker's PID
         worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, target_dir))
-        worker_pid = worker_proc.pid
         worker_proc.start()
+        worker_pid = worker_proc.pid
 
         # While the worker is not finished, periodically track memory usage
         cur_result = []
         worker_mem_proc = psutil.Process(worker_pid)
         while worker_proc.is_alive():
-            cur_result.append(worker_mem_proc.memory_info().rss)
+            #print("memory info: {}".format(worker_mem_proc.memory_info()))
+            mem = worker_mem_proc.memory_info().rss
+            cur_result.append(mem)
             time.sleep(SAMPLE_PERIOD_SEC)
 
         worker_proc.join()
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         "--test_iter", type=int, required=False, default=3, help="Number of test cycles"
     )
     parser.add_argument(
-        "--read_buf_size", type=int, required=False, default=10,\
+        "--read_buf_size", type=int, required=False, default=100,\
         help="Number of copies of the test data to read into memory"
     )
 
