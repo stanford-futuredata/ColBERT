@@ -1,13 +1,13 @@
 import argparse
 import os, psutil
 from multiprocessing import Process
+import time
+import torch
 
-# <TODO> : populate this file!
 TargetFile = 'mmap_test_data.pt'
-TestFile= os.path.join('./', TargetFile)
+TestFile= os.path.join('./colbert/tests', TargetFile)
 
-# <TODO> : get correct file size
-FILE_SIZE = 10000
+FILE_SIZE = 120930656
 BYTE_SIZE = 1
 
 NUM_READ_CYCLES = 10
@@ -21,7 +21,7 @@ def write_mmapped(target_dir):
 
     # write using mmap API
     storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=True, size=FILE_SIZE)
-    torch.ByteTensor(storage).copy_(test_data)
+    torch.ByteTensor(storage).copy_(torch.flatten(test_data))
 
 
 def write_to_disk(target_dir):
@@ -35,21 +35,23 @@ def read_into_buffer(mmap, read_buf_size, target_dir):
     # create memory buffer, read into it NUM_READ_CYCLES times
     print("Starting worker process {}".format(os.getpid()))
 
-    mem_buf = torch.empty(FILE_SIZE*NUM_READ_CYCLES, BYTE_SIZE, dtype=torch.uint8)
+    target_path = os.path.join(target_dir, TargetFile)
+
+    mem_buf = torch.empty(FILE_SIZE, BYTE_SIZE, dtype=torch.uint8)
     buf_start = 0
     buf_end = FILE_SIZE
 
     if mmap:
-        storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=False, size=FILE_SIZE)
+        storage = torch.ByteStorage.from_file(filename=target_path, shared=False, size=FILE_SIZE)
 
-    for i in xrange(NUM_READ_CYCLES):
+    for i in range(NUM_READ_CYCLES):
         # initialize buffer
 
         # read into buffer
         if mmap:
-            mem_buf[buf_start:buf_end] = torch.ByteTensor(storage)
+            mem_buf = torch.ByteTensor(storage)
         else:
-            mem_buf[buf_start:buf_end] = torch.load(os.path.join(target, TargetFile), map_location='cpu')
+            mem_buf = torch.load(target_path, map_location='cpu')
 
         buf_start = buf_end
         buf_end = buf_end + FILE_SIZE
@@ -78,7 +80,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
 
     results = []
 
-    for i in xrange(test_iter):
+    for i in range(test_iter):
         print("Starting iteration {}".format(i))
         # Write test data to disk using mmap or not
         if mmap:
@@ -87,7 +89,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
             write_to_disk(target_dir)
 
         # Spawn a process and track the worker's PID
-        worker_proc = Process(target=read_into_buffer, args=(read_buf_size, target_dir))
+        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, target_dir))
         worker_pid = worker_proc.pid
         worker_proc.start()
 
@@ -96,7 +98,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
         worker_mem_proc = psutil.Process(worker_pid)
         while worker_proc.is_alive():
             cur_result.append(worker_mem_proc.memory_info().rss)
-            sleep(SAMPLE_PERIOD_SEC)
+            time.sleep(SAMPLE_PERIOD_SEC)
 
         worker_proc.join()
 
@@ -114,15 +116,15 @@ def main(args):
     read_buf_size = args.read_buf_size
 
     # Start the test
-    print("\nStarting MMap stress test\n")
+    print("\nStarting MMap stress test")
 
     # Run the test without MMap, save memory usage stats
-    print("Starting control test")
-    control_results = run_test(mamp=False, target_dir, test_iter, read_buf_size)
+    print("\nStarting control test")
+    control_results = run_test(False, target_dir, test_iter, read_buf_size)
 
     # Run the test again with MMap, save memory usage stats
-    print("Starting mmap test")
-    mmap_results = run_test(mmap=True, target_dir, test_iter, read_buf_size)
+    print("\nStarting mmap test")
+    mmap_results = run_test(True, target_dir, test_iter, read_buf_size)
 
     # Cleanup
     print("\nFinished MMap stress test\n")
