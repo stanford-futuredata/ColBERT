@@ -79,11 +79,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
 
     for i in range(test_iter):
         print("Starting iteration {}".format(i))
-        # Write test data to disk using mmap or not
-        if mmap:
-            write_mmapped(target_dir)
-        else:
-            write_to_disk(target_dir)
+        write_to_disk(target_dir)
 
         # Spawn a process and track the worker's PID
         worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, target_dir))
