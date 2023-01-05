@@ -1,6 +1,8 @@
 import argparse
+import matplotlib.pyplot
 import os, psutil
 from multiprocessing import Process
+import sys
 import time
 import torch
 
@@ -14,6 +16,8 @@ NUM_READ_CYCLES = 10
 
 # wait 10 msec to poll
 SAMPLE_PERIOD_SEC = 0.01
+
+RESULTS_FILENAME = 'results.png'
 
 
 def write_mmapped(target_dir):
@@ -97,9 +101,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
 
         worker_proc.join()
 
-        result = sum(cur_result)/len(cur_result)
-        results.append(result)
-        print("iter {} = {}".format(i, result))
+        results.extend(cur_result)
 
     return results
 
@@ -128,15 +130,14 @@ def main(args):
     # print table and generate graph with results of memory mapping the
     #   files and not, in terms of memory pressure
 
-    print("Results\n-------")
-    print("Control Test:\niter    memory usage")
-    for i in range(len(control_results)):
-        print("{} {}".format(i, control_results[i]))
+    print("Saving Results\n--------------")
+    results = [control_results]
+    results.append(mmap_results)
+    matplotlib.pyplot.boxplot(results, labels = ['control', 'mmap'])
+    result_filename = os.path.join(target_dir, RESULTS_FILENAME)
+    matplotlib.pyplot.savefig(result_filename)
 
-    print("MMap Test:\niter    memory usage")
-    for i in range(len(mmap_results)):
-        print("{} {}".format(i, mmap_results[i]))
-
+    print("Results saved to {}".format(result_filename))
 
 
 if __name__ == "__main__":
@@ -152,7 +153,7 @@ if __name__ == "__main__":
         "--test_iter", type=int, required=False, default=3, help="Number of test cycles"
     )
     parser.add_argument(
-        "--read_buf_size", type=int, required=False, default=100,\
+        "--read_buf_size", type=int, required=False, default=TEST_FILE_SIZE,\
         help="Number of copies of the test data to read into memory"
     )
 
