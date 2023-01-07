@@ -1,5 +1,6 @@
 import argparse
 import matplotlib.pyplot
+import random
 import os, psutil
 from multiprocessing import Process
 import sys
@@ -10,9 +11,11 @@ TargetFile = 'mmap_test_data.pt'
 TestFile= os.path.join('./colbert/tests', TargetFile)
 
 TEST_FILE_SIZE = 120930656
+TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
 NUM_READ_CYCLES = 10
+NUM_RAND_CYCLES = 100
 
 # wait 10 msec to poll
 SAMPLE_PERIOD_SEC = 0.01
@@ -24,7 +27,8 @@ def write_mmapped(target_dir):
     test_data = torch.load(TestFile, map_location='cpu')
 
     # write using mmap API
-    storage = torch.ByteStorage.from_file(filename=os.path.join(target_dir, TargetFile), shared=True, size=TEST_FILE_SIZE)
+    fname = os.path.join(target_dir, TargetFile)
+    storage = torch.ByteStorage.from_file(filename=fname, shared=True, size=TEST_FILE_SIZE)
     torch.ByteTensor(storage).copy_(torch.flatten(test_data))
 
 
@@ -35,7 +39,7 @@ def write_to_disk(target_dir):
     torch.save(test_data, os.path.join(target_dir, TargetFile))
 
 
-def read_into_buffer(mmap, read_buf_size, target_dir):
+def read_into_buffer(mmap, read_buf_size, target_dir, read_rand):
     # create memory buffer, read into it NUM_READ_CYCLES times
     print("Starting worker process {}".format(os.getpid()))
 
@@ -52,6 +56,12 @@ def read_into_buffer(mmap, read_buf_size, target_dir):
             mem_buf = torch.ByteTensor(storage)
         else:
             mem_buf = torch.load(target_path, map_location='cpu')
+
+    if read_rand:
+        for i in range(NUM_RAND_CYCLES):
+            start = random.randrange(0, TEST_FILE_SIZE)
+            end = max(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
+            new_buf = mem_buf[start:end]
 
     return
 
@@ -73,8 +83,7 @@ def read_into_buffer(mmap, read_buf_size, target_dir):
 # The parent process will monitor the memory usage of the worker
 # process for each test iteration and report back the results to
 # the caller for analysis.
-def run_test(mmap, target_dir, test_iter, read_buf_size):
-
+def run_test(mmap, target_dir, test_iter, read_buf_size, read_rand):
     results = []
 
     for i in range(test_iter):
@@ -82,7 +91,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
         write_to_disk(target_dir)
 
         # Spawn a process and track the worker's PID
-        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, target_dir))
+        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, target_dir, read_rand))
         worker_proc.start()
         worker_pid = worker_proc.pid
 
@@ -90,7 +99,6 @@ def run_test(mmap, target_dir, test_iter, read_buf_size):
         cur_result = []
         worker_mem_proc = psutil.Process(worker_pid)
         while worker_proc.is_alive():
-            #print("memory info: {}".format(worker_mem_proc.memory_info()))
             mem = worker_mem_proc.memory_info().rss
             cur_result.append(mem)
             time.sleep(SAMPLE_PERIOD_SEC)
@@ -108,28 +116,34 @@ def main(args):
     test_iter = args.test_iter
     read_buf_size = args.read_buf_size
 
-    # Start the test
+    ### Start the test
     print("\nStarting MMap stress test")
 
-    # Run the test without MMap, save memory usage stats
-    print("\nStarting control test")
-    control_results = run_test(False, target_dir, test_iter, read_buf_size)
+    ### Run the basic mem test with + without MMap, save memory usage stats
+    print("\nStarting basic control test")
+    control_basic = run_test(False, target_dir, test_iter, read_buf_size, False)
 
-    # Run the test again with MMap, save memory usage stats
-    print("\nStarting mmap test")
-    mmap_results = run_test(True, target_dir, test_iter, read_buf_size)
+    print("\nStarting basic mmap test")
+    mmap_basic = run_test(True, target_dir, test_iter, read_buf_size, False)
 
-    # Cleanup
+    ### Read random parts of the test data file with and without MMap
+    print("\nStarting random file read control test")
+    control_rand = run_test(False, target_dir, test_iter, read_buf_size, True)
+
+    print("\nStarting random file read mmap test")
+    mmap_rand = run_test(True, target_dir, test_iter, read_buf_size, True)
+
+    ### Cleanup
     print("\nFinished MMap stress test\n")
 
-    # Results
+    ### Results
     # print table and generate graph with results of memory mapping the
     #   files and not, in terms of memory pressure
 
     print("Saving Results\n--------------")
-    results = [control_results]
-    results.append(mmap_results)
-    matplotlib.pyplot.boxplot(results, labels = ['control', 'mmap'])
+    results = [control_basic, mmap_basic, control_rand, mmap_rand]
+    labels = ['control_basic', 'mmap_basic', 'control_rand', 'mmap_rand']
+    matplotlib.pyplot.boxplot(results, labels=labels)
     result_filename = os.path.join(target_dir, RESULTS_FILENAME)
     matplotlib.pyplot.savefig(result_filename)
 
