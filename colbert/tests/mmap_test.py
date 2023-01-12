@@ -10,12 +10,12 @@ import torch
 TargetFile = 'mmap_test_data.pt'
 TestFile= os.path.join('./colbert/tests', TargetFile)
 
-TEST_FILE_SIZE = 120930656
+TEST_FILE_SIZE = 1209306560
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
 NUM_READ_CYCLES = 10
-NUM_RAND_CYCLES = 100
+NUM_RAND_CYCLES = 1000
 
 # wait 10 msec to poll
 SAMPLE_PERIOD_SEC = 0.01
@@ -23,45 +23,25 @@ SAMPLE_PERIOD_SEC = 0.01
 RESULTS_FILENAME = 'results.png'
 
 
-def write_mmapped(target_dir):
-    test_data = torch.load(TestFile, map_location='cpu')
-
-    # write using mmap API
-    fname = os.path.join(target_dir, TargetFile)
-    storage = torch.ByteStorage.from_file(filename=fname, shared=True, size=TEST_FILE_SIZE)
-    torch.ByteTensor(storage).copy_(torch.flatten(test_data))
-
-
-def write_to_disk(target_dir):
-    test_data = torch.load(TestFile, map_location='cpu')
-
-    # write to disk not using mmap
-    torch.save(test_data, os.path.join(target_dir, TargetFile))
-
-
-def read_into_buffer(mmap, read_buf_size, target_dir, read_rand):
+def read_into_buffer(mmap, read_buf_size, read_rand):
     # create memory buffer, read into it NUM_READ_CYCLES times
     print("Starting worker process {}".format(os.getpid()))
 
-    target_path = os.path.join(target_dir, TargetFile)
-
-    mem_buf = torch.empty(read_buf_size, BYTE_SIZE, dtype=torch.uint8)
+    if mmap:
+        storage = torch.ByteStorage.from_file(TestFile, shared=False, size=read_buf_size)
 
     if mmap:
-        storage = torch.ByteStorage.from_file(filename=target_path, shared=False, size=read_buf_size)
-
-    for i in range(NUM_READ_CYCLES):
-        # read into buffer
-        if mmap:
-            mem_buf = torch.ByteTensor(storage)
-        else:
-            mem_buf = torch.load(target_path, map_location='cpu')
+        mem_buf = torch.ByteTensor(storage)
+    else:
+        mem_buf = torch.load(TestFile, map_location='cpu')
 
     if read_rand:
         for i in range(NUM_RAND_CYCLES):
             start = random.randrange(0, TEST_FILE_SIZE)
             end = max(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
+            new_buf = torch.empty(TEST_CHUNK_SIZE)
             new_buf = mem_buf[start:end]
+            new_buf = torch.add(new_buf, 1)
 
     return
 
@@ -83,7 +63,7 @@ def read_into_buffer(mmap, read_buf_size, target_dir, read_rand):
 # The parent process will monitor the memory usage of the worker
 # process for each test iteration and report back the results to
 # the caller for analysis.
-def run_test(mmap, target_dir, test_iter, read_buf_size, read_rand):
+def run_test(mmap, test_iter, read_buf_size, read_rand):
     results = []
 
     for i in range(test_iter):
@@ -91,7 +71,7 @@ def run_test(mmap, target_dir, test_iter, read_buf_size, read_rand):
         write_to_disk(target_dir)
 
         # Spawn a process and track the worker's PID
-        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, target_dir, read_rand))
+        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, read_rand))
         worker_proc.start()
         worker_pid = worker_proc.pid
 
@@ -121,17 +101,17 @@ def main(args):
 
     ### Run the basic mem test with + without MMap, save memory usage stats
     print("\nStarting basic control test")
-    control_basic = run_test(False, target_dir, test_iter, read_buf_size, False)
+    control_basic = run_test(False, test_iter, read_buf_size, False)
 
     print("\nStarting basic mmap test")
-    mmap_basic = run_test(True, target_dir, test_iter, read_buf_size, False)
+    mmap_basic = run_test(True, test_iter, read_buf_size, False)
 
     ### Read random parts of the test data file with and without MMap
     print("\nStarting random file read control test")
-    control_rand = run_test(False, target_dir, test_iter, read_buf_size, True)
+    control_rand = run_test(False, test_iter, read_buf_size, True)
 
     print("\nStarting random file read mmap test")
-    mmap_rand = run_test(True, target_dir, test_iter, read_buf_size, True)
+    mmap_rand = run_test(True, test_iter, read_buf_size, True)
 
     ### Cleanup
     print("\nFinished MMap stress test\n")
