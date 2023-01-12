@@ -10,12 +10,13 @@ import torch
 TargetFile = 'mmap_test_data.pt'
 TestFile= os.path.join('./colbert/tests', TargetFile)
 
+# TODO: make the test size larger
 TEST_FILE_SIZE = 120930656
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
 NUM_READ_CYCLES = 10
-NUM_RAND_CYCLES = 100
+NUM_RAND_CYCLES = 1000
 
 # wait 10 msec to poll
 SAMPLE_PERIOD_SEC = 0.01
@@ -45,23 +46,21 @@ def read_into_buffer(mmap, read_buf_size, target_dir, read_rand):
 
     target_path = os.path.join(target_dir, TargetFile)
 
-    mem_buf = torch.empty(read_buf_size, BYTE_SIZE, dtype=torch.uint8)
-
     if mmap:
         storage = torch.ByteStorage.from_file(filename=target_path, shared=False, size=read_buf_size)
 
-    for i in range(NUM_READ_CYCLES):
-        # read into buffer
-        if mmap:
-            mem_buf = torch.ByteTensor(storage)
-        else:
-            mem_buf = torch.load(target_path, map_location='cpu')
+    if mmap:
+        mem_buf = torch.ByteTensor(storage)
+    else:
+        mem_buf = torch.load(target_path, map_location='cpu')
 
     if read_rand:
         for i in range(NUM_RAND_CYCLES):
             start = random.randrange(0, TEST_FILE_SIZE)
             end = max(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
+            new_buf = torch.empty(TEST_CHUNK_SIZE)
             new_buf = mem_buf[start:end]
+            new_buf = torch.add(new_buf, 1)
 
     return
 
