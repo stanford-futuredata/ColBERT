@@ -49,7 +49,6 @@ def read_into_buffer(mmap, read_buf_size, read_rand):
 # run_test(mmap: bool)
 #   mmap -          if true, use memory mapping to save files to disk
 #                   else, save to disk and load entire files into memory
-#   target_dir -    where to write the file to
 #   test_data -     contents of file to write
 #   test_iter -     how many test cycles to run
 #   read_buf_size - how much data to read into memory
@@ -68,8 +67,8 @@ def run_test(mmap, test_iter, read_buf_size, read_rand):
 
     for i in range(test_iter):
         print("Starting iteration {}".format(i))
-        write_to_disk(target_dir)
 
+        start_time = time.time()
         # Spawn a process and track the worker's PID
         worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, read_rand))
         worker_proc.start()
@@ -84,8 +83,10 @@ def run_test(mmap, test_iter, read_buf_size, read_rand):
             time.sleep(SAMPLE_PERIOD_SEC)
 
         worker_proc.join()
+        end_time = time.time()
 
         results.extend(cur_result)
+        print("exec time = {}".format(end_time - start_time))
 
     return results
 
