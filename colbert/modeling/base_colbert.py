@@ -1,10 +1,11 @@
 import os
 import torch
+import sys
 
 from colbert.utils.utils import torch_load_dnn
 
 from transformers import AutoTokenizer
-from colbert.modeling.hf_colbert import HF_ColBERT
+from colbert.modeling.hf_colbert import class_factory
 from colbert.infra.config import ColBERTConfig
 
 
@@ -16,13 +17,15 @@ class BaseColBERT(torch.nn.Module):
     Like HF, evaluation mode is the default.
     """
 
-    def __init__(self, name, colbert_config=None):
+    def __init__(self, name_or_path, colbert_config=None):
         super().__init__()
 
-        self.name = name
-        self.colbert_config = ColBERTConfig.from_existing(ColBERTConfig.load_from_checkpoint(name), colbert_config)
-        self.model = HF_ColBERT.from_pretrained(name, colbert_config=self.colbert_config)
-        self.raw_tokenizer = AutoTokenizer.from_pretrained(self.model.base)
+        self.colbert_config = ColBERTConfig.from_existing(ColBERTConfig.load_from_checkpoint(name_or_path), colbert_config)
+        self.name = self.colbert_config.model_name
+        assert self.name is not None
+        HF_ColBERT = class_factory(self.name)
+        self.model = HF_ColBERT.from_pretrained(name_or_path, colbert_config=self.colbert_config)
+        self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
 
         self.eval()
 
@@ -32,12 +35,12 @@ class BaseColBERT(torch.nn.Module):
 
     @property
     def bert(self):
-        return self.model.bert
+        return self.model.LM
 
     @property
     def linear(self):
         return self.model.linear
-    
+
     @property
     def score_scaler(self):
         return self.model.score_scaler
