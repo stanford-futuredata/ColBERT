@@ -27,6 +27,8 @@ def read_into_buffer(mmap, read_buf_size, read_rand):
     # create memory buffer, read into it NUM_READ_CYCLES times
     print("Starting worker process {}".format(os.getpid()))
 
+    start_time = time.time()
+
     if mmap:
         storage = torch.ByteStorage.from_file(TestFile, shared=False, size=read_buf_size)
 
@@ -35,13 +37,30 @@ def read_into_buffer(mmap, read_buf_size, read_rand):
     else:
         mem_buf = torch.load(TestFile, map_location='cpu')
 
+    fetch_time = time.time()
+    print("it took {}s to read from disk".format(fetch_time - start_time))
+
     if read_rand:
+        copy_avg = 0
+        calc_avg = 0
         for i in range(NUM_RAND_CYCLES):
+            rand_time_start = time.time()
             start = random.randrange(0, TEST_FILE_SIZE)
             end = max(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
             new_buf = torch.empty(TEST_CHUNK_SIZE)
             new_buf = mem_buf[start:end]
+            ts1 = time.time()
             new_buf = torch.add(new_buf, 1)
+            ts2 = time.time()
+            copy_avg = copy_avg + ts1 - rand_time_start
+            calc_avg = calc_avg + ts2 - ts1
+
+        copy_avg = copy_avg/NUM_RAND_CYCLES
+        calc_avg = calc_avg/NUM_RAND_CYCLES
+        print("copy average time = {}, calculation average time = {}".format(copy_avg, calc_avg))
+
+    end_time = time.time()
+    print("fetch to end time = {}".format(end_time - fetch_time))
 
     return
 
