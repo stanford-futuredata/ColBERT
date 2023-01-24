@@ -1,4 +1,4 @@
-🚨 **Announcement:** If you're looking for the **DSP** framework that composes ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dsp
+🚨 **Announcement:** If you're looking for the **DSP** framework for composing ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dsp
 
 # ColBERT (v2)
 
