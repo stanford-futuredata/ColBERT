@@ -1,3 +1,5 @@
+🚨 **Announcement:** If you're looking for the **DSP** framework that composes ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dsp
+
 # ColBERT (v2)
 
 ### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds.
