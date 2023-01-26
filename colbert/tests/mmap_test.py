@@ -1,4 +1,5 @@
 import argparse
+import gc
 import matplotlib.pyplot
 import random
 import os, psutil
@@ -47,17 +48,21 @@ def read_into_buffer(mmap, read_buf_size, read_rand):
             rand_time_start = time.time()
             start = random.randrange(0, TEST_FILE_SIZE)
             end = max(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
-            new_buf = torch.empty(TEST_CHUNK_SIZE)
             new_buf = mem_buf[start:end]
             ts1 = time.time()
             new_buf = torch.add(new_buf, 1)
             ts2 = time.time()
             copy_avg = copy_avg + ts1 - rand_time_start
             calc_avg = calc_avg + ts2 - ts1
+            del new_buf
+            gc.collect()
 
         copy_avg = copy_avg/NUM_RAND_CYCLES
         calc_avg = calc_avg/NUM_RAND_CYCLES
         print("copy average time = {}, calculation average time = {}".format(copy_avg, calc_avg))
+
+    del mem_buf
+    gc.collect()
 
     end_time = time.time()
     print("fetch to end time = {}".format(end_time - fetch_time))
@@ -143,7 +148,13 @@ def main(args):
     print("Saving Results\n--------------")
     results = [control_basic, mmap_basic, control_rand, mmap_rand]
     labels = ['control_basic', 'mmap_basic', 'control_rand', 'mmap_rand']
-    matplotlib.pyplot.boxplot(results, labels=labels)
+
+    fig = matplotlib.pyplot.figure()
+    plot = fig.add_subplot(111)
+
+    plot.boxplot(results, labels=labels)
+    plot.set_ylabel('Memory Usage (B)')
+
     result_filename = os.path.join(target_dir, RESULTS_FILENAME)
     matplotlib.pyplot.savefig(result_filename)
 
