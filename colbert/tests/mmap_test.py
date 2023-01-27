@@ -74,13 +74,13 @@ def read_into_buffer(mmap, read_buf_size, q):
         computation = torch.sum(new_buf)
         ts2 = time.time()
 
-        copy_avg = copy_avg + ts1 - rand_time_start
-        calc_avg = calc_avg + ts2 - ts1
+        copy_avg += ts1 - rand_time_start
+        calc_avg += ts2 - ts1
 
+        mem = proc.memory_info().rss
         del new_buf
         gc.collect()
 
-        mem = proc.memory_info().rss
         results_buf.append(mem/B_PER_GB)
 
     copy_avg = copy_avg/NUM_COMPUTE_CYCLES
