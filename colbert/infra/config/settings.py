@@ -88,6 +88,14 @@ class RunSettings:
 
 
 @dataclass
+class TokenizerSettings:
+    query_token_id: str = DefaultVal("[unused0]")
+    doc_token_id: str = DefaultVal("[unused1]")
+    query_token: str = DefaultVal("[Q]")
+    doc_token: str = DefaultVal("[D]")
+
+
+@dataclass
 class ResourceSettings:
     checkpoint: str = DefaultVal(None)
     triples: str = DefaultVal(None)
@@ -143,6 +151,7 @@ class TrainingSettings:
 
     ignore_scores: bool = DefaultVal(False)
 
+    model_name: str = DefaultVal("bert-base-uncased")
 
 @dataclass
 class IndexingSettings:

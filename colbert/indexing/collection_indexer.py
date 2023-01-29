@@ -34,6 +34,10 @@ def encode(config, collection, shared_lists, shared_queues):
 
 
 class CollectionIndexer():
+    '''
+    Given a collection and config, encode collection into index and
+    stores the index on the disk in chunks.
+    '''
     def __init__(self, config: ColBERTConfig, collection):
         self.config = config
         self.rank, self.nranks = self.config.rank, self.config.nranks
@@ -55,24 +59,30 @@ class CollectionIndexer():
 
     def run(self, shared_lists):
         with torch.inference_mode():
-            self.setup()
+            self.setup() # Computes and saves plan for whole collection
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
             if not self.config.resume or not self.saver.try_load_codec():
-                self.train(shared_lists)
+                self.train(shared_lists) # Trains centroids from selected passages
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
-            self.index()
+            self.index() # Encodes and saves all tokens into residuals
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
-            self.finalize()
+            self.finalize() # Builds metadata and centroid to passage mapping
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
     def setup(self):
+        '''
+        Calculates and saves plan.json for the whole collection.
+        
+        plan.json { config, num_chunks, num_partitions, num_embeddings_est, avg_doclen_est}
+        num_partitions is the number of centroids to be generated.
+        '''
         if self.config.resume:
             if self._try_load_plan():
                 Run().print_main(f"#> Loaded plan from {self.plan_path}:")
@@ -84,6 +94,7 @@ class CollectionIndexer():
 
         self.num_chunks = int(np.ceil(len(self.collection) / self.collection.get_chunksize()))
 
+        # Saves sampled passages and embeddings for training k-means centroids later 
         sampled_pids = self._sample_pids()
         avg_doclen_est = self._sample_embeddings(sampled_pids)
 
@@ -215,6 +226,7 @@ class CollectionIndexer():
 
         print_message(f'avg_residual = {avg_residual}')
 
+        # Compute and save codec into avg_residual.pt, buckets.pt and centroids.pt
         codec = ResidualCodec(config=self.config, centroids=centroids, avg_residual=avg_residual,
                               bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights)
         self.saver.save_codec(codec)
@@ -318,13 +330,24 @@ class CollectionIndexer():
         # sample_avg_residual = (sample - sample_reconstruct).mean(dim=0)
 
     def index(self):
+        '''
+        Encode embeddings for all passages in collection.
+        Each embedding is converted to code (centroid id) and residual.
+        Embeddings stored according to passage order in contiguous chunks of memory.
+
+        Saved data files described below:
+            {CHUNK#}.codes.pt:      centroid id for each embedding in chunk
+            {CHUNK#}.residuals.pt:  16-bits residual for each embedding in chunk
+            doclens.{CHUNK#}.pt:    number of embeddings within each passage in chunk
+        '''
         with self.saver.thread():
             batches = self.collection.enumerate_batches(rank=self.rank)
             for chunk_idx, offset, passages in tqdm.tqdm(batches, disable=self.rank > 0):
                 if self.config.resume and self.saver.check_chunk_exists(chunk_idx):
                     Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
                     continue
-                embs, doclens = self.encoder.encode_passages(passages)
+                # Encode passages into embeddings with the checkpoint model
+                embs, doclens = self.encoder.encode_passages(passages) 
                 if self.use_gpu:
                     assert embs.dtype == torch.float16
                 else:
@@ -334,10 +357,21 @@ class CollectionIndexer():
                 Run().print_main(f"#> Saving chunk {chunk_idx}: \t {len(passages):,} passages "
                                  f"and {embs.size(0):,} embeddings. From #{offset:,} onward.")
 
-                self.saver.save_chunk(chunk_idx, offset, embs, doclens)
+                self.saver.save_chunk(chunk_idx, offset, embs, doclens) # offset = first passage index in chunk
                 del embs, doclens
 
     def finalize(self):
+        '''
+        Aggregates and stores metadata for each chunk and the whole index
+        Builds and saves inverse mapping from centroids to passage IDs
+
+        Saved data files described below:
+            {CHUNK#}.metadata.json: [ passage_offset, num_passages, num_embeddings, embedding_offset ]
+            metadata.json: [ num_chunks, num_partitions, num_embeddings, avg_doclen ]
+            inv.pid.pt: [ ivf, ivf_lengths ]
+                ivf is an array of passage IDs for centroids 0, 1, ...
+                ivf_length contains the number of passage IDs for each centroid
+        '''
         if self.rank > 0:
             return
 
@@ -422,6 +456,7 @@ class CollectionIndexer():
 
         print_memory_stats(f'RANK:{self.rank}')
 
+        # Transforms centroid->embedding ivf to centroid->passage ivf
         _, _ = optimize_ivf(ivf, ivf_lengths, self.config.index_path_)
 
     def _update_metadata(self):
