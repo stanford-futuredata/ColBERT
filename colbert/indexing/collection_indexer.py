@@ -59,20 +59,20 @@ class CollectionIndexer():
 
     def run(self, shared_lists):
         with torch.inference_mode():
-            self.setup() # computes and saves plan for whole collection
+            self.setup() # Computes and saves plan for whole collection
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
             if not self.config.resume or not self.saver.try_load_codec():
-                self.train(shared_lists) # trains centroids from selected passages
+                self.train(shared_lists) # Trains centroids from selected passages
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
-            self.index() # encodes and saves all tokens into residuals
+            self.index() # Encodes and saves all tokens into residuals
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
-            self.finalize() # builds metadata and centroid to passage mapping
+            self.finalize() # Builds metadata and centroid to passage mapping
             distributed.barrier(self.rank)
             print_memory_stats(f'RANK:{self.rank}')
 
@@ -346,7 +346,7 @@ class CollectionIndexer():
                 if self.config.resume and self.saver.check_chunk_exists(chunk_idx):
                     Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
                     continue
-                # encode passages into embeddings with the checkpoint model
+                # Encode passages into embeddings with the checkpoint model
                 embs, doclens = self.encoder.encode_passages(passages) 
                 if self.use_gpu:
                     assert embs.dtype == torch.float16
@@ -459,7 +459,7 @@ class CollectionIndexer():
 
         print_memory_stats(f'RANK:{self.rank}')
 
-        # transforms centroid->embedding ivf to centroid->passageID ivf
+        # Transforms centroid->embedding ivf to centroid->passage ivf
         _, _ = optimize_ivf(ivf, ivf_lengths, self.config.index_path_)
 
     def _update_metadata(self):
