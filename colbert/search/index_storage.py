@@ -119,13 +119,14 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 codes_packed_ = codes_packed[idx_]
                 approx_scores_ = centroid_scores[codes_packed_.long()]
                 if approx_scores_.shape[0] == 0:
-                    approx_scores.append(torch.zeros((len(pids_),), dtype=approx_scores_.dtype))
+                    approx_scores.append(torch.zeros((len(pids_),), dtype=approx_scores_.dtype).cuda())
                     continue
                 approx_scores_strided = StridedTensor(approx_scores_, pruned_codes_lengths, use_gpu=self.use_gpu)
                 approx_scores_padded, approx_scores_mask = approx_scores_strided.as_padded_tensor()
                 approx_scores_ = colbert_score_reduce(approx_scores_padded, approx_scores_mask, config)
                 approx_scores.append(approx_scores_)
             approx_scores = torch.cat(approx_scores, dim=0)
+            assert approx_scores.is_cuda, approx_scores.device
             if config.ndocs < len(approx_scores):
                 pids = pids[torch.topk(approx_scores, k=config.ndocs).indices]
 
