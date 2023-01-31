@@ -12,11 +12,13 @@ import torch
 TargetFile = 'mmap_test_data.pt'
 TestFile= os.path.join('./colbert/tests', TargetFile)
 
+verbose = False
+
 TEST_FILE_SIZE = 1209306560
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
-NUM_COMPUTE_CYCLES = 100
+NUM_COMPUTE_CYCLES = 10
 
 # wait 10 msec to poll
 SAMPLE_PERIOD_SEC = 0.01
@@ -30,9 +32,16 @@ mmap_basic = []
 control_compute = []
 mmap_compute = []
 
+control_timing = []
+mmap_timing = []
+
 def read_into_buffer(mmap, read_buf_size, q):
 
-    print("Starting worker process {}".format(os.getpid()))
+    if verbose:
+        print("Starting worker process {}".format(os.getpid()))
+
+    # read time, average copy time, average calculation time, total time
+    timing = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
     proc = psutil.Process(os.getpid())
 
     start_time = time.time()
@@ -50,7 +59,9 @@ def read_into_buffer(mmap, read_buf_size, q):
         q.put(mem)
 
     fetch_time = time.time()
-    print("it took {}s to read from disk".format(fetch_time - start_time))
+    timing['read_time'] = fetch_time - start_time
+    if verbose:
+        print("it took {}s to read from disk".format(timing['read_time']))
 
     if mmap:
         results_buf = mmap_compute
@@ -63,7 +74,8 @@ def read_into_buffer(mmap, read_buf_size, q):
 
     for i in range(NUM_COMPUTE_CYCLES):
         if (i % 10 == 0):
-            print("copying cycle {}".format(i))
+            if verbose:
+                print("copying cycle {}".format(i))
 
         rand_time_start = time.time()
         start = random.randrange(0, TEST_FILE_SIZE)
@@ -85,15 +97,21 @@ def read_into_buffer(mmap, read_buf_size, q):
 
     copy_avg = copy_avg/NUM_COMPUTE_CYCLES
     calc_avg = calc_avg/NUM_COMPUTE_CYCLES
-    print("copy average time = {}, calculation average time = {}".format(copy_avg, calc_avg))
+    if verbose:
+        print("copy average time = {}, calculation average time = {}".format(copy_avg, calc_avg))
+    timing['average_copy_time'] = copy_avg
+    timing['average_calc_time'] = calc_avg
 
     del mem_buf
     gc.collect()
 
     end_time = time.time()
-    print("fetch to end time = {}".format(end_time - fetch_time))
+    timing['total_time'] = end_time - fetch_time
+    if verbose:
+        print("fetch to end time = {}".format(timing['total_time']))
 
     q.put(results_buf)
+    q.put(timing)
 
     return
 
@@ -129,12 +147,72 @@ def run_test(mmap, test_iter, read_buf_size):
 
         print("exec time = {}".format(end_time - start_time))
 
+        # TODO: add SSD vs HDD times
         if mmap:
             mmap_basic.append(q.get())
             mmap_compute.extend(q.get())
+            mmap_timing.append(q.get())
         else:
             control_basic.append(q.get())
             control_compute.extend(q.get())
+            control_timing.append(q.get())
+
+def print_results(target_dir):
+    # print table and generate graph with results of memory mapping the
+    #   files and not, in terms of memory pressure
+
+    print("Saving Results\n--------------")
+    results = [control_basic, mmap_basic, control_compute, mmap_compute]
+
+    # create labels
+    labels = ['control_basic', 'mmap_basic', 'control_compute', 'mmap_compute']
+
+    # create basic figure
+    fig = matplotlib.pyplot.figure()
+    plot = fig.add_subplot(111)
+
+    # plot the box plot
+    bp = plot.boxplot(results, labels=labels, showmeans=True)
+    plot.set_ylabel('Memory Usage (GB)')
+
+    result_filename = os.path.join(target_dir, RESULTS_FILENAME)
+    matplotlib.pyplot.savefig(result_filename)
+
+    print("Results saved to {}\n".format(result_filename))
+
+    for i, l in enumerate(results):
+        print("{:10s}: {:.2f} GB".format(labels[i], sum(l)/len(l)))
+
+def print_timing(test_iter):
+    print("\nTiming Summary")
+    print("--------------\n")
+
+    control = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
+    mmap = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
+
+    for i in range(test_iter):
+        control_iter = control_timing[i]
+        for k in control_iter:
+            control[k] += control_iter[k]
+
+    for k in control:
+        control[k] /= test_iter
+
+    for i in range(test_iter):
+        mmap_iter = mmap_timing[i]
+        for k in mmap_iter:
+            mmap[k] += mmap_iter[k]
+
+    for k in mmap:
+        mmap[k] /= test_iter
+
+    print("  Timing   |  Control  |  MMap (HDD)  |  MMap (SSD)  ")
+    print("-----------|-----------|--------------|--------------")
+    print(" read time |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['read_time'], mmap['read_time'], 0))
+    print(" copy time |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['average_copy_time'], mmap['average_copy_time'], 0))
+    print("  compute  |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['average_calc_time'], mmap['average_calc_time'], 0))
+    print("   total   |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['total_time'], mmap['total_time'], 0))
+
 
 def main(args):
     target_dir = args.target_dir
@@ -156,23 +234,10 @@ def main(args):
     print("\nFinished MMap stress test\n")
 
     ### Results
-    # print table and generate graph with results of memory mapping the
-    #   files and not, in terms of memory pressure
+    print_results(target_dir)
 
-    print("Saving Results\n--------------")
-    results = [control_basic, mmap_basic, control_compute, mmap_compute]
-    labels = ['control_basic', 'mmap_basic', 'control_compute', 'mmap_compute']
-
-    fig = matplotlib.pyplot.figure()
-    plot = fig.add_subplot(111)
-
-    plot.boxplot(results, labels=labels, showmeans=True)
-    plot.set_ylabel('Memory Usage (GB)')
-
-    result_filename = os.path.join(target_dir, RESULTS_FILENAME)
-    matplotlib.pyplot.savefig(result_filename)
-
-    print("Results saved to {}".format(result_filename))
+    ### Timing Summary
+    print_timing(test_iter)
 
 
 if __name__ == "__main__":
