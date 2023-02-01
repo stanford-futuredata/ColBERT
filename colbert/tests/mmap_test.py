@@ -9,21 +9,21 @@ import sys
 import time
 import torch
 
-TargetFile = 'mmap_test_data.pt'
-TestFile= os.path.join('./colbert/tests', TargetFile)
+TargetFile = 'ivf.pt'
+TestFile = os.path.join('./colbert/tests', TargetFile)
+HDD_filepath = os.path.join('/lfs/1/udingank/msmarco.nbits-2.latest', TargetFile)
+SSD_filepath = os.path.join('/lfs/0/udingank/msmarco.nbits-2.latest', TargetFile)
+Sources = [HDD_filepath, SSD_filepath]
+
+Results = ['results-hdd.png', 'results-ssd.png']
 
 verbose = False
 
-TEST_FILE_SIZE = 1209306560
+TEST_FILE_SIZE = 9566559787 
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
-NUM_COMPUTE_CYCLES = 10
-
-# wait 10 msec to poll
-SAMPLE_PERIOD_SEC = 0.01
-
-RESULTS_FILENAME = 'results.png'
+NUM_COMPUTE_CYCLES = 1000
 
 B_PER_GB = 1e9
 
@@ -35,7 +35,7 @@ mmap_compute = []
 control_timing = []
 mmap_timing = []
 
-def read_into_buffer(mmap, read_buf_size, q):
+def read_into_buffer(mmap, read_buf_size, filepath, q):
 
     if verbose:
         print("Starting worker process {}".format(os.getpid()))
@@ -47,14 +47,14 @@ def read_into_buffer(mmap, read_buf_size, q):
     start_time = time.time()
 
     if mmap:
-        storage = torch.ByteStorage.from_file(TestFile, shared=False, size=read_buf_size)
+        storage = torch.ByteStorage.from_file(filepath, shared=False, size=read_buf_size)
 
     if mmap:
         mem_buf = torch.ByteTensor(storage)
         mem = proc.memory_info().rss/B_PER_GB
         q.put(mem)
     else:
-        mem_buf = torch.load(TestFile, map_location='cpu')
+        mem_buf = torch.load(filepath, map_location='cpu')[0]
         mem = proc.memory_info().rss/B_PER_GB
         q.put(mem)
 
@@ -74,8 +74,7 @@ def read_into_buffer(mmap, read_buf_size, q):
 
     for i in range(NUM_COMPUTE_CYCLES):
         if (i % 10 == 0):
-            if verbose:
-                print("copying cycle {}".format(i))
+            print("copying cycle {}".format(i))
 
         rand_time_start = time.time()
         start = random.randrange(0, TEST_FILE_SIZE)
@@ -132,14 +131,15 @@ def read_into_buffer(mmap, read_buf_size, q):
 # The parent process will monitor the memory usage of the worker
 # process for each test iteration and report back the results to
 # the caller for analysis.
-def run_test(mmap, test_iter, read_buf_size):
+def run_test(mmap, test_iter, read_buf_size, filepath):
+
     for i in range(test_iter):
         print("Starting iteration {}".format(i))
 
         q = Queue()
 
         start_time = time.time()
-        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, q))
+        worker_proc = Process(target=read_into_buffer, args=(mmap, read_buf_size, filepath, q))
         worker_proc.start()
 
         worker_proc.join()
@@ -147,7 +147,6 @@ def run_test(mmap, test_iter, read_buf_size):
 
         print("exec time = {}".format(end_time - start_time))
 
-        # TODO: add SSD vs HDD times
         if mmap:
             mmap_basic.append(q.get())
             mmap_compute.extend(q.get())
@@ -157,7 +156,7 @@ def run_test(mmap, test_iter, read_buf_size):
             control_compute.extend(q.get())
             control_timing.append(q.get())
 
-def print_results(target_dir):
+def print_results(target_dir, filepath):
     # print table and generate graph with results of memory mapping the
     #   files and not, in terms of memory pressure
 
@@ -175,7 +174,7 @@ def print_results(target_dir):
     bp = plot.boxplot(results, labels=labels, showmeans=True)
     plot.set_ylabel('Memory Usage (GB)')
 
-    result_filename = os.path.join(target_dir, RESULTS_FILENAME)
+    result_filename = os.path.join(target_dir, filepath)
     matplotlib.pyplot.savefig(result_filename)
 
     print("Results saved to {}\n".format(result_filename))
@@ -206,12 +205,12 @@ def print_timing(test_iter):
     for k in mmap:
         mmap[k] /= test_iter
 
-    print("  Timing   |  Control  |  MMap (HDD)  |  MMap (SSD)  ")
-    print("-----------|-----------|--------------|--------------")
-    print(" read time |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['read_time'], mmap['read_time'], 0))
-    print(" copy time |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['average_copy_time'], mmap['average_copy_time'], 0))
-    print("  compute  |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['average_calc_time'], mmap['average_calc_time'], 0))
-    print("   total   |    {:.2f}   |    {:.2f}     |   {:.2f}  ".format(control['total_time'], mmap['total_time'], 0))
+    print("  Timing   |  Control  |  MMap  ")
+    print("-----------|-----------|--------------")
+    print(" read time |    {:.2f}   |    {:.2f}     ".format(control['read_time'], mmap['read_time']))
+    print(" copy time |    {:.2f}   |    {:.2f}     ".format(control['average_copy_time'], mmap['average_copy_time']))
+    print("  compute  |    {:.2f}   |    {:.2f}     ".format(control['average_calc_time'], mmap['average_calc_time']))
+    print("   total   |    {:.2f}   |    {:.2f}     ".format(control['total_time'], mmap['total_time']))
 
 
 def main(args):
@@ -224,20 +223,28 @@ def main(args):
     print("\nStarting MMap stress test")
 
     ### Read random parts of the test data file with and without MMap
-    print("\nStarting random file read control test")
-    run_test(False, test_iter, read_buf_size)
+    for i, filepath in enumerate(Sources):
+        print("\nStarting random file read control test from {}".format(filepath))
+        run_test(False, test_iter, read_buf_size, filepath)
 
-    print("\nStarting random file read mmap test")
-    run_test(True, test_iter, read_buf_size)
+        print("\nStarting random file read mmap test from {}".format(filepath))
+        run_test(True, test_iter, read_buf_size, filepath)
 
-    ### Cleanup
+        ### Results
+        print_results(target_dir, Results[i])
+
+        ### Timing Summary
+        print_timing(test_iter)
+
+        control_basic = []
+        mmap_basic = []
+        control_compute = []
+        mmap_compute = []
+
+        control_timing = []
+        mmap_timing = []
+
     print("\nFinished MMap stress test\n")
-
-    ### Results
-    print_results(target_dir)
-
-    ### Timing Summary
-    print_timing(test_iter)
 
 
 if __name__ == "__main__":
