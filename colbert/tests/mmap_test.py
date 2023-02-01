@@ -19,7 +19,7 @@ Results = ['results-hdd.png', 'results-ssd.png']
 
 verbose = False
 
-TEST_FILE_SIZE = 9566559787 
+TEST_FILE_SIZE = 9566559787
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
@@ -54,7 +54,11 @@ def read_into_buffer(mmap, read_buf_size, filepath, q):
         mem = proc.memory_info().rss/B_PER_GB
         q.put(mem)
     else:
-        mem_buf = torch.load(filepath, map_location='cpu')[0]
+        temp = torch.load(filepath, map_location='cpu')
+        mem_buf = torch.cat(temp)
+        del temp
+        gc.collect()
+
         mem = proc.memory_info().rss/B_PER_GB
         q.put(mem)
 
@@ -228,7 +232,7 @@ def main(args):
         run_test(False, test_iter, read_buf_size, filepath)
 
         print("\nStarting random file read mmap test from {}".format(filepath))
-        run_test(True, test_iter, read_buf_size, filepath)
+        #run_test(True, test_iter, read_buf_size, filepath)
 
         ### Results
         print_results(target_dir, Results[i])
