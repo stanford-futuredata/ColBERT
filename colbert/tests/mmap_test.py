@@ -10,12 +10,15 @@ import time
 import torch
 
 TargetFile = 'ivf.pt'
-TestFile = os.path.join('./colbert/tests', TargetFile)
 HDD_filepath = os.path.join('/lfs/1/udingank/msmarco.nbits-2.latest', TargetFile)
 SSD_filepath = os.path.join('/lfs/0/udingank/msmarco.nbits-2.latest', TargetFile)
 Sources = [HDD_filepath, SSD_filepath]
-
 Results = ['results-hdd.png', 'results-ssd.png']
+
+#Sources = [TestFile]
+#Results = ['results.png']
+#TestFile = os.path.join('./colbert/tests', 'mmap_test_data.pt')
+#TEST_FILE_SIZE = 1209306560
 
 verbose = False
 
@@ -23,7 +26,7 @@ TEST_FILE_SIZE = 9566559787
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
 
-NUM_COMPUTE_CYCLES = 1000
+NUM_COMPUTE_CYCLES = 10
 
 B_PER_GB = 1e9
 
@@ -54,10 +57,11 @@ def read_into_buffer(mmap, read_buf_size, filepath, q):
         mem = proc.memory_info().rss/B_PER_GB
         q.put(mem)
     else:
-        temp = torch.load(filepath, map_location='cpu')
-        mem_buf = torch.cat(temp)
-        del temp
-        gc.collect()
+        #temp = torch.load(filepath, map_location='cpu')
+        #mem_buf = torch.cat(temp)
+        mem_buf = torch.load(filepath, map_location='cpu')
+        #del temp
+        #gc.collect()
 
         mem = proc.memory_info().rss/B_PER_GB
         q.put(mem)
@@ -211,10 +215,10 @@ def print_timing(test_iter):
 
     print("  Timing   |  Control  |  MMap  ")
     print("-----------|-----------|--------------")
-    print(" read time |    {:.2f}   |    {:.2f}     ".format(control['read_time'], mmap['read_time']))
-    print(" copy time |    {:.2f}   |    {:.2f}     ".format(control['average_copy_time'], mmap['average_copy_time']))
-    print("  compute  |    {:.2f}   |    {:.2f}     ".format(control['average_calc_time'], mmap['average_calc_time']))
-    print("   total   |    {:.2f}   |    {:.2f}     ".format(control['total_time'], mmap['total_time']))
+    print(" read time | {:.5f}  |  {:.5f}     ".format(control['read_time'], mmap['read_time']))
+    print(" copy time | {:.5f}  |  {:.5f}     ".format(control['average_copy_time'], mmap['average_copy_time']))
+    print("  compute  | {:.5f}  |  {:.5f}     ".format(control['average_calc_time'], mmap['average_calc_time']))
+    print("   total   | {:.5f}  |  {:.5f}     ".format(control['total_time'], mmap['total_time']))
 
 
 def main(args):
@@ -232,7 +236,7 @@ def main(args):
         run_test(False, test_iter, read_buf_size, filepath)
 
         print("\nStarting random file read mmap test from {}".format(filepath))
-        #run_test(True, test_iter, read_buf_size, filepath)
+        run_test(True, test_iter, read_buf_size, filepath)
 
         ### Results
         print_results(target_dir, Results[i])
