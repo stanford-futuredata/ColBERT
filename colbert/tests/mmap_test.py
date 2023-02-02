@@ -56,7 +56,8 @@ def read_residuals(mmap, filepath, proc, q):
         if mmap:
             mem_buf.append(torch.ByteTensor(storage))
         else:
-            mem_buf.append(torch.load(filename, map_location='cpu'))
+            temp = torch.load(filename, map_location='cpu')
+            mem_buf.append(torch.flatten(temp))
 
     mem = proc.memory_info().rss/B_PER_GB
     q.put(mem)
