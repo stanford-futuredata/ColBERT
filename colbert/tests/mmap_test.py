@@ -19,7 +19,7 @@ Results = ['results-hdd.png', 'results-ssd.png']
 #TestFile = os.path.join('./colbert/tests', 'mmap_test_data.pt')
 #TEST_FILE_SIZE = 1209306560
 
-verbose = True
+verbose = False
 
 TEST_CHUNK_SIZE = 100000
 BYTE_SIZE = 1
@@ -51,7 +51,7 @@ def read_residuals(mmap, filepath, proc, q):
         filename = os.path.join(filepath, "{}.residuals.pt".format(i))
 
         if (i % 10 == 0):
-            print("reading file {}".format(filename))
+            if verbose: print("reading file {}".format(filename))
 
         if mmap:
             storage = torch.ByteStorage.from_file(filename, shared=False, size=TensorSizes[i])
@@ -80,10 +80,7 @@ def read_into_buffer(mmap, filepath, q):
     start_time = time.time()
     mem_buf = read_residuals(mmap, filepath, proc, q)
     if not mmap:
-        temp = torch.flatten(mem_buf)
-        mem_buf = temp
-        del temp
-        gc.collect()
+        mem_buf = torch.flatten(mem_buf)
         TEST_FILE_SIZE = mem_buf.nelement()
 
     fetch_time = time.time()
@@ -103,7 +100,7 @@ def read_into_buffer(mmap, filepath, q):
             res_size = TensorSizes[res]
             start = random.randrange(res_size - TEST_CHUNK_SIZE)
             end = min(start + TEST_CHUNK_SIZE, res_size)
-            temp = mem_buf[0][start:end]
+            temp = mem_buf[res][start:end]
         else:
             start = random.randrange(0, TEST_FILE_SIZE)
             end = min(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
