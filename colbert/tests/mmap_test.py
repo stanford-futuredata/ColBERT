@@ -60,9 +60,8 @@ def read_residuals(mmap, filepath, proc, q):
             mem_buf.append(torch.flatten(temp))
 
     mem = proc.memory_info().rss/B_PER_GB
-    q.put(mem)
 
-    return mem_buf
+    return mem_buf, mem
 
 def read_into_buffer(mmap, filepath, q):
     proc = psutil.Process(os.getpid())
@@ -72,7 +71,9 @@ def read_into_buffer(mmap, filepath, q):
 
     # read from residual files into mem_buf
     start_time = time.time()
-    mem_buf = read_residuals(mmap, filepath, proc, q)
+    base_mem = proc.memory_info().rss/B_PER_GB
+    mem_buf, mem = read_residuals(mmap, filepath, proc, q)
+    q.put(mem - base_mem)
 
     fetch_time = time.time()
 
@@ -97,6 +98,8 @@ def read_into_buffer(mmap, filepath, q):
         del temp
         gc.collect()
 
+        mem = proc.memory_info().rss/B_PER_GB
+
         ts1 = time.time()
         computation = torch.sum(new_buf)
         ts2 = time.time()
@@ -104,8 +107,7 @@ def read_into_buffer(mmap, filepath, q):
         copy_avg += ts1 - rand_time_start
         calc_avg += ts2 - ts1
 
-        mem = proc.memory_info().rss/B_PER_GB
-        results_buf.append(mem)
+        results_buf.append(mem - base_mem)
 
         del new_buf
         gc.collect()
@@ -183,7 +185,7 @@ def print_results(target_dir, filepath):
     print("Results saved to {}\n".format(result_filename))
 
     for i, l in enumerate(results):
-        print("{:10s}: {:.2f} GB".format(labels[i], sum(l)/len(l)))
+        print("{:10s}: {:.5f} GB".format(labels[i], sum(l)/len(l)))
 
 # print the timing benchmarks
 def print_timing(test_iter):
@@ -209,12 +211,12 @@ def print_timing(test_iter):
     for k in mmap:
         mmap[k] /= test_iter
 
-    print("  Timing   |  Control  |  MMap  ")
+    print("  Timing   |  Control  |  MMap")
     print("-----------|-----------|--------------")
-    print(" read time | {:.5f}  |  {:.5f}     ".format(control['read_time'], mmap['read_time']))
-    print(" copy time | {:.5f}  |  {:.5f}     ".format(control['average_copy_time'], mmap['average_copy_time']))
-    print("  compute  | {:.5f}  |  {:.5f}     ".format(control['average_calc_time'], mmap['average_calc_time']))
-    print("   total   | {:.5f}  |  {:.5f}     ".format(control['total_time'], mmap['total_time']))
+    print(" read time | {:.5f}  |  {:.5f}".format(control['read_time'], mmap['read_time']))
+    print(" copy time | {:.5f}  |  {:.5f}".format(control['average_copy_time'], mmap['average_copy_time']))
+    print("  compute  | {:.5f}  |  {:.5f}".format(control['average_calc_time'], mmap['average_calc_time']))
+    print("   total   | {:.5f}  |  {:.5f}".format(control['total_time'], mmap['total_time']))
 
 
 def main(args):
