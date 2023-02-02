@@ -42,10 +42,7 @@ control_timing = []
 mmap_timing = []
 
 def read_residuals(mmap, filepath, proc, q):
-    if mmap:
-        mem_buf = []
-    else:
-        mem_buf = torch.empty(0)
+    mem_buf = []
 
     for i in range(NUM_RES_FILES):
         filename = os.path.join(filepath, "{}.residuals.pt".format(i))
@@ -59,11 +56,14 @@ def read_residuals(mmap, filepath, proc, q):
         if mmap:
             mem_buf.append(torch.ByteTensor(storage))
         else:
-            temp = torch.load(filename, map_location='cpu')
-            mem_buf = torch.cat([mem_buf, temp])
+            mem_buf.append(torch.load(filename, map_location='cpu'))
 
-            del temp
-            gc.collect()
+    if not mmap:
+        temp = torch.cat(mem_buf)
+        for x in mem_buf:
+            del x
+        mem_buf = temp
+        gc.collect()
 
     mem = proc.memory_info().rss/B_PER_GB
     q.put(mem)
