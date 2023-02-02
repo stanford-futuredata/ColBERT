@@ -58,13 +58,6 @@ def read_residuals(mmap, filepath, proc, q):
         else:
             mem_buf.append(torch.load(filename, map_location='cpu'))
 
-    if not mmap:
-        temp = torch.cat(mem_buf)
-        for x in mem_buf:
-            del x
-        mem_buf = temp
-        gc.collect()
-
     mem = proc.memory_info().rss/B_PER_GB
     q.put(mem)
 
@@ -79,9 +72,6 @@ def read_into_buffer(mmap, filepath, q):
     # read from residual files into mem_buf
     start_time = time.time()
     mem_buf = read_residuals(mmap, filepath, proc, q)
-    if not mmap:
-        mem_buf = torch.flatten(mem_buf)
-        TEST_FILE_SIZE = mem_buf.nelement()
 
     fetch_time = time.time()
 
@@ -95,16 +85,11 @@ def read_into_buffer(mmap, filepath, q):
 
         rand_time_start = time.time()
 
-        if mmap:
-            res = random.randrange(0, NUM_RES_FILES)
-            res_size = TensorSizes[res]
-            start = random.randrange(res_size - TEST_CHUNK_SIZE)
-            end = min(start + TEST_CHUNK_SIZE, res_size)
-            temp = mem_buf[res][start:end]
-        else:
-            start = random.randrange(0, TEST_FILE_SIZE)
-            end = min(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
-            temp = mem_buf[start:end]
+        res = random.randrange(0, NUM_RES_FILES)
+        res_size = TensorSizes[res]
+        start = random.randrange(res_size - TEST_CHUNK_SIZE)
+        end = min(start + TEST_CHUNK_SIZE, res_size)
+        temp = mem_buf[res][start:end]
 
         new_buf = copy.deepcopy(temp)
 
