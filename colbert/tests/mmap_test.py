@@ -220,6 +220,14 @@ def print_timing(test_iter):
 
 
 def main(args):
+    global control_basic
+    global mmap_basic
+    global control_compute
+    global mmap_compute
+
+    global control_timing
+    global mmap_timing
+
     target_dir = args.target_dir
 
     test_iter = args.test_iter
