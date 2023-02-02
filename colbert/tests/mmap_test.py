@@ -9,9 +9,8 @@ import sys
 import time
 import torch
 
-TargetFile = 'ivf.pt'
-HDD_filepath = os.path.join('/lfs/1/udingank/msmarco.nbits-2.latest', TargetFile)
-SSD_filepath = os.path.join('/lfs/0/udingank/msmarco.nbits-2.latest', TargetFile)
+HDD_filepath = '/lfs/1/udingank/msmarco.nbits-2.latest'
+SSD_filepath = '/lfs/0/udingank/msmarco.nbits-2.latest'
 Sources = [HDD_filepath, SSD_filepath]
 Results = ['results-hdd.png', 'results-ssd.png']
 
@@ -28,6 +27,9 @@ BYTE_SIZE = 1
 
 NUM_COMPUTE_CYCLES = 10
 
+NUM_RES_FILES = 354
+TensorSizes = [0]*NUM_RES_FILES
+
 B_PER_GB = 1e9
 
 control_basic = []
@@ -38,33 +40,46 @@ mmap_compute = []
 control_timing = []
 mmap_timing = []
 
+def read_residuals(mmap, filepath, proc, q):
+    mem_buf = torch.empty(0)
+
+    for i in range(NUM_RES_FILES):
+        filename = os.path.join(filepath, "{}.residuals.pt".format(i))
+        if (i % 10 == 0):
+            print("reading file {}".format(filename))
+
+        if mmap:
+            storage = torch.ByteStorage.from_file(filename, shared=False, size=TensorSizes[i])
+
+        if mmap:
+            mem_buf = torch.cat([mem_buf, torch.ByteTensor(storage)])
+        else:
+            temp = torch.load(filename, map_location='cpu')
+            TensorSizes[i] = temp.nelement()
+            mem_buf = torch.cat([mem_buf, temp])
+
+            del temp
+            gc.collect()
+
+    print("mem_buf size = {}".format(mem_buf.nelement()))
+
+    mem = proc.memory_info().rss/B_PER_GB
+    q.put(mem)
+
+    return mem_buf
+
 def read_into_buffer(mmap, read_buf_size, filepath, q):
+    proc = psutil.Process(os.getpid())
 
     if verbose:
         print("Starting worker process {}".format(os.getpid()))
 
     # read time, average copy time, average calculation time, total time
     timing = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
-    proc = psutil.Process(os.getpid())
 
+    # read from residual files into mem_buf
     start_time = time.time()
-
-    if mmap:
-        storage = torch.ByteStorage.from_file(filepath, shared=False, size=read_buf_size)
-
-    if mmap:
-        mem_buf = torch.ByteTensor(storage)
-        mem = proc.memory_info().rss/B_PER_GB
-        q.put(mem)
-    else:
-        #temp = torch.load(filepath, map_location='cpu')
-        #mem_buf = torch.cat(temp)
-        mem_buf = torch.load(filepath, map_location='cpu')
-        #del temp
-        #gc.collect()
-
-        mem = proc.memory_info().rss/B_PER_GB
-        q.put(mem)
+    mem_buf = read_residuals(mmap, filepath, proc, q)
 
     fetch_time = time.time()
     timing['read_time'] = fetch_time - start_time
@@ -164,11 +179,12 @@ def run_test(mmap, test_iter, read_buf_size, filepath):
             control_compute.extend(q.get())
             control_timing.append(q.get())
 
+# print the memory usage averages and save boxplot to files
 def print_results(target_dir, filepath):
     # print table and generate graph with results of memory mapping the
     #   files and not, in terms of memory pressure
 
-    print("Saving Results\n--------------")
+    print("\nSaving Results\n--------------")
     results = [control_basic, mmap_basic, control_compute, mmap_compute]
 
     # create labels
@@ -190,6 +206,7 @@ def print_results(target_dir, filepath):
     for i, l in enumerate(results):
         print("{:10s}: {:.2f} GB".format(labels[i], sum(l)/len(l)))
 
+# print the timing benchmarks
 def print_timing(test_iter):
     print("\nTiming Summary")
     print("--------------\n")
