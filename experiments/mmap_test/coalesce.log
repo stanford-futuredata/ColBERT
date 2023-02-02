@@ -1,4 +1,114 @@
+
 $ python3 colbert/tests/mmap_test.py --target_dir=./experiments/mmap_test --test_iter=1 --coalesce
+n3 colbert/tests/mmap_test.py --target_dir=./experiments/mmap_test --test_iter=1 --coalesce
+
+Starting MMap stress test with coalescing set to True, 354 residuals, and 100 compute cycles
+
+Starting random file read control test from /lfs/0/udingank/msmarco.nbits-2.latest
+Starting iteration 0
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/0.residuals.pt
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/100.residuals.pt
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/200.residuals.pt
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/300.residuals.pt
+computation cycle 0
+computation cycle 10
+computation cycle 20
+computation cycle 30
+computation cycle 40
+computation cycle 50
+computation cycle 60
+computation cycle 70
+computation cycle 80
+computation cycle 90
+
+Starting random file read mmap test from /lfs/0/udingank/msmarco.nbits-2.latest
+Starting iteration 0
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/0.residuals.pt
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/100.residuals.pt
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/200.residuals.pt
+reading file /lfs/0/udingank/msmarco.nbits-2.latest/300.residuals.pt
+computation cycle 0
+computation cycle 10
+computation cycle 20
+computation cycle 30
+computation cycle 40
+computation cycle 50
+computation cycle 60
+computation cycle 70
+computation cycle 80
+computation cycle 90
+
+Saving Results
+--------------
+Results saved to ./experiments/mmap_test/results-ssd-coalesce.png
+
+control_basic: 19.13605 GB
+mmap_basic: 19.16613 GB
+control_compute: 19.14527 GB
+mmap_compute: 19.13736 GB
+
+Timing Summary
+--------------
+
+  Timing              |  Control (ms)  |  MMap (ms)
+  ----------------------|----------------|--------------
+   initial load         | 14469          |  1641
+    copy + compute avg   | 0.54          |  0.74
+     total copy + compute | 2031          |  2518
+
+     Starting random file read control test from /lfs/1/udingank/msmarco.nbits-2.latest
+     Starting iteration 0
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/0.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/100.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/200.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/300.residuals.pt
+     computation cycle 0
+     computation cycle 10
+     computation cycle 20
+     computation cycle 30
+     computation cycle 40
+     computation cycle 50
+     computation cycle 60
+     computation cycle 70
+     computation cycle 80
+     computation cycle 90
+
+     Starting random file read mmap test from /lfs/1/udingank/msmarco.nbits-2.latest
+     Starting iteration 0
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/0.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/100.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/200.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/300.residuals.pt
+     computation cycle 0
+     computation cycle 10
+     computation cycle 20
+     computation cycle 30
+     computation cycle 40
+     computation cycle 50
+     computation cycle 60
+     computation cycle 70
+     computation cycle 80
+     computation cycle 90
+
+     Saving Results
+     --------------
+     Results saved to ./experiments/mmap_test/results-hdd-coalesce.png
+
+     control_basic: 19.13537 GB
+     mmap_basic: 19.16498 GB
+     control_compute: 19.14513 GB
+     mmap_compute: 19.13624 GB
+
+     Timing Summary
+     --------------
+
+       Timing              |  Control (ms)  |  MMap (ms)
+       ----------------------|----------------|--------------
+        initial load         | 15164          |  1783
+         copy + compute avg   | 1.08          |  0.87
+          total copy + compute | 2445          |  2302
+
+          Finished MMap stress test
 
 Starting MMap stress test with coalescing set to True, 354 residuals, and 100 compute cycles
 
@@ -107,5 +217,3 @@ Timing Summary
              copy time | 1.23404  |  1.14321
                compute  | 0.00624  |  0.00409
                   total   | 251.16945  |  240.13128
-
-                  Finished MMap stress test

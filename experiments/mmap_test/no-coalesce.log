@@ -38,74 +38,72 @@ computation cycle 90
 
 Saving Results
 --------------
-Results saved to ./experiments/mmap_test/results-ssd.png
+Results saved to ./experiments/mmap_test/results-ssd-no-coalesce.png
 
-control_basic: 19.14228 GB
-mmap_basic: 0.00428 GB
-control_compute: 19.19769 GB
-mmap_compute: 2.47862 GB
+control_basic: 19.14260 GB
+mmap_basic: 0.00463 GB
+control_compute: 19.14844 GB
+mmap_compute: 0.01720 GB
 
 Timing Summary
 --------------
 
-  Timing   |  Control  |  MMap
-  -----------|-----------|--------------
-   read time | 11.12699  |  0.02468
-    copy time | 0.03663  |  0.03294
-      compute  | 0.00121  |  0.00079
-         total   | 6.54602  |  6.04143
+  Timing              |  Control (ms)  |  MMap (ms)
+  ----------------------|----------------|--------------
+   initial load         | 11217          |  24
+    copy + compute avg   | 1.18          |  0.82
+     total copy + compute | 2527          |  2416
 
-         Starting random file read control test from /lfs/1/udingank/msmarco.nbits-2.latest
-         Starting iteration 0
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/0.residuals.pt
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/100.residuals.pt
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/200.residuals.pt
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/300.residuals.pt
-         computation cycle 0
-         computation cycle 10
-         computation cycle 20
-         computation cycle 30
-         computation cycle 40
-         computation cycle 50
-         computation cycle 60
-         computation cycle 70
-         computation cycle 80
-         computation cycle 90
+     Starting random file read control test from /lfs/1/udingank/msmarco.nbits-2.latest
+     Starting iteration 0
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/0.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/100.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/200.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/300.residuals.pt
+     computation cycle 0
+     computation cycle 10
+     computation cycle 20
+     computation cycle 30
+     computation cycle 40
+     computation cycle 50
+     computation cycle 60
+     computation cycle 70
+     computation cycle 80
+     computation cycle 90
 
-         Starting random file read mmap test from /lfs/1/udingank/msmarco.nbits-2.latest
-         Starting iteration 0
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/0.residuals.pt
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/100.residuals.pt
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/200.residuals.pt
-         reading file /lfs/1/udingank/msmarco.nbits-2.latest/300.residuals.pt
-         computation cycle 0
-         computation cycle 10
-         computation cycle 20
-         computation cycle 30
-         computation cycle 40
-         computation cycle 50
-         computation cycle 60
-         computation cycle 70
-         computation cycle 80
-         computation cycle 90
+     Starting random file read mmap test from /lfs/1/udingank/msmarco.nbits-2.latest
+     Starting iteration 0
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/0.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/100.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/200.residuals.pt
+     reading file /lfs/1/udingank/msmarco.nbits-2.latest/300.residuals.pt
+     computation cycle 0
+     computation cycle 10
+     computation cycle 20
+     computation cycle 30
+     computation cycle 40
+     computation cycle 50
+     computation cycle 60
+     computation cycle 70
+     computation cycle 80
+     computation cycle 90
 
-         Saving Results
-         --------------
-         Results saved to ./experiments/mmap_test/results-hdd.png
+     Saving Results
+     --------------
+     Results saved to ./experiments/mmap_test/results-hdd-no-coalesce.png
 
-         control_basic: 19.14109 GB
-         mmap_basic: 0.00326 GB
-         control_compute: 19.19535 GB
-         mmap_compute: 2.39229 GB
+     control_basic: 19.14160 GB
+     mmap_basic: 0.00373 GB
+     control_compute: 19.14687 GB
+     mmap_compute: 0.01581 GB
 
-         Timing Summary
-         --------------
+     Timing Summary
+     --------------
 
-           Timing   |  Control  |  MMap
-           -----------|-----------|--------------
-            read time | 12.37459  |  0.02560
-             copy time | 0.03645  |  0.03525
-               compute  | 0.00088  |  0.00103
-                  total   | 6.65379  |  6.54521
+       Timing              |  Control (ms)  |  MMap (ms)
+       ----------------------|----------------|--------------
+        initial load         | 12354          |  26
+         copy + compute avg   | 0.75          |  0.85
+          total copy + compute | 2626          |  2686
 
-                  Finished MMap stress test
+          Finished MMap stress test

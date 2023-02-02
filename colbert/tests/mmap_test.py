@@ -75,7 +75,7 @@ def read_into_buffer(mmap, filepath, coalesce, q):
     proc = psutil.Process(os.getpid())
 
     # read time, average copy time, average calculation time, total time
-    timing = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
+    timing = { 'read_time': 0, 'average_calc_time': 0, 'total_time': 0 }
 
     # read from residual files into mem_buf
     start_time = time.time()
@@ -102,7 +102,7 @@ def read_into_buffer(mmap, filepath, coalesce, q):
             res_size = TensorSizes[res]
             start = random.randrange(res_size - TEST_CHUNK_SIZE)
             end = start + TEST_CHUNK_SIZE
-            new_buf = mem_buf[res][start:end] 
+            new_buf = mem_buf[res][start:end]
         else:
             start = random.randrange(0, RES_SUM - TEST_CHUNK_SIZE)
             end = start + TEST_CHUNK_SIZE
@@ -114,7 +114,6 @@ def read_into_buffer(mmap, filepath, coalesce, q):
         computation = torch.add(new_buf, TENSOR_RAND)
         ts2 = time.time()
 
-        copy_avg += ts1 - rand_time_start
         calc_avg += ts2 - rand_time_start
 
         results_buf.append(mem - base_mem)
@@ -124,16 +123,14 @@ def read_into_buffer(mmap, filepath, coalesce, q):
 
     end_time = time.time()
 
-    copy_avg = copy_avg/NUM_COMPUTE_CYCLES
     calc_avg = calc_avg/NUM_COMPUTE_CYCLES
 
     del mem_buf
     gc.collect()
 
     timing['read_time'] = fetch_time - start_time
-    timing['average_copy_time'] = copy_avg
     timing['average_calc_time'] = calc_avg
-    timing['total_time'] = end_time - start_time
+    timing['total_time'] = end_time - fetch_time
 
     q.put(results_buf)
     q.put(timing)
@@ -206,8 +203,8 @@ def print_timing(test_iter):
     print("\nTiming Summary")
     print("--------------\n")
 
-    control = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
-    mmap = { 'read_time': 0, 'average_copy_time': 0, 'average_calc_time': 0, 'total_time': 0 }
+    control = { 'read_time': 0, 'average_calc_time': 0, 'total_time': 0 }
+    mmap = { 'read_time': 0, 'average_calc_time': 0, 'total_time': 0 }
 
     for i in range(test_iter):
         control_iter = control_timing[i]
@@ -216,6 +213,7 @@ def print_timing(test_iter):
 
     for k in control:
         control[k] /= test_iter
+        control[k] *= 1000
 
     for i in range(test_iter):
         mmap_iter = mmap_timing[i]
@@ -224,13 +222,13 @@ def print_timing(test_iter):
 
     for k in mmap:
         mmap[k] /= test_iter
+        mmap[k] *= 1000
 
-    print("  Timing   |  Control  |  MMap")
-    print("-----------|-----------|--------------")
-    print(" read time | {:.5f}  |  {:.5f}".format(control['read_time'], mmap['read_time']))
-    print(" copy time | {:.5f}  |  {:.5f}".format(control['average_copy_time'], mmap['average_copy_time']))
-    print("  compute  | {:.5f}  |  {:.5f}".format(control['average_calc_time'], mmap['average_calc_time']))
-    print("   total   | {:.5f}  |  {:.5f}".format(control['total_time'], mmap['total_time']))
+    print("  Timing              |  Control (ms)  |  MMap (ms)")
+    print("----------------------|----------------|--------------")
+    print(" initial load         | {:0.0f}          |  {:0.0f}".format(control['read_time'], mmap['read_time']))
+    print(" copy + compute avg   | {:0.2f}          |  {:0.2f}".format(control['average_calc_time'], mmap['average_calc_time']))
+    print(" total copy + compute | {:0.0f}          |  {:0.0f}".format(control['total_time'], mmap['total_time']))
 
 
 def main(args):
