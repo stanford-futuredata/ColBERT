@@ -42,7 +42,10 @@ control_timing = []
 mmap_timing = []
 
 def read_residuals(mmap, filepath, proc, q):
-    mem_buf = torch.empty(0)
+    if mmap:
+        mem_buf = []
+    else:
+        mem_buf = torch.empty(0)
 
     for i in range(NUM_RES_FILES):
         filename = os.path.join(filepath, "{}.residuals.pt".format(i))
@@ -54,7 +57,7 @@ def read_residuals(mmap, filepath, proc, q):
             storage = torch.ByteStorage.from_file(filename, shared=False, size=TensorSizes[i])
 
         if mmap:
-            mem_buf = torch.cat([mem_buf, torch.ByteTensor(storage)])
+            mem_buf.append(torch.ByteTensor(storage))
         else:
             temp = torch.load(filename, map_location='cpu')
             mem_buf = torch.cat([mem_buf, temp])
@@ -76,6 +79,12 @@ def read_into_buffer(mmap, filepath, q):
     # read from residual files into mem_buf
     start_time = time.time()
     mem_buf = read_residuals(mmap, filepath, proc, q)
+    if not mmap:
+        temp = torch.flatten(mem_buf)
+        mem_buf = temp
+        del temp
+        gc.collect()
+        TEST_FILE_SIZE = mem_buf.nelement()
 
     fetch_time = time.time()
 
@@ -88,11 +97,20 @@ def read_into_buffer(mmap, filepath, q):
             print("copying cycle {}".format(i))
 
         rand_time_start = time.time()
-        start = random.randrange(0, TEST_FILE_SIZE)
-        end = max(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
 
-        temp = mem_buf[start:end]
+        if mmap:
+            res = random.randrange(0, NUM_RES_FILES)
+            res_size = TensorSizes[res]
+            start = random.randrange(res_size - TEST_CHUNK_SIZE)
+            end = min(start + TEST_CHUNK_SIZE, res_size)
+            temp = mem_buf[0][start:end]
+        else:
+            start = random.randrange(0, TEST_FILE_SIZE)
+            end = min(start + TEST_CHUNK_SIZE, TEST_FILE_SIZE)
+            temp = mem_buf[start:end]
+
         new_buf = copy.deepcopy(temp)
+
         del temp
         gc.collect()
 
