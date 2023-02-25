@@ -166,6 +166,14 @@ if __name__=='__main__':
         print(f"Saved checkpoint to {checkpoint_path}...")
 ```
 
+## Running a lightweight ColBERTv2 server
+We provide a script to run a lightweight server which serves k (upto 100) results in ranked order for a given search query, in JSON format. This script can be used to power DSP programs. 
+
+To run the server, update the environment variables `INDEX_ROOT` and `INDEX_NAME` in the `.env` file to point to the appropriate ColBERT index. The run the following command:
+```
+python server.py
+```
+
 ## Branches
 
 ### Supported branches
