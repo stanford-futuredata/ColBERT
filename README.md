@@ -174,6 +174,11 @@ To run the server, update the environment variables `INDEX_ROOT` and `INDEX_NAME
 python server.py
 ```
 
+A sample query:
+```
+http://localhost:8893/api/search?query=Who won the 2022 FIFA world cup&k=25
+```
+
 ## Branches
 
 ### Supported branches
