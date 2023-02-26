@@ -26,3 +26,5 @@ dependencies:
     - tqdm
     - transformers
     - ujson
+    - flask
+    - python-dotenv
