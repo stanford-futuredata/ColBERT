@@ -21,7 +21,13 @@ class BaseColBERT(torch.nn.Module):
         super().__init__()
 
         self.colbert_config = ColBERTConfig.from_existing(ColBERTConfig.load_from_checkpoint(name_or_path), colbert_config)
-        self.name = self.colbert_config.model_name
+        self.name = self.colbert_config.model_name or name_or_path
+
+        try:
+            HF_ColBERT = class_factory(self.name)
+        except:
+            HF_ColBERT = class_factory('bert-base-uncased')
+
         assert self.name is not None
         HF_ColBERT = class_factory(self.name)
         self.model = HF_ColBERT.from_pretrained(name_or_path, colbert_config=self.colbert_config)
