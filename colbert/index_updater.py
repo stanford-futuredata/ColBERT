@@ -390,7 +390,7 @@ class IndexUpdater:
         assert sum(new_ivf_lengths) == len(new_ivf)
 
         # Replace the current ivf with new_ivf
-        self.curr_ivf = torch.tensor(new_ivf)
+        self.curr_ivf = torch.tensor(new_ivf, dtype=torch.int32)
         self.curr_ivf_lengths = torch.tensor(new_ivf_lengths)
 
     def _write_to_last_chunk(self, pid_start, pid_end, emb_start, emb_end):
