@@ -8,9 +8,9 @@ dependencies:
   - python=3.8
   - faiss-gpu
   - pip=21.0
-  - pytorch
-  - torchaudio
-  - torchvision
+  - pytorch=1.13.1
+  - torchaudio=0.13.1
+  - torchvision=0.14.1
   - cudatoolkit=11.3
   - gcc=9.4.0
   - gxx=9.4.0
