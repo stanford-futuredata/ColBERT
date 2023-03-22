@@ -7,7 +7,7 @@ dependencies:
   - python=3.8
   - faiss-cpu
   - pip=21.0
-  - pytorch-cpu
+  - pytorch-cpu=1.13
   - pip:
     - bitarray
     - datasets
