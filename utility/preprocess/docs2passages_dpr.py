@@ -29,18 +29,10 @@ def process_page(inp):
     else:
         words = tokenizer.tokenize(content)
 
-    n_passages = (len(words) + nwords - 1) // nwords
-    if n_passages > 1:
-        last_2_passage_length = len(words) - nwords * (n_passages - 2)
-        passage_lengths = [0] + [nwords] * (n_passages - 2) + [last_2_passage_length // 2] + [last_2_passage_length - last_2_passage_length // 2]
-        assert sum(passage_lengths) == len(words)
-    elif n_passages == 1:
-        passage_lengths = [0, len(words)]
-    else:
-        passage_lengths = [0]
-    print(n_passages, passage_lengths)
-    assert len(passage_lengths) == n_passages + 1
-    passages = [words[passage_lengths[idx-1]:passage_lengths[idx]] for idx in range(1, len(passage_lengths))]
+    words_ = (words + words) if len(words) > nwords else words
+    passages = [words_[offset:offset + nwords] for offset in range(0, len(words) - overlap, nwords - overlap)]
+
+    assert all(len(psg) in [len(words), nwords] for psg in passages), (list(map(len, passages)), len(words))
 
     if tokenizer is None:
         passages = [' '.join(psg) for psg in passages]
