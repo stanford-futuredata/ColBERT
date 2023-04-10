@@ -80,6 +80,8 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
             if filter_fn is not None:
                 pids = filter_fn(pids)
+                if len(pids) == 0:
+                    return [], []
 
             scores, pids = self.score_pids(config, Q, pids, centroid_scores)
 
