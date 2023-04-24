@@ -55,10 +55,10 @@ class Indexer:
 
         return deleted
 
-    def index(self, name, collection, overwrite=False):
+    def index(self, name, collection, collection_name=None, overwrite=False):
         assert overwrite in [True, False, 'reuse', 'resume']
 
-        self.configure(collection=collection, index_name=name, resume=overwrite=='resume')
+        self.configure(collection=collection_name or collection, index_name=name, resume=overwrite=='resume')
         self.configure(bsize=64, partitions=None)
 
         self.index_path = self.config.index_path_
