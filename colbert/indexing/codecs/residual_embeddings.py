@@ -6,7 +6,6 @@ import tqdm
 from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
 from colbert.utils.utils import print_message
 
-
 class ResidualEmbeddings:
     Strided = ResidualEmbeddingsStrided
 
@@ -29,27 +28,49 @@ class ResidualEmbeddings:
 
         dim, nbits = get_dim_and_nbits(index_path)
 
-        codes = torch.empty(num_embeddings, dtype=torch.int32)
-        residuals = torch.empty(num_embeddings, dim // 8 * nbits, dtype=torch.uint8)
-
-        codes_offset = 0
-
         print_message("#> Loading codes and residuals...")
 
-        for chunk_idx in tqdm.tqdm(chunk_idxs):
-            chunk = cls.load(index_path, chunk_idx)
+        if len(chunk_idxs) == 1: # Memory mapping is enabled for single-file indexes
+            residuals_path = os.path.join(index_path, f'0.residuals.pt')
+            codes_path = os.path.join(index_path, f'0.codes.pt')
 
-            codes_endpos = codes_offset + chunk.codes.size(0)
+            codes_size = get_codes_size(index_path, 0)
+            storage = torch.IntStorage.from_file(filename=codes_path, shared=True, size=codes_size + 80)
+            codes = torch.IntTensor(storage)[80:]
 
-            # Copy the values over to the allocated space
-            codes[codes_offset:codes_endpos] = chunk.codes
-            residuals[codes_offset:codes_endpos] = chunk.residuals
+            residuals_size, codes_size, packed_dim = get_residuals_size(index_path, 0)
+            storage = torch.ByteStorage.from_file(filename=residuals_path, shared=True, size=residuals_size + 320)
+            ret = torch.ByteTensor(storage)
+            ret = ret[320:]
+            unflatten = torch.nn.Unflatten(0, (codes_size, packed_dim))
+            residuals = unflatten(ret)
 
-            codes_offset = codes_endpos
+            print("Loaded a single memory-mapped index.")
+        else:
+            codes = torch.empty(num_embeddings, dtype=torch.int32)
+            residuals = torch.empty(num_embeddings, dim // 8 * nbits, dtype=torch.uint8)
 
-        # codes, residuals = codes.cuda(), residuals.cuda()  # FIXME: REMOVE THIS LINE!
+            codes_offset = 0
+
+            for chunk_idx in tqdm.tqdm(chunk_idxs):
+                chunk = cls.load(index_path, chunk_idx)
+
+                codes_endpos = codes_offset + chunk.codes.size(0)
+
+                # Copy the values over to the allocated space
+                codes[codes_offset:codes_endpos] = chunk.codes
+                residuals[codes_offset:codes_endpos] = chunk.residuals
+
+                codes_offset = codes_endpos
 
         return cls(codes, residuals)
+
+    @classmethod
+    def load_from_single_index(self):
+        path = "/future/u/udingank/ColBERT/experiments/default/indexes/msmarco_single.nbits=2.latest/"
+        codes = torch.load(os.path.join(path, '0.codes.pt'), map_location='cpu')
+        res = torch.load(os.path.join(path, '0.residuals.pt'), map_location='cpu')
+        return codes, res
 
     @classmethod
     def load(cls, index_path, chunk_idx):
@@ -93,3 +114,17 @@ def get_dim_and_nbits(index_path):
     assert (dim * nbits) % 8 == 0, (dim, nbits, dim * nbits)
 
     return dim, nbits
+
+def get_codes_size(index_path, chunk_idx):
+    # TODO: Ideally load this using ColBERTConfig.load_from_index!
+    with open(os.path.join(index_path, f'{chunk_idx}.metadata.json')) as f:
+        metadata = ujson.load(f)
+
+    return metadata['num_embeddings']
+
+def get_residuals_size(index_path, chunk_idx):
+    codes_size = get_codes_size(index_path, chunk_idx)
+    dim, nbits = get_dim_and_nbits(index_path)
+
+    packed_dim = dim // 8 * nbits
+    return codes_size * packed_dim, codes_size, packed_dim
