@@ -14,4 +14,18 @@ setuptools.setup(
     url='https://github.com/stanford-futuredata/ColBERT',
     packages=setuptools.find_packages(),
     python_requires='>=3.6',
+    install_requires=[
+        "bitarray"
+        "datasets"
+        "faiss-gpu"
+        "flask"
+        "git-python"
+        "python-dotenv"
+        "ninja"
+        "scipy"
+        "spacy"
+        "tqdm"
+        "transformers"
+        "ujson"
+    ]
 )
