@@ -4,7 +4,7 @@ with open('README.md', 'r') as f:
     long_description = f.read()
 
 setuptools.setup(
-    name='ColBERT',
+    name='colbert',
     version='0.2.0',
     author='Omar Khattab',
     author_email='okhattab@stanford.edu',
