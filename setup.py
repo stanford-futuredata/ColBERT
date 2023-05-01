@@ -15,17 +15,20 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     python_requires='>=3.6',
     install_requires=[
-        "bitarray"
-        "datasets"
-        "faiss-gpu"
-        "flask"
-        "git-python"
-        "python-dotenv"
-        "ninja"
-        "scipy"
-        "spacy"
-        "tqdm"
-        "transformers"
+        "bitarray",
+        "datasets",
+        "flask",
+        "git-python",
+        "python-dotenv",
+        "ninja",
+        "scipy",
+        "spacy",
+        "tqdm",
+        "transformers",
         "ujson"
-    ]
+    ], 
+    extras_require={
+        "faiss-gpu",
+        "torch"
+    }
 )
