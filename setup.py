@@ -28,7 +28,7 @@ setuptools.setup(
         "ujson"
     ], 
     extras_require={
-        "faiss-gpu",
-        "torch"
+        'faiss-gpu': ['faiss-gpu>=1.7.0'],
+        'torch': ['torch>=1.9.0']
     }
 )
