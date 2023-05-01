@@ -1,0 +1,17 @@
+bitarray
+datasets
+flask
+git-python
+ninja
+python-dotenv
+scipy
+spacy
+tqdm
+transformers
+ujson
+
+[faiss-gpu]
+faiss-gpu>=1.7.0
+
+[torch]
+torch>=1.9.0

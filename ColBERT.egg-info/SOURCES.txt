@@ -4,6 +4,7 @@ setup.py
 ColBERT.egg-info/PKG-INFO
 ColBERT.egg-info/SOURCES.txt
 ColBERT.egg-info/dependency_links.txt
+ColBERT.egg-info/requires.txt
 ColBERT.egg-info/top_level.txt
 colbert/__init__.py
 colbert/index.py
