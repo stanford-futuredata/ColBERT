@@ -14,7 +14,12 @@ from utility.utils.save_metadata import get_metadata_only
 @dataclass
 class DefaultVal:
     val: Any
+    
+    def __hash__(self):
+        return hash(repr(self.val))
 
+    def __eq__(self, other):
+        self.val == other.val
 
 @dataclass
 class CoreConfig:
