@@ -172,7 +172,14 @@ def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig()):
     assert Q.size(0) in [1, D_padded.size(0)]
 
     scores = D_padded @ Q.to(dtype=D_padded.dtype).permute(0, 2, 1)
-
+    num_q = Q.size(0)
+    repeat = 1 if num_q == 1 else config.nway
+    assert num_q % repeat == 0
+    theta = torch.topk(scores.view(num_q // repeat, -1), dim=1, k=2048)[0][:, -1]
+    theta = theta.reshape([num_q // repeat, 1, 1])
+    theta = theta.repeat_interleave(repeat, dim=1).reshape(num_q, 1, 1)
+    theta = theta.expand(scores.shape)
+    scores[scores < theta] *= 0
     return colbert_score_reduce(scores, D_mask, config)
 
 
