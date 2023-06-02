@@ -36,14 +36,16 @@ class ResidualEmbeddings:
 
             codes_size = get_codes_size(index_path, 0)
             storage = torch.IntStorage.from_file(filename=codes_path, shared=True, size=codes_size + 80)
+            # Trim the header, which is 320 bytes, or 80x 32-byte ints
             codes = torch.IntTensor(storage)[80:]
 
             residuals_size, codes_size, packed_dim = get_residuals_size(index_path, 0)
             storage = torch.ByteStorage.from_file(filename=residuals_path, shared=True, size=residuals_size + 320)
             ret = torch.ByteTensor(storage)
+            # Trim to 320-byte header
             ret = ret[320:]
-            unflatten = torch.nn.Unflatten(0, (codes_size, packed_dim))
-            residuals = unflatten(ret)
+            ret = torch.reshape(ret, (codes_size, packed_dim))
+            residuals = ret
 
             print("Loaded a single memory-mapped index.")
         else:
@@ -64,13 +66,6 @@ class ResidualEmbeddings:
                 codes_offset = codes_endpos
 
         return cls(codes, residuals)
-
-    @classmethod
-    def load_from_single_index(self):
-        path = "/future/u/udingank/ColBERT/experiments/default/indexes/msmarco_single.nbits=2.latest/"
-        codes = torch.load(os.path.join(path, '0.codes.pt'), map_location='cpu')
-        res = torch.load(os.path.join(path, '0.residuals.pt'), map_location='cpu')
-        return codes, res
 
     @classmethod
     def load(cls, index_path, chunk_idx):
