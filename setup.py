@@ -13,7 +13,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     url='https://github.com/stanford-futuredata/ColBERT',
     packages=setuptools.find_packages(),
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     install_requires=[
         "bitarray",
         "datasets",
@@ -29,6 +29,6 @@ setuptools.setup(
     ], 
     extras_require={
         'faiss-gpu': ['faiss-gpu>=1.7.0'],
-        'torch': ['torch>=1.9.0']
+        'torch': ['torch>=1.13.1']
     }
 )
