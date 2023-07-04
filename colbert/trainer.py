@@ -16,7 +16,7 @@ class Trainer:
     def configure(self, **kw_args):
         self.config.configure(**kw_args)
 
-    def train(self, checkpoint='bert-base-uncased'):
+    def train(self, checkpoint='bert-base-multilingual-uncased'): #mBERT
         """
             Note that config.checkpoint is ignored. Only the supplied checkpoint here is used.
         """
@@ -24,7 +24,10 @@ class Trainer:
         # Resources don't come from the config object. They come from the input parameters.
         # TODO: After the API stabilizes, make this "self.config.assign()" to emphasize this distinction.
         self.configure(triples=self.triples, queries=self.queries, collection=self.collection)
-        self.configure(checkpoint=checkpoint)
+        
+        #self.configure(checkpoint=checkpoint)
+        self.configure(checkpoint=self.config.checkpoint)
+        
 
         launcher = Launcher(train)
 

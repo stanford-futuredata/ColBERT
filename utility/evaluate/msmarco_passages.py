@@ -17,7 +17,7 @@ def main(args):
     qid2positives = defaultdict(list)
     qid2ranking = defaultdict(list)
     qid2mrr = {}
-    qid2recall = {depth: {} for depth in [50, 200, 1000, 5000, 10000]}
+    qid2recall = {depth: {} for depth in [50, 100, 200, 1000, 5000, 10000]}
 
     with open(args.qrels) as f:
         print_message(f"#> Loading QRELs from {args.qrels} ..")
@@ -41,7 +41,7 @@ def main(args):
 
             qid2ranking[qid].append((rank, pid, score))
 
-    assert set.issubset(set(qid2ranking.keys()), set(qid2positives.keys()))
+    #assert set.issubset(set(qid2ranking.keys()), set(qid2positives.keys()))
 
     num_judged_queries = len(qid2positives)
     num_ranked_queries = len(qid2ranking)

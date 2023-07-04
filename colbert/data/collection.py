@@ -22,7 +22,7 @@ class Collection:
 
     def __getitem__(self, item):
         # TODO: Load from disk the first time this is called. Unless self.data is already not None.
-        return self.data[item]
+        return self.data[int(item)]
 
     def __len__(self):
         # TODO: Load here too. Basically, let's make data a property function and, on first call, either load or get __data.

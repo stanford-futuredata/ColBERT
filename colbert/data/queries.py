@@ -59,7 +59,7 @@ class Queries:
         with open(path) as f:
             for line in f:
                 qa = ujson.loads(line)
-
+                
                 assert qa['qid'] not in self.data
                 self.data[qa['qid']] = qa['question']
                 self._qas[qa['qid']] = qa
@@ -70,7 +70,7 @@ class Queries:
         return dict(self._qas)
 
     def __getitem__(self, key):
-        return self.data[key]
+        return self.data[int(key)]
 
     def keys(self):
         return self.data.keys()

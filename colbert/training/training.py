@@ -21,7 +21,10 @@ from colbert.training.utils import print_progress, manage_checkpoints
 
 
 def train(config: ColBERTConfig, triples, queries=None, collection=None):
+    print("colbert training start")
+    
     config.checkpoint = config.checkpoint or 'bert-base-uncased'
+    print("checkpoint : ", config.checkpoint)
 
     if config.rank < 1:
         config.help()
