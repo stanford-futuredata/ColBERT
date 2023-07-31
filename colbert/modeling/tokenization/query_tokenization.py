@@ -48,14 +48,29 @@ class QueryTokenizer():
 
         return ids
 
-    def tensorize(self, batch_text, bsize=None, context=None):
+    def tensorize(self, batch_text, bsize=None, context=None, full_length_search=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
         # add placehold for the [Q] marker
         batch_text = ['. ' + x for x in batch_text]
 
+        # Full length search is only available for single inference (for now)
+        # Batched full length search requires far deeper changes to the code base
+        assert(full_length_search == False or (type(batch_text) == list and len(batch_text) == 1))
+
+        if full_length_search:
+            # Tokenize each string in the batch
+            un_truncated_ids = self.tok(batch_text, add_special_tokens=False)['input_ids']
+            # Get the longest length in the batch
+            max_length_in_batch = max(len(x) for x in un_truncated_ids)
+            # Set the max length
+            max_length = self.max_len(max_length_in_batch)
+        else:
+            # Max length is the default max length from the config
+            max_length = self.query_maxlen
+
         obj = self.tok(batch_text, padding='max_length', truncation=True,
-                       return_tensors='pt', max_length=self.query_maxlen)
+                       return_tensors='pt', max_length=max_length)
 
         ids, mask = obj['input_ids'], obj['attention_mask']
 
@@ -95,3 +110,7 @@ class QueryTokenizer():
             print()
 
         return ids, mask
+
+    # Ensure that query_maxlen <= length <= 500 tokens
+    def max_len(self, length):
+        return min(500, max(self.query_maxlen, length))
