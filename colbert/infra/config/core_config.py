@@ -69,7 +69,7 @@ class CoreConfig:
             raise Exception(f"Unrecognized key `{key}` for {type(self)}")
 
     def help(self):
-        print(ujson.dumps(dataclasses.asdict(self), indent=4))
+        print(ujson.dumps(self.export(), indent=4))
 
     def __export_value(self, v):
         v = v.provenance() if hasattr(v, 'provenance') else v
