@@ -78,29 +78,17 @@ class IndexUpdater:
         self._remove_pid_from_ivf(pids)
         self.removed_pids.extend(pids)
 
-    def add(self, passages):
-        """
-        Input:
-            passages: list(string)
-        Output:
-            passage_ids: list(int)
-
-        Adds new passages to the searcher,
-        to add passages to the index, call persist_to_disk() after calling add()
-        """
-        if not self.has_checkpoint:
-            raise ValueError(
-                "No checkpoint was provided at IndexUpdater initialization."
-            )
-
-        # Find pid for the first added passage
-        start_pid = len(self.searcher.ranker.doclens)
-        curr_pid = start_pid
-
+    def create_embs_and_doclens(self, passages, embs_path="embs.pt", doclens_path="doclens.pt", persist=False):
         # Extend doclens and embs of self.searcher.ranker
         embs, doclens = self.encoder.encode_passages(passages)
         compressed_embs = self.searcher.ranker.codec.compress(embs)
 
+        if persist:
+            torch.save(compressed_embs, embs_path)
+            torch.save(doclens, doclens_path)
+        return compressed_embs, doclens
+
+    def update_searcher(self, compressed_embs, doclens, curr_pid):
         # Update searcher
         # NOTE: For codes and residuals, the tensors end with padding of length 512,
         # hence we concatenate the new appendage in front of the padding
@@ -150,6 +138,28 @@ class IndexUpdater:
             self.searcher.ranker.embeddings,
             self.searcher.ranker.doclens,
         )
+
+    def add(self, passages):
+        """
+        Input:
+            passages: list(string)
+        Output:
+            passage_ids: list(int)
+
+        Adds new passages to the searcher,
+        to add passages to the index, call persist_to_disk() after calling add()
+        """
+        if not self.has_checkpoint:
+            raise ValueError(
+                "No checkpoint was provided at IndexUpdater initialization."
+            )
+
+        # Find pid for the first added passage
+        start_pid = len(self.searcher.ranker.doclens)
+        curr_pid = start_pid
+
+        compressed_embs, doclens = self.create_embs_and_doclens(passages)
+        self.update_searcher(compressed_embs, doclens, curr_pid)
 
         print_message(f"#> Added {len(passages)} passages from pid {start_pid}.")
         new_pids = list(range(start_pid, start_pid + len(passages)))

@@ -68,6 +68,9 @@ class Run(object):
         if ('w' in mode or 'a' in mode) and not self.overwrite:
             assert not os.path.exists(path), (self.overwrite, path)
 
+            # create directory if it doesn't exist
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+
         return open(path, mode=mode)
     
     def print(self, *args):
