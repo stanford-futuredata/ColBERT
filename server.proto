@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package colbert;
+
+service Server {
+  rpc Search(Query) returns (QueryResult) {}
+  rpc Rerank(Query) returns (QueryResult) {}
+}
+
+message Query {
+  string query = 1;
+  int32 qid = 2;
+  int32 k = 3;
+}
+
+message TopkResult {
+  int32 pid = 1;
+  int32 rank = 2;
+  float score = 3;
+}
+
+message QueryResult {
+  string query = 1;
+  repeated TopkResult topk = 2;
+}

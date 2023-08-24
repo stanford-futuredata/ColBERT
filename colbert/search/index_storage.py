@@ -12,11 +12,9 @@ from .index_loader import IndexLoader
 from colbert.modeling.colbert import colbert_score, colbert_score_packed, colbert_score_reduce
 
 from math import ceil
-
 import os
 import pathlib
 from torch.utils.cpp_extension import load
-
 
 class IndexScorer(IndexLoader, CandidateGeneration):
     def __init__(self, index_path, use_gpu=True):
@@ -24,7 +22,12 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
         IndexScorer.try_load_torch_extensions(use_gpu)
 
-        self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
+        if self.num_chunks == 1:
+            self.offsets = torch.cumsum(self.doclens, dim=0)
+            self.offsets = torch.cat( (torch.zeros(1, dtype=torch.int64), self.offsets) )
+        else:
+            self.embeddings_strided = ResidualEmbeddingsStrided(self.codec, self.embeddings, self.doclens)
+            self.offsets = self.embeddings_strided.codes_strided.offsets
 
     @classmethod
     def try_load_torch_extensions(cls, use_gpu):
@@ -143,17 +146,21 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         else:
             pids = IndexScorer.filter_pids(
                     pids, centroid_scores, self.embeddings.codes, self.doclens,
-                    self.embeddings_strided.codes_strided.offsets, idx, config.ndocs
+                    self.offsets, idx, config.ndocs
                 )
 
         # Rank final list of docs using full approximate embeddings (including residuals)
-        if self.use_gpu:
+        return self.score_raw_pids(config, Q, pids)
+
+    def score_raw_pids(self, config, Q, pids):
+        if self.use_gpu:    
             D_packed, D_mask = self.lookup_pids(pids)
         else:
+            print(len(pids))
             D_packed = IndexScorer.decompress_residuals(
                     pids,
                     self.doclens,
-                    self.embeddings_strided.codes_strided.offsets,
+                    self.offsets,
                     self.codec.bucket_weights,
                     self.codec.reversed_bit_map,
                     self.codec.decompression_lookup_table,

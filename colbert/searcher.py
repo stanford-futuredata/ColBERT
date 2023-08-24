@@ -33,8 +33,9 @@ class Searcher:
         self.checkpoint_config = ColBERTConfig.load_from_checkpoint(self.checkpoint)
         self.config = ColBERTConfig.from_existing(self.checkpoint_config, self.index_config, initial_config)
 
-        self.collection = Collection.cast(collection or self.config.collection)
-        self.configure(checkpoint=self.checkpoint, collection=self.collection)
+        # self.collection = Collection.cast(collection or self.config.collection)
+        # self.configure(checkpoint=self.checkpoint, collection=self.collection)
+        self.configure(checkpoint=self.checkpoint)
 
         self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config)
         use_gpu = self.config.total_visible_gpus > 0
@@ -47,24 +48,24 @@ class Searcher:
     def configure(self, **kw_args):
         self.config.configure(**kw_args)
 
-    def encode(self, text: TextQueries, full_length_search=False):
+    def encode(self, text: TextQueries):
         queries = text if type(text) is list else [text]
         bsize = 128 if len(queries) > 128 else None
 
         self.checkpoint.query_tokenizer.query_maxlen = self.config.query_maxlen
-        Q = self.checkpoint.queryFromText(queries, bsize=bsize, to_cpu=True, full_length_search=full_length_search)
+        Q = self.checkpoint.queryFromText(queries, bsize=bsize, to_cpu=True)
 
         return Q
 
-    def search(self, text: str, k=10, filter_fn=None, full_length_search=False):
-        Q = self.encode(text, full_length_search=full_length_search)
+    def search(self, text: str, k=10, filter_fn=None):
+        Q = self.encode(text)
         return self.dense_search(Q, k, filter_fn=filter_fn)
 
-    def search_all(self, queries: TextQueries, k=10, filter_fn=None, full_length_search=False):
+    def search_all(self, queries: TextQueries, k=10, filter_fn=None):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
-        Q = self.encode(queries_, full_length_search=full_length_search)
+        Q = self.encode(queries_)
 
         return self._search_all_Q(queries, Q, k, filter_fn=filter_fn)
 
