@@ -4,7 +4,7 @@ from concurrent import futures
 import psutil
 import server_pb2
 import server_pb2_grpc
-
+import signal
 from subprocess import Popen
 from threading import Lock
 import argparse
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     n = args.num_proc
     processes = []
     for i in range(n):
-        processes.append(Popen('PROC_NUM=' + str(i) + " python eval_server.py", shell=True))
+        processes.append(Popen('PROC_NUM=' + str(i) + " python eval_server.py", shell=True, preexec_fn=os.setsid))
         time.sleep(15)
     
     time.sleep(15)
@@ -53,4 +53,4 @@ if __name__ == '__main__':
 
     for p in processes:
         print("Killing")
-        p.kill()
+        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
