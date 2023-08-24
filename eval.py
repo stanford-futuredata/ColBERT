@@ -39,8 +39,8 @@ async def run(nodes):
 def start_server(i, t):
     time.sleep(i * t)
     print("Server started in process", psutil.Process().cpu_num())
-    return Popen("taskset -c " + str(psutil.Process().cpu_num()) + " PROC_NUM=" + \
-                 str(i) + " python eval_server.py", shell=True, preexec_fn=os.setsid).pid
+    return Popen("PROC_NUM=" + str(i) + " taskset -c " + str(psutil.Process().cpu_num()) + \
+                 " python eval_server.py", shell=True, preexec_fn=os.setsid).pid
 
 
 if __name__ == '__main__':
