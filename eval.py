@@ -10,7 +10,7 @@ from threading import Lock
 import argparse
 import time
 import os
-
+from multiprocessing import Pool
 from colbert.data import Queries
 
 async def run(nodes):
@@ -36,19 +36,26 @@ async def run(nodes):
 
     print(time.time()-t)
 
+def start_server(i, t):
+    time.sleep(i * t)
+    return Popen('PROC_NUM=' + str(i) + " python eval_server.py", shell=True, preexec_fn=os.setsid)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluator for ColBERT')
     parser.add_argument('-n', '--num_proc', type=int, required=True,
                         help='Number of servers')
+    parser.add_argument('-t', '--timeout', type=int, default=15,
+                        help='Timeout between each process in sec')
+
     args = parser.parse_args()
 
     n = args.num_proc
-    processes = []
-    for i in range(n):
-        processes.append(Popen('PROC_NUM=' + str(i) + " python eval_server.py", shell=True, preexec_fn=os.setsid))
-        time.sleep(15)
-    
-    time.sleep(15)
+    t = args.timeout
+    pool = Pool()
+    processes = pool.starmap(start_server, [(i, t) for i in range(n)])
+ 
+    time.sleep(t)
     asyncio.run(run(n))
 
     for p in processes:
