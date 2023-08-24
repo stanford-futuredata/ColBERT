@@ -39,7 +39,8 @@ async def run(nodes):
 def start_server(i, t):
     time.sleep(i * t)
     print("Server started in process", psutil.Process().cpu_num())
-    return Popen('PROC_NUM=' + str(i) + " python eval_server.py", shell=True, preexec_fn=os.setsid).pid
+    return Popen("taskset -c " + str(sutil.Process().cpu_num()) + " PROC_NUM=" + \
+                 str(i) + " python eval_server.py", shell=True, preexec_fn=os.setsid).pid
 
 
 if __name__ == '__main__':
@@ -56,8 +57,9 @@ if __name__ == '__main__':
     pool = Pool()
     processes = pool.starmap(start_server, [(i, t) for i in range(n)])
  
-    time.sleep(t)
+    time.sleep(2 * t)
     asyncio.run(run(n))
+    pool.terminate()
 
     for p in processes:
         print("Killing processing after completion")
