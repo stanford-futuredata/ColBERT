@@ -60,5 +60,5 @@ if __name__ == '__main__':
     asyncio.run(run(n))
 
     for p in processes:
-        print("Killing")
+        print("Killing processing after completion")
         os.killpg(os.getpgid(p), signal.SIGTERM)
