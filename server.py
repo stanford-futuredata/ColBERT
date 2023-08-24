@@ -3,6 +3,8 @@ from functools import lru_cache
 import math
 import os
 from dotenv import load_dotenv
+from threading import Lock
+from time import time
 
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Searcher
@@ -14,9 +16,9 @@ INDEX_ROOT = os.getenv("INDEX_ROOT")
 app = Flask(__name__)
 
 searcher = Searcher(index=f"{INDEX_ROOT}/{INDEX_NAME}")
-counter = {"api" : 0}
+logs = {"requests" : 0, "success": 0, "failure": 0, "latency": 0} 
+lock = Lock()
 
-@lru_cache(maxsize=1000000)
 def api_search_query(query, k):
     print(f"Query={query}")
     if k == None: k = 10
@@ -37,11 +39,40 @@ def api_search_query(query, k):
 @app.route("/api/search", methods=["GET"])
 def api_search():
     if request.method == "GET":
-        counter["api"] += 1
-        print("API request count:", counter["api"])
-        return api_search_query(request.args.get("query"), request.args.get("k"))
+        lock.acquire()
+        logs["requests"] += 1
+        lock.release()
+        try:
+            t1 = time()
+            response = api_search_query(request.args.get("query"), request.args.get("k"))
+            t2 = time()        
+            lock.acquire()
+            logs["latency"] = (logs["latency"] * logs["success"] + (t2 - t1)) / (logs["success"] + 1)
+            logs["success"] += 1
+            lock.release()
+            return response
+        except e:
+            print(e)
+            lock.acquire()
+            logs["failure"] += 1
+            lock.release()
+            return ('', 500)
     else:
         return ('', 405)
+
+@app.route("/reset", methods=["GET"])
+def reset():
+    lock.acquire()
+    logs["requests"] = 0
+    logs["success"] = 0
+    logs["failure"] = 0
+    logs["latency"] = 0
+    lock.release()
+    return logs
+
+@app.route("/logs", methods=["GET"])
+def get_logs():
+    return logs
 
 if __name__ == "__main__":
     app.run("0.0.0.0", int(os.getenv("PORT")))
