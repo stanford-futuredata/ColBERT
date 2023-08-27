@@ -1,161 +1,146 @@
+import os
+import random
 import time
 import torch
-import random
 import torch.nn as nn
 import numpy as np
 
-from transformers import AdamW, get_linear_schedule_with_warmup
-from colbert.infra import ColBERTConfig
-from colbert.training.rerank_batcher import RerankBatcher
-
+from transformers import AdamW
+from colbert.utils.runs import Run
 from colbert.utils.amp import MixedPrecisionManager
+
 from colbert.training.lazy_batcher import LazyBatcher
+from colbert.training.eager_batcher import EagerBatcher
 from colbert.parameters import DEVICE
 
 from colbert.modeling.colbert import ColBERT
-from colbert.modeling.reranker.electra import ElectraReranker
-
 from colbert.utils.utils import print_message
 from colbert.training.utils import print_progress, manage_checkpoints
 
+from colbert.modeling.gradient_reversal_layer import GradientReversalFunction
+
+from torch.utils.tensorboard import SummaryWriter
 
 
-def train(config: ColBERTConfig, triples, queries=None, collection=None):
-    print("colbert training start")
-    
-    config.checkpoint = config.checkpoint or 'bert-base-uncased'
-    print("checkpoint : ", config.checkpoint)
-
-    if config.rank < 1:
-        config.help()
+def train(args):
+    writer = SummaryWriter('/home/jhkim980112/workspace/tensorboard_log/xlmr-base_colbert_msmarco_lp_loss')
 
     random.seed(12345)
     np.random.seed(12345)
     torch.manual_seed(12345)
-    torch.cuda.manual_seed_all(12345)
+    if args.distributed:
+        torch.cuda.manual_seed_all(12345)
 
-    assert config.bsize % config.nranks == 0, (config.bsize, config.nranks)
-    config.bsize = config.bsize // config.nranks
+    if args.distributed:
+        assert args.bsize % args.nranks == 0, (args.bsize, args.nranks)
+        assert args.accumsteps == 1
+        args.bsize = args.bsize // args.nranks
 
-    print("Using config.bsize =", config.bsize, "(per process) and config.accumsteps =", config.accumsteps)
+        print("Using args.bsize =", args.bsize, "(per process) and args.accumsteps =", args.accumsteps)
 
-    if collection is not None:
-        if config.reranker:
-            reader = RerankBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
-        else:
-            reader = LazyBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
+    if args.lazy:
+        reader = LazyBatcher(args, (0 if args.rank == -1 else args.rank), args.nranks)
     else:
-        raise NotImplementedError()
+        reader = EagerBatcher(args, (0 if args.rank == -1 else args.rank), args.nranks)
 
-    if not config.reranker:
-        colbert = ColBERT(name=config.checkpoint, colbert_config=config)
-    else:
-        colbert = ElectraReranker.from_pretrained(config.checkpoint)
+    if args.rank not in [-1, 0]:
+        torch.distributed.barrier()
 
+    colbert = ColBERT.from_pretrained(args.base_model, 
+                                      query_maxlen=args.query_maxlen,
+                                      doc_maxlen=args.doc_maxlen,
+                                      dim=args.dim,
+                                      similarity_metric=args.similarity,
+                                      mask_punctuation=args.mask_punctuation,
+                                      use_gradient_reversal=args.lp_loss)
+
+    colbert.roberta.resize_token_embeddings(len(colbert.tokenizer))
+
+    if args.checkpoint is not None:
+        assert args.resume_optimizer is False, "TODO: This would mean reload optimizer too."
+        print_message(f"#> Starting from checkpoint {args.checkpoint} -- but NOT the optimizer!")
+
+        checkpoint = torch.load(args.checkpoint, map_location='cpu')
+
+        try:
+            colbert.load_state_dict(checkpoint['model_state_dict'])
+        except:
+            print_message("[WARNING] Loading checkpoint with strict=False")
+            colbert.load_state_dict(checkpoint['model_state_dict'], strict=False)
+
+    if args.rank == 0:
+        torch.distributed.barrier()
+
+    #DEVICE = torch.device("cuda:"+str(args.rank))
     colbert = colbert.to(DEVICE)
     colbert.train()
 
-    colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
-                                                        output_device=config.rank,
-                                                        find_unused_parameters=True)
+    if args.distributed:
+        colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[args.rank],
+                                                            output_device=args.rank,
+                                                            find_unused_parameters=True)
 
-    optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=config.lr, eps=1e-8)
+    optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=args.lr, eps=1e-8)
     optimizer.zero_grad()
 
-    scheduler = None
-    if config.warmup is not None:
-        print(f"#> LR will use {config.warmup} warmup steps and linear decay over {config.maxsteps} steps.")
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=config.warmup,
-                                                    num_training_steps=config.maxsteps)
-
-    warmup_bert = config.warmup_bert
-    if warmup_bert is not None:
-        set_bert_grad(colbert, False)
-
-    amp = MixedPrecisionManager(config.amp)
-    labels = torch.zeros(config.bsize, dtype=torch.long, device=DEVICE)
+    amp = MixedPrecisionManager(args.amp)
+    criterion = nn.CrossEntropyLoss()
+    labels = torch.zeros(args.bsize, dtype=torch.long, device=DEVICE)
 
     start_time = time.time()
-    train_loss = None
-    train_loss_mu = 0.999
+    train_loss = 0.0
 
     start_batch_idx = 0
 
-    # if config.resume:
-    #     assert config.checkpoint is not None
-    #     start_batch_idx = checkpoint['batch']
+    if args.resume:
+        assert args.checkpoint is not None
+        start_batch_idx = checkpoint['batch']
 
-    #     reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
+        reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
 
-    for batch_idx, BatchSteps in zip(range(start_batch_idx, config.maxsteps), reader):
-        if (warmup_bert is not None) and warmup_bert <= batch_idx:
-            set_bert_grad(colbert, True)
-            warmup_bert = None
-
+    for batch_idx, BatchSteps in zip(range(start_batch_idx, args.maxsteps), reader):
         this_batch_loss = 0.0
 
-        for batch in BatchSteps:
+        for queries, passages, sources, targets in BatchSteps:
+
             with amp.context():
-                try:
-                    queries, passages, target_scores = batch
-                    encoding = [queries, passages]
-                except:
-                    encoding, target_scores = batch
-                    encoding = [encoding.to(DEVICE)]
+                ir_scores, lp_loss = colbert(queries, passages, sources, targets)#.view(2, -1).permute(1, 0)
+                ir_scores = ir_scores.view(2, -1).permute(1, 0)
+                ir_loss = criterion(ir_scores, labels[:ir_scores.size(0)])
+                
+                
+                #print("ir_loss : ", ir_loss)
+                #print("lp_loss : ", lp_loss)
+                loss = ir_loss + lp_loss
+                
+                loss = loss / args.accumsteps
+                #scores = colbert(sources, targets).view(2, -1).permute(1, 0)
 
-                scores = colbert(*encoding)
-
-                if config.use_ib_negatives:
-                    scores, ib_loss = scores
-
-                scores = scores.view(-1, config.nway)
-
-                if len(target_scores) and not config.ignore_scores:
-                    target_scores = torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
-                    target_scores = target_scores * config.distillation_alpha
-                    target_scores = torch.nn.functional.log_softmax(target_scores, dim=-1)
-
-                    log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
-                    loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
-                else:
-                    loss = nn.CrossEntropyLoss()(scores, labels[:scores.size(0)])
-
-                if config.use_ib_negatives:
-                    if config.rank < 1:
-                        print('\t\t\t\t', loss.item(), ib_loss.item())
-
-                    loss += ib_loss
-
-                loss = loss / config.accumsteps
-
-            if config.rank < 1:
-                print_progress(scores)
+            if args.rank < 1:
+                print_progress(ir_scores)
 
             amp.backward(loss)
 
+            train_loss += loss.item()
             this_batch_loss += loss.item()
 
-        train_loss = this_batch_loss if train_loss is None else train_loss
-        train_loss = train_loss_mu * train_loss + (1 - train_loss_mu) * this_batch_loss
+        amp.step(colbert, optimizer)
 
-        amp.step(colbert, optimizer, scheduler)
+        if args.rank < 1:
+            avg_loss = train_loss / (batch_idx+1)
 
-        if config.rank < 1:
-            print_message(batch_idx, train_loss)
-            manage_checkpoints(config, colbert, optimizer, batch_idx+1, savepath=None)
+            num_examples_seen = (batch_idx - start_batch_idx) * args.bsize * args.nranks
+            elapsed = float(time.time() - start_time)
 
-    if config.rank < 1:
-        print_message("#> Done with all triples!")
-        ckpt_path = manage_checkpoints(config, colbert, optimizer, batch_idx+1, savepath=None, consumed_all_triples=True)
+            log_to_mlflow = (batch_idx % 20 == 0)
+            Run.log_metric('train/avg_loss', avg_loss, step=batch_idx, log_to_mlflow=log_to_mlflow)
+            Run.log_metric('train/batch_loss', this_batch_loss, step=batch_idx, log_to_mlflow=log_to_mlflow)
+            Run.log_metric('train/examples', num_examples_seen, step=batch_idx, log_to_mlflow=log_to_mlflow)
+            Run.log_metric('train/throughput', num_examples_seen / elapsed, step=batch_idx, log_to_mlflow=log_to_mlflow)
+            
+                
+            writer.add_scalar("train_loss/step", train_loss, batch_idx)
+            writer.add_scalar("num of examples/step", args.bsize*batch_idx, batch_idx)
 
-        return ckpt_path  # TODO: This should validate and return the best checkpoint, not just the last one.
-
-
-
-def set_bert_grad(colbert, value):
-    try:
-        for p in colbert.bert.parameters():
-            assert p.requires_grad is (not value)
-            p.requires_grad = value
-    except AttributeError:
-        set_bert_grad(colbert.module, value)
+            print_message(batch_idx, avg_loss)
+            manage_checkpoints(args, colbert, optimizer, batch_idx+1)

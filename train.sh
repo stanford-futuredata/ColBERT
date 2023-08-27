@@ -1,12 +1,10 @@
-export triples=/docker_workspace/dataset/ms_marco/qidpidtriples.train.full.json
-export queries=/docker_workspace/dataset/ms_marco/queries.train.tsv
-export collection=/docker_workspace/dataset/ms_marco/collection_origin.tsv
-export checkpoint=/docker_workspace/workspace/ColBERT/experiments/msmarco/none/2023-06/24/10.07.35/checkpoints/colbert-400000
+export NCCL_DEBUG=INFO
+export NCCL_SHM_DISABLE=1
+export TRIPLET=/home/jhkim980112/workspace/dataset/msmarco/triples.train.small.tsv
+export PARALLEL=/home/jhkim980112/workspace/dataset/ko_en_parallel_corpus/ko_en_parallel_corpus/대화체.xlsx
 
-export batch_size=24
-export nranks=1
-export max_steps=16_000_000
-
-CUDA_VISIBLE_DEVICES="1" python train.py --triples $triples --queries $queries --collection $collection \
-    --batch_size $batch_size --max_steps $max_steps  --nranks $nranks --model_name bert-base-multilingual-uncased \
-    --ignore_scores True --checkpoint $checkpoint
+CUDA_VISIBLE_DEVICES="3" \
+    python -m colbert.train \
+    --amp --doc_maxlen 180 --bsize 32 --accum 1 \
+    --triples $TRIPLET --maxsteps 400_000 --parallel $PARALLEL --lp_loss True \
+    --root ./experiments/ --experiment LPLOSS_MSMARCO --similarity l2 --run msmarco.clir.l2

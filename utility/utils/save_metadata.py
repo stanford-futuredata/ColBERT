@@ -1,4 +1,3 @@
-from colbert.utils.utils import dotdict
 import os
 import sys
 import git
@@ -6,22 +5,6 @@ import time
 import copy
 import ujson
 import socket
-
-
-def get_metadata_only():
-    args = dotdict()
-
-    args.hostname = socket.gethostname()
-    try:
-        args.git_branch = git.Repo(search_parent_directories=True).active_branch.name
-        args.git_hash = git.Repo(search_parent_directories=True).head.object.hexsha
-        args.git_commit_datetime = str(git.Repo(search_parent_directories=True).head.object.committed_datetime)
-    except git.exc.InvalidGitRepositoryError as e:
-        pass
-    args.current_datetime = time.strftime('%b %d, %Y ; %l:%M%p %Z (%z)')
-    args.cmd = ' '.join(sys.argv)
-
-    return args
 
 
 def get_metadata(args):
@@ -41,8 +24,6 @@ def get_metadata(args):
 
     return dict(args.__dict__)
 
-# TODO:  No reason for deepcopy. But: (a) Call provenance() on objects that can, (b) Only save simple, small objects. No massive lists or models or weird stuff!
-# With that, I think we don't even need (necessarily) to restrict things to input_arguments.
 
 def format_metadata(metadata):
     assert type(metadata) == dict

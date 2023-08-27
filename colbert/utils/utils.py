@@ -8,20 +8,18 @@ from multiprocessing import Pool
 from collections import OrderedDict, defaultdict
 
 
-def print_message(*s, condition=True, pad=False):
+def print_message(*s, condition=True):
     s = ' '.join([str(x) for x in s])
     msg = "[{}] {}".format(datetime.datetime.now().strftime("%b %d, %H:%M:%S"), s)
 
     if condition:
-        msg = msg if not pad else f'\n{msg}\n'
         print(msg, flush=True)
-
 
     return msg
 
 
-def timestamp(daydir=False):
-    format_str = f"%Y-%m{'/' if daydir else '-'}%d{'/' if daydir else '_'}%H.%M.%S"
+def timestamp():
+    format_str = "%Y-%m-%d_%H.%M.%S"
     result = datetime.datetime.now().strftime(format_str)
     return result
 
@@ -36,14 +34,6 @@ def file_tqdm(file):
 
         pbar.close()
 
-
-def torch_load_dnn(path):
-    if path.startswith("http:") or path.startswith("https:"):
-        dnn = torch.hub.load_state_dict_from_url(path, map_location='cpu')
-    else:
-        dnn = torch.load(path, map_location='cpu')
-    
-    return dnn
 
 def save_checkpoint(path, epoch_idx, mb_idx, model, optimizer, arguments=None):
     print(f"#> Saving a checkpoint to {path} ..")
@@ -61,30 +51,10 @@ def save_checkpoint(path, epoch_idx, mb_idx, model, optimizer, arguments=None):
     torch.save(checkpoint, path)
 
 
-def load_checkpoint(path, model, checkpoint=None, optimizer=None, do_print=True):
+def load_checkpoint(path, model, optimizer=None, do_print=True):
     if do_print:
         print_message("#> Loading checkpoint", path, "..")
 
-    if checkpoint is None:
-        checkpoint = load_checkpoint_raw(path)
-
-    try:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    except:
-        print_message("[WARNING] Loading checkpoint with strict=False")
-        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
-
-    if optimizer:
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
-    if do_print:
-        print_message("#> checkpoint['epoch'] =", checkpoint['epoch'])
-        print_message("#> checkpoint['batch'] =", checkpoint['batch'])
-
-    return checkpoint
-
-
-def load_checkpoint_raw(path):
     if path.startswith("http:") or path.startswith("https:"):
         checkpoint = torch.hub.load_state_dict_from_url(path, map_location='cpu')
     else:
@@ -99,6 +69,19 @@ def load_checkpoint_raw(path):
         new_state_dict[name] = v
 
     checkpoint['model_state_dict'] = new_state_dict
+
+    try:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    except:
+        print_message("[WARNING] Loading checkpoint with strict=False")
+        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+
+    if optimizer:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    if do_print:
+        print_message("#> checkpoint['epoch'] =", checkpoint['epoch'])
+        print_message("#> checkpoint['batch'] =", checkpoint['batch'])
 
     return checkpoint
 
@@ -147,20 +130,8 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 
-class dotdict_lax(dict):
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-
 def flatten(L):
-    # return [x for y in L for x in y]
-
-    result = []
-    for _list in L:
-        result += _list
-
-    return result
+    return [x for y in L for x in y]
 
 
 def zipstar(L, lazy=False):
@@ -268,16 +239,6 @@ def grouper(iterable, n, fillvalue=None):
 
     args = [iter(iterable)] * n
     return itertools.zip_longest(*args, fillvalue=fillvalue)
-
-
-def lengths2offsets(lengths):
-    offset = 0
-
-    for length in lengths:
-        yield (offset, offset + length)
-        offset += length
-
-    return
 
 
 # see https://stackoverflow.com/a/45187287

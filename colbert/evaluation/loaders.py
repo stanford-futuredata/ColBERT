@@ -44,9 +44,7 @@ def load_qrels(qrels_path):
             qrels[qid] = qrels.get(qid, [])
             qrels[qid].append(pid)
 
-    # assert all(len(qrels[qid]) == len(set(qrels[qid])) for qid in qrels)
-    for qid in qrels:
-        qrels[qid] = list(set(qrels[qid]))
+    assert all(len(qrels[qid]) == len(set(qrels[qid])) for qid in qrels)
 
     avg_positive = round(sum(len(qrels[qid]) for qid in qrels) / len(qrels), 2)
 
@@ -162,8 +160,8 @@ def load_collection(collection_path):
             if line_idx % (1000*1000) == 0:
                 print(f'{line_idx // 1000 // 1000}M', end=' ', flush=True)
 
-            pid, passage, *rest = line.strip('\n\r ').split('\t')
-            assert pid == 'id' or int(pid) == line_idx, f"pid={pid}, line_idx={line_idx}"
+            pid, passage, *rest = line.strip().split('\t')
+            assert pid == 'id' or int(pid) == line_idx
 
             if len(rest) >= 1:
                 title = rest[0]

@@ -3,7 +3,7 @@ import sys
 import time
 import __main__
 import traceback
-# import mlflow
+import mlflow
 
 import colbert.utils.distributed as distributed
 
@@ -98,7 +98,7 @@ class _RunManager():
 
             self._logger._log_all_artifacts()
 
-            # mlflow.end_run(status=self.exit_status)
+            mlflow.end_run(status=self.exit_status)
 
 
 Run = _RunManager()

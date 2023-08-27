@@ -48,6 +48,11 @@ class Arguments():
         self.add_argument('--amp', dest='amp', default=False, action='store_true')
 
     def add_training_input(self):
+        # Multi-lingual setting
+        self.add_argument('--base_model', dest='base_model', default='xlm-roberta-base')
+        self.add_argument('--lp_loss', dest='lp_loss', default=False, type=bool)
+        self.add_argument('--parallel', dest='parallel', required=False)
+        
         self.add_argument('--triples', dest='triples', required=True)
         self.add_argument('--queries', dest='queries', default=None)
         self.add_argument('--collection', dest='collection', default=None)
@@ -74,15 +79,10 @@ class Arguments():
         self.add_argument('--index_root', dest='index_root', required=True)
         self.add_argument('--index_name', dest='index_name', required=True)
 
-    def add_compressed_index_input(self):
-        self.add_argument('--compression_level', dest='compression_level',
-                          choices=[1, 2], type=int, default=None)
-
-
     def add_index_use_input(self):
         self.add_argument('--index_root', dest='index_root', required=True)
         self.add_argument('--index_name', dest='index_name', required=True)
-        self.add_argument('--partitions', dest='partitions', default=None, type=int, required=False)
+        self.add_argument('--partitions', dest='partitions', default=None, type=int)
 
     def add_retrieval_input(self):
         self.add_index_use_input()
