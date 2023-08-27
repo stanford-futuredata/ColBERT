@@ -56,16 +56,14 @@ class ColBERT(XLMRobertaModel):
 
     def forward(self, Q, D, S, T):
         ir_score = self.score(self.query(*Q), self.doc(*D))
-        print(S)
-        print(T)
         
         src_lp_loss, src_ff_predictions = self.language_prediction(*S, lang = "src")
         trg_lp_loss, trg_ff_predictions = self.language_prediction(*T, lang = "trg" )
         lp_loss = (src_lp_loss + trg_lp_loss)/2
         
         
-        print("source language prediction loss : ", src_lp_loss)
-        print("target language prediction loss : ", trg_lp_loss)
+        #print("source language prediction loss : ", src_lp_loss)
+        #print("target language prediction loss : ", trg_lp_loss)
         
         return ir_score, lp_loss
 

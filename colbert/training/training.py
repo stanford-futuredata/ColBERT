@@ -89,7 +89,9 @@ def train(args):
 
     start_time = time.time()
     train_loss = 0.0
-
+    train_ir_loss = 0.0
+    train_lp_loss = 0.0
+    
     start_batch_idx = 0
 
     if args.resume:
@@ -108,7 +110,6 @@ def train(args):
                 ir_scores = ir_scores.view(2, -1).permute(1, 0)
                 ir_loss = criterion(ir_scores, labels[:ir_scores.size(0)])
                 
-                
                 #print("ir_loss : ", ir_loss)
                 #print("lp_loss : ", lp_loss)
                 loss = ir_loss + lp_loss
@@ -121,6 +122,8 @@ def train(args):
 
             amp.backward(loss)
 
+            train_ir_loss += ir_loss.item()
+            train_lp_loss += lp_loss.item()
             train_loss += loss.item()
             this_batch_loss += loss.item()
 
@@ -139,8 +142,11 @@ def train(args):
             Run.log_metric('train/throughput', num_examples_seen / elapsed, step=batch_idx, log_to_mlflow=log_to_mlflow)
             
                 
-            writer.add_scalar("train_loss/step", train_loss, batch_idx)
+            writer.add_scalar("train_loss/step", train_loss/(batch_idx+1), batch_idx+1)
             writer.add_scalar("num of examples/step", args.bsize*batch_idx, batch_idx)
 
             print_message(batch_idx, avg_loss)
             manage_checkpoints(args, colbert, optimizer, batch_idx+1)
+            
+            
+    writer.close()
