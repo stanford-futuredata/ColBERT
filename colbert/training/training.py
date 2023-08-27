@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(args):
-    writer = SummaryWriter('/home/jhkim980112/workspace/tensorboard_log/xlmr-base_colbert_msmarco_lp_loss')
+    writer = SummaryWriter('/home/jhkim980112/workspace/tensorboard_log/xlmr-base_colbert_msmarco')
 
     random.seed(12345)
     np.random.seed(12345)
@@ -104,26 +104,28 @@ def train(args):
         this_batch_loss = 0.0
 
         for queries, passages, sources, targets in BatchSteps:
-
             with amp.context():
-                ir_scores, lp_loss = colbert(queries, passages, sources, targets)#.view(2, -1).permute(1, 0)
-                ir_scores = ir_scores.view(2, -1).permute(1, 0)
-                ir_loss = criterion(ir_scores, labels[:ir_scores.size(0)])
-                
-                #print("ir_loss : ", ir_loss)
-                #print("lp_loss : ", lp_loss)
-                loss = ir_loss + lp_loss
-                
+                if args.lp_loss:
+                    ir_scores, lp_loss = colbert(queries, passages, sources, targets)#.view(2, -1).permute(1, 0)
+                    ir_scores = ir_scores.view(2, -1).permute(1, 0)
+                    ir_loss = criterion(ir_scores, labels[:ir_scores.size(0)])
+                    loss = ir_loss + lp_loss
+                    scores = ir_scores
+                else:
+                    print('test')
+                    scores, _ = colbert(queries, passages, sources, targets)
+                    scores = scores.view(2, -1).permute(1, 0)
+                    loss = criterion(scores, labels[:scores.size(0)])
+                    
                 loss = loss / args.accumsteps
-                #scores = colbert(sources, targets).view(2, -1).permute(1, 0)
-
             if args.rank < 1:
-                print_progress(ir_scores)
+                print_progress(scores)
 
             amp.backward(loss)
 
-            train_ir_loss += ir_loss.item()
-            train_lp_loss += lp_loss.item()
+            if args.lp_loss:
+                train_ir_loss += ir_loss.item()
+                train_lp_loss += lp_loss.item()
             train_loss += loss.item()
             this_batch_loss += loss.item()
 

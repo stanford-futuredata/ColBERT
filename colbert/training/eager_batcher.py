@@ -62,11 +62,9 @@ class EagerBatcher():
                 sources, targets = [], []
                 sources.append(self.src_seq[line_idx])
                 targets.append(self.trg_seq[line_idx])
-                
-            #print('check')
-            #sources, targets = [], []
-            #sources.append(self.src_seq[line_idx])
-            #targets.append(self.trg_seq[line_idx])
+            else:
+                sources = None
+                targets = None
 
         self.position += line_idx + 1
 

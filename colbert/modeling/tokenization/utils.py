@@ -33,20 +33,24 @@ def tensorize_triples(query_tokenizer, doc_tokenizer, queries, positives, negati
     if _use_gradient_reversal == True:
         source_batches = _split_into_batches(SRC_ids, SRC_mask, bsize)
         target_batches = _split_into_batches(TRG_ids, TRG_mask, bsize)
+    else:
+        source_batches = (1,1)
+        target_batches = (1,1)
 
     batches = []
-    for (q_ids, q_mask), (p_ids, p_mask), (n_ids, n_mask), (s_ids, s_mask), (t_ids, t_mask) in zip(query_batches, positive_batches, negative_batches, source_batches, target_batches):
-        Q = (torch.cat((q_ids, q_ids)), torch.cat((q_mask, q_mask)))
-        D = (torch.cat((p_ids, n_ids)), torch.cat((p_mask, n_mask)))
-        
-        if _use_gradient_reversal == True:
-            #S = (torch.cat((s_ids, s_ids)), torch.cat((s_mask, s_mask)))
-            #T = (torch.cat((t_ids, t_ids)), torch.cat((t_mask, t_mask)))
+    
+    if _use_gradient_reversal == True:
+        for (q_ids, q_mask), (p_ids, p_mask), (n_ids, n_mask), (s_ids, s_mask), (t_ids, t_mask) in zip(query_batches, positive_batches, negative_batches, source_batches, target_batches):
+            Q = (torch.cat((q_ids, q_ids)), torch.cat((q_mask, q_mask)))
+            D = (torch.cat((p_ids, n_ids)), torch.cat((p_mask, n_mask)))
             S = (s_ids, s_mask)
             T = (t_ids, t_mask)
-            batches.append((Q, D, S, T))
-        else:
-            batches.append((Q, D))
+            batches.append((Q, D, S, T))  
+    else:
+        for (q_ids, q_mask), (p_ids, p_mask), (n_ids, n_mask) in zip(query_batches, positive_batches, negative_batches):
+            Q = (torch.cat((q_ids, q_ids)), torch.cat((q_mask, q_mask)))
+            D = (torch.cat((p_ids, n_ids)), torch.cat((p_mask, n_mask)))
+            batches.append((Q, D, None, None))
 
     return batches
 
