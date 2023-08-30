@@ -44,9 +44,9 @@ model_object_mapping = {
 }
 
 
-transformers_module = dir(transformers)
 
 def find_class_names(model_type, class_type):
+    transformers_module = dir(transformers)
     model_type = model_type.replace("-", "").lower()
     for item in transformers_module:
         if model_type + class_type == item.lower():
