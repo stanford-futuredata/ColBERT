@@ -14,7 +14,12 @@ from colbert.infra.run import Run
 class Collection:
     def __init__(self, path=None, data=None):
         self.path = path
-        self.data = data or self._load_file(path)
+        data = data or self._load_file(path)
+        if isinstance(data, dict):
+            self.pids, self.data = zip(*data.items())
+        else:
+            self.pids = range(len(data))
+            self.data = data
 
     def __iter__(self):
         # TODO: If __data isn't there, stream from disk!
@@ -88,7 +93,7 @@ class Collection:
         if type(obj) is str:
             return cls(path=obj)
 
-        if type(obj) is list:
+        if isinstance(obj, dict) or isinstance(obj, list):
             return cls(data=obj)
 
         if type(obj) is cls:
