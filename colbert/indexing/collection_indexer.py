@@ -375,7 +375,7 @@ class CollectionIndexer():
         if self.rank > 0:
             return
 
-        self.saver.save_pid_map(self.collection.pids)
+        self.saver.save_pid_map(self.collection.pid_doc_map)
         self._check_all_files_are_saved()
         self._collect_embedding_id_offset()
 

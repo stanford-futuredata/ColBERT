@@ -16,9 +16,10 @@ class Collection:
         self.path = path
         data = data or self._load_file(path)
         if isinstance(data, dict):
-            self.pids, self.data = zip(*data.items())
+            self.data = list(data.values())
+            self.pid_doc_map = data
         else:
-            self.pids = range(len(data))
+            self.pid_doc_map = {pid: doc for pid, doc in enumerate(data)}
             self.data = data
 
     def __iter__(self):
@@ -27,7 +28,7 @@ class Collection:
 
     def __getitem__(self, item):
         # TODO: Load from disk the first time this is called. Unless self.data is already not None.
-        return self.data[item]
+        return self.pid_doc_map[item]
 
     def __len__(self):
         # TODO: Load here too. Basically, let's make data a property function and, on first call, either load or get __data.
