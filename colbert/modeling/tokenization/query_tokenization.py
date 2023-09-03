@@ -1,20 +1,23 @@
 import torch
 
-from transformers import BertTokenizerFast, XLMRobertaTokenizer
+from transformers import BertTokenizerFast, XLMRobertaTokenizer, AutoTokenizer
 from colbert.modeling.tokenization.utils import _split_into_batches
 
 
 class QueryTokenizer():
-    def __init__(self, query_maxlen, base_model):
-        self.tok = XLMRobertaTokenizer.from_pretrained(base_model)
+    def __init__(self, query_maxlen, base_model="xlm-roberta-base"):
+        self.tok = AutoTokenizer.from_pretrained(base_model)
         self.tok.add_tokens(['[unused1]'])
         self.tok.add_tokens(['[unused2]'])
         self.query_maxlen = query_maxlen
 
-        self.Q_marker_token, self.Q_marker_token_id = '[Q]', 250002 #self.tok.convert_tokens_to_ids('[unused0]')
+        #self.Q_marker_token, self.Q_marker_token_id = '[Q]', 250002 #self.tok.convert_tokens_to_ids('[unused0]')
+        self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused1]')
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
         self.mask_token, self.mask_token_id = self.tok.mask_token, self.tok.mask_token_id
+
+        print(f'special token list : {self.tok.all_special_tokens}')
 
         #assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
         assert self.Q_marker_token_id == 250002 and self.mask_token_id == 250001

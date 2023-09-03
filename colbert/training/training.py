@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(args):
-    writer = SummaryWriter('/home/jhkim980112/workspace/tensorboard_log/xlmr-base_colbert_msmarco')
+    writer = SummaryWriter('/home/jhkim980112/workspace/tensorboard_log/' + args.experiment)
 
     random.seed(12345)
     np.random.seed(12345)
@@ -54,7 +54,7 @@ def train(args):
                                       mask_punctuation=args.mask_punctuation,
                                       use_gradient_reversal=args.lp_loss)
 
-    colbert.roberta.resize_token_embeddings(len(colbert.tokenizer))
+    #colbert.model.resize_token_embeddings(len(colbert.tokenizer))
 
     if args.checkpoint is not None:
         assert args.resume_optimizer is False, "TODO: This would mean reload optimizer too."
@@ -91,6 +91,7 @@ def train(args):
     train_loss = 0.0
     train_ir_loss = 0.0
     train_lp_loss = 0.0
+    lp_acc = (0,0,0)
     
     start_batch_idx = 0
 
@@ -106,14 +107,13 @@ def train(args):
         for queries, passages, sources, targets in BatchSteps:
             with amp.context():
                 if args.lp_loss:
-                    ir_scores, lp_loss = colbert(queries, passages, sources, targets)#.view(2, -1).permute(1, 0)
+                    ir_scores, lp_loss, lp_acc = colbert(queries, passages, sources, targets)#.view(2, -1).permute(1, 0)
                     ir_scores = ir_scores.view(2, -1).permute(1, 0)
                     ir_loss = criterion(ir_scores, labels[:ir_scores.size(0)])
                     loss = ir_loss + lp_loss
                     scores = ir_scores
                 else:
-                    print('test')
-                    scores, _ = colbert(queries, passages, sources, targets)
+                    scores, _, _ = colbert(queries, passages, sources, targets)
                     scores = scores.view(2, -1).permute(1, 0)
                     loss = criterion(scores, labels[:scores.size(0)])
                     
@@ -143,11 +143,18 @@ def train(args):
             Run.log_metric('train/examples', num_examples_seen, step=batch_idx, log_to_mlflow=log_to_mlflow)
             Run.log_metric('train/throughput', num_examples_seen / elapsed, step=batch_idx, log_to_mlflow=log_to_mlflow)
             
-                
-            writer.add_scalar("train_loss/step", train_loss/(batch_idx+1), batch_idx+1)
-            writer.add_scalar("num of examples/step", args.bsize*batch_idx, batch_idx)
+            writer.add_scalar("train_loss/batch_loss", this_batch_loss, batch_idx+1)
+            writer.add_scalar("train_loss/IR_loss", train_ir_loss/(batch_idx+1), batch_idx+1)
+            writer.add_scalar("train_loss/LP_loss", train_lp_loss/(batch_idx+1), batch_idx+1)    
+            writer.add_scalar("train_loss/avg_loss", train_loss/(batch_idx+1), batch_idx+1)
+            
+            writer.add_scalar("lp_accuracy/src", lp_acc[0], batch_idx+1)
+            writer.add_scalar("lp_accuracy/trg", lp_acc[1], batch_idx+1)
+            writer.add_scalar("lp_accuracy/avg", lp_acc[2], batch_idx+1)
+            writer.add_scalar("num of examples", num_examples_seen, batch_idx+1)
 
             print_message(batch_idx, avg_loss)
+            print(num_examples_seen)
             manage_checkpoints(args, colbert, optimizer, batch_idx+1)
             
             

@@ -42,7 +42,7 @@ def prepare_faiss_index(slice_samples_paths, partitions, sample_fraction=None):
 
     dim = training_sample.shape[-1]
     index = FaissIndex(dim, partitions)
-
+    
     print_message("#> Training with the vectors...")
 
     index.train(training_sample)

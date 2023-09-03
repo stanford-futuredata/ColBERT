@@ -2,13 +2,13 @@ import string
 import torch
 import torch.nn as nn
 
-from transformers import BertPreTrainedModel, BertModel, BertTokenizerFast, XLMRobertaModel, XLMRobertaTokenizer
+from transformers import AutoTokenizer, AutoModel
+from transformers import BertPreTrainedModel, BertModel, BertTokenizerFast, RobertaPreTrainedModel, XLMRobertaModel, XLMRobertaTokenizer
 from colbert.parameters import DEVICE
-
 from colbert.modeling.gradient_reversal_layer import GradientReversalFunction
-#from allennlp.training.metrics import CategoricalAccuracy
+from torchmetrics.classification import BinaryAccuracy
 
-class ColBERT(XLMRobertaModel):
+class ColBERT(RobertaPreTrainedModel):
     def __init__(self, config, query_maxlen, doc_maxlen, mask_punctuation, dim=128, 
                  similarity_metric='cosine', use_gradient_reversal=False, num_of_languages=2):
 
@@ -22,6 +22,13 @@ class ColBERT(XLMRobertaModel):
         self.mask_punctuation = mask_punctuation
         self.skiplist = {}
 
+        self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
+        self.tokenizer.add_tokens(['[unused1]'])
+        self.tokenizer.add_tokens(['[unused2]'])
+        
+        self.model = AutoModel.from_pretrained("xlm-roberta-base")
+        self.model.resize_token_embeddings(len(self.tokenizer))
+        
         '''
         if self.mask_punctuation:
             self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
@@ -29,13 +36,7 @@ class ColBERT(XLMRobertaModel):
                              for symbol in string.punctuation
                              for w in [symbol, self.tokenizer.encode(symbol, add_special_tokens=False)[0]]}
         '''
-
-        self.roberta = XLMRobertaModel(config)
-        self.tokenizer = XLMRobertaTokenizer.from_pretrained('xlm-roberta-base')
-        self.tokenizer.add_tokens(['[unused1]'])
-        self.tokenizer.add_tokens(['[unused2]'])
-
-        #self.bert = BertModel(config)
+        
         self.linear = nn.Linear(config.hidden_size, dim, bias=False)
         
         # Add Gradient Reversal Layer
@@ -46,39 +47,63 @@ class ColBERT(XLMRobertaModel):
             self._language_predictor_ff = torch.nn.Linear(in_features=768, out_features=num_of_languages)
 
         #self._lp_acc = CategoricalAccuracy(top_k=1)
+        self.src_ff_predictions_list = []
+        self.trg_ff_predictions_list = []
+        self.LP_metric = BinaryAccuracy()
 
         self.init_weights()
 
-    def forward(self, Q, D):
-        score = self.score(self.query(*Q), self.doc(*D))
-        
-        return score
+    #def forward(self, Q, D):
+    #    score = self.score(self.query(*Q), self.doc(*D))
+    #    return score
 
     def forward(self, Q, D, S, T):
         ir_score = self.score(self.query(*Q), self.doc(*D))
         lp_loss = 0.0
+        src_acc=0.0
+        trg_acc=0.0
+        total_acc=0.0
         
         if self._use_gradient_reversal:
             src_lp_loss, src_ff_predictions = self.language_prediction(*S, lang = "src")
             trg_lp_loss, trg_ff_predictions = self.language_prediction(*T, lang = "trg" )
             lp_loss = (src_lp_loss + trg_lp_loss)/2
         
-        #print("source language prediction loss : ", src_lp_loss)
-        #print("target language prediction loss : ", trg_lp_loss)
+            src_ff_predictions = torch.argmax(src_ff_predictions, dim=1)
+            trg_ff_predictions = torch.argmax(trg_ff_predictions, dim=1)
+            src_acc, trg_acc, total_acc = self.lp_accuracy(src_ff_predictions, trg_ff_predictions)
+            
+            #print("source language prediction : ", src_acc)
+            #print("target language prediction : ", trg_acc)
+            #print("avg of language prediction : ", total_acc)
+
+        return ir_score, lp_loss, (src_acc, trg_acc, total_acc)
+    
+    def lp_accuracy(self, src_ff_predictions, trg_ff_predictions):
         
-        return ir_score, lp_loss
+        self.src_ff_predictions_list.extend(src_ff_predictions)
+        self.trg_ff_predictions_list.extend(trg_ff_predictions)
+        
+        src_acc = self.LP_metric(torch.tensor(self.src_ff_predictions_list), torch.tensor([0]*len(self.src_ff_predictions_list))).item()
+        trg_acc = self.LP_metric(torch.tensor(self.trg_ff_predictions_list), torch.tensor([0]*len(self.trg_ff_predictions_list))).item()
+        total_acc = (src_acc + trg_acc)/2
+    
+        return src_acc, trg_acc, total_acc
 
     def query(self, input_ids, attention_mask):
         input_ids, attention_mask = input_ids.to(DEVICE), attention_mask.to(DEVICE)
-        Q = self.roberta(input_ids, attention_mask=attention_mask)[0]
+        Q = self.model(input_ids, attention_mask=attention_mask)[0]
         Q = self.linear(Q)
 
+        #print("query : ", Q.shape)
         return torch.nn.functional.normalize(Q, p=2, dim=2)
 
     def doc(self, input_ids, attention_mask, keep_dims=True):
         input_ids, attention_mask = input_ids.to(DEVICE), attention_mask.to(DEVICE)
-        D = self.roberta(input_ids, attention_mask=attention_mask)[0]
+        D = self.model(input_ids, attention_mask=attention_mask)[0]
         D = self.linear(D)
+        
+        #print("document : ", D.shape)
 
         mask = torch.tensor(self.mask(input_ids), device=DEVICE).unsqueeze(2).float()
         D = D * mask
@@ -92,38 +117,40 @@ class ColBERT(XLMRobertaModel):
         return D
     
     def language_prediction(self, input_ids, attention_mask, lang, keep_dims=True):
-        input_ids, attention_mask = input_ids.to(DEVICE), attention_mask.to(DEVICE)
-        
-        encoder_outputs = self.roberta(input_ids, attention_mask=attention_mask)[0]
+        input_ids, attention_mask = input_ids[:32,:].to(DEVICE), attention_mask[:32,:].to(DEVICE)
+
+        encoder_outputs = self.model(input_ids, attention_mask=attention_mask)[0]
         #print(encoder_outputs.shape)
-        #print(encoder_outputs[0])
+
+        encoder_outputs = encoder_outputs[:,0,:].squeeze()
+        #print(encoder_outputs.shape)
+
         
         #D = self._language_predictor_ff(D)
         #mask = torch.tensor(self.mask(input_ids), device=DEVICE).unsqueeze(2).float()
         #D = D * mask
         
-        encoder_outputs = torch.nn.functional.normalize(encoder_outputs, p=2, dim=2)
+        encoder_outputs = torch.nn.functional.normalize(encoder_outputs, p=2, dim=1)
         #print(encoder_outputs.shape)
                 
-        #
         encoder_outputs = GradientReversalFunction.apply(encoder_outputs, self._gradient_reverse_lambda)
         #print(encoder_outputs.shape)
         
-        #
         ff_output = self._language_predictor_ff(encoder_outputs).squeeze(-2)
-        #print(ff_output)
+        #print(ff_output.shape)
         
         if lang == "src":
-            target = torch.tensor([0]).to(DEVICE)
+            target = torch.tensor([0]*32).to(DEVICE)
         elif lang == 'trg':
-            target = torch.tensor([1]).to(DEVICE)
+            target = torch.tensor([1]*32).to(DEVICE)
             
-        #print(ff_output[0][0])
-        #print(ff_output[0][0].view(1, -1).shape)
+        #print(ff_output[:32,0,:])
+        #print(ff_output[:32,0,:].shape)
+        #print(ff_output[:32,0,:].view(32, -1).shape)
         #print(target)
         #print(target.shape)
 
-        return self._gradient_reverse_loss(ff_output[0][0].view(1, -1), target), ff_output
+        return self._gradient_reverse_loss(ff_output, target), ff_output
 
     def score(self, Q, D):
         if self.similarity_metric == 'cosine':
@@ -135,4 +162,5 @@ class ColBERT(XLMRobertaModel):
     def mask(self, input_ids):
         #mask = [[(x not in self.skiplist) and (x != 0) for x in d] for d in input_ids.cpu().tolist()]
         mask = [[(x not in self.skiplist) and (x != 1) for x in d] for d in input_ids.cpu().tolist()]
+        
         return mask

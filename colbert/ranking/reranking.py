@@ -14,7 +14,7 @@ from colbert.ranking.rankers import Ranker
 
 
 def rerank(args):
-    inference = ModelInference(args.colbert, amp=args.amp)
+    inference = ModelInference(args.colbert, amp=args.amp, base_model=args.base_model)
     ranker = Ranker(args, inference, faiss_depth=None)
 
     ranking_logger = RankingLogger(Run.path, qrels=None)

@@ -19,34 +19,31 @@ class EagerBatcher():
         self.tensorize_triples = partial(tensorize_triples, self.query_tokenizer, self.doc_tokenizer)
 
         self.triples_path = args.triples
+        self.parallel_path = args.parallel
         self._reset_triples()
         
         # Load SRC-TRG parallel corpus
         self._use_gradient_reversal = args.lp_loss
         print("use_gradient_reversal : ", self._use_gradient_reversal)
         if self._use_gradient_reversal == True:
-            print("pass")
-            self.src_seq, self.trg_seq = self._load_parallel_corpus(args.parallel)
-            #print(self.src_seq)
+            self._load_parallel_corpus()
 
     def _reset_triples(self):
         print("_reset_triples")
         self.reader = open(self.triples_path, mode='r', encoding="utf-8")
         self.position = 0
         
-    def _load_parallel_corpus(self, path):
-        
-        parallel_reader = pd.read_excel(path)
-        src = list(parallel_reader['src_seq'])*4
-        trg = list(parallel_reader['trg_seq'])*4
-        
-        return src, trg
+    def _load_parallel_corpus(self):
+        print("_reset_parallels")
+        self.parallel_reader = open(self.parallel_path, mode='r', encoding="utf-8")
+        self.parallel_position = 0
 
     def __iter__(self):
         return self
 
     def __next__(self):
         queries, positives, negatives = [], [], []
+        sources, targets = [], []
 
         for line_idx, line in zip(range(self.bsize * self.nranks), self.reader):
             if (self.position + line_idx) % self.nranks != self.rank:
@@ -59,9 +56,15 @@ class EagerBatcher():
             negatives.append(neg)
             
             if self._use_gradient_reversal == True:
-                sources, targets = [], []
-                sources.append(self.src_seq[line_idx])
-                targets.append(self.trg_seq[line_idx])
+                parallel = self.parallel_reader.readline()
+                if not parallel:
+                    self._load_parallel_corpus()
+                    parallel = self.parallel_reader.readline()
+                
+                src, trg = parallel.strip().split('\t')
+                
+                sources.append(src)
+                targets.append(trg)
             else:
                 sources = None
                 targets = None

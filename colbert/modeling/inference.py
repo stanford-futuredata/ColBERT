@@ -7,12 +7,12 @@ from colbert.parameters import DEVICE
 
 
 class ModelInference():
-    def __init__(self, colbert: ColBERT, amp=False):
+    def __init__(self, colbert: ColBERT, amp=False, base_model="xlm-roberta-base"):
         assert colbert.training is False
 
         self.colbert = colbert
-        self.query_tokenizer = QueryTokenizer(colbert.query_maxlen)
-        self.doc_tokenizer = DocTokenizer(colbert.doc_maxlen)
+        self.query_tokenizer = QueryTokenizer(colbert.query_maxlen, base_model)
+        self.doc_tokenizer = DocTokenizer(colbert.doc_maxlen, base_model)
 
         self.amp_manager = MixedPrecisionManager(amp)
 
