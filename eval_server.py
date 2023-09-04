@@ -71,7 +71,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
         top_k = []
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
-            top_k.append({'pid': pid, 'rank': rank, 'score': score})
+            top_k.append({'pid': pid + 1, 'rank': rank, 'score': score})
         top_k = list(sorted(top_k, key=lambda p: (-1 * p['score'], p['pid'])))
 
         del gr
