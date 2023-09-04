@@ -156,7 +156,6 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         if self.use_gpu:    
             D_packed, D_mask = self.lookup_pids(pids)
         else:
-            print(len(pids))
             D_packed = IndexScorer.decompress_residuals(
                     pids,
                     self.doclens,

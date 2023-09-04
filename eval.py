@@ -14,19 +14,26 @@ from multiprocessing.connection import Client
 from colbert.data import Queries
 
 
-def save_rankings(rankings):
+def save_rankings(rankings, filename):
     output = []
     for q in rankings:
         for result in q.topk:
             output.append("\t".join([str(x) for x in [q.qid, result.pid, result.rank, result.score]]))
 
-    f = open("rankings.tsv", "w")
+    f = open(filename, "w")
     f.write("\n".join(output))
     f.close()
 
 
-async def run(nodes):
-    print("Process", psutil.Process().cpu_num())
+async def run_request(stub, request):
+    t = time.time()
+    out = await stub.Search(request)
+    return out, time.time() - t
+
+
+async def run(args):
+    print("Main process running on CPU", psutil.Process().cpu_num())
+    nodes = args.num_proc
     t = time.time()
     queries = Queries(path="/data/queries.dev.small.tsv")
     qvals = list(queries.items())
@@ -39,32 +46,49 @@ async def run(nodes):
         channels.append(grpc.aio.insecure_channel('localhost:5005' + str(i)))
         stubs.append(server_pb2_grpc.ServerStub(channels[-1]))
 
+    inter_request_time = [float(x) for x in open(args.input_file).read().split("\n") if x != ""]
+    length = len(inter_request_time)
+
     for i in range(len(qvals)):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
-        tasks.append(asyncio.ensure_future(stubs[i % nodes].Search(request)))
+        tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request)))
+        await asyncio.sleep(inter_request_time[i % length])
 
     await asyncio.sleep(0)
-    save_rankings(await asyncio.gather(*tasks))
+    ret = zip(*await asyncio.gather(*tasks))
 
-    print(time.time()-t)
+    save_rankings(ret[0], args.output)
+
+    print("Timings:", ret[1])
+    print(f"Total time for {len(qvals)} requests:",  time.time()-t)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluator for ColBERT')
     parser.add_argument('-n', '--num_proc', type=int, required=True,
                         help='Number of servers')
+    parser.add_argument('-o', '--output', type=str, default="rankings.tsv",
+                        help='Output file to save results')
+    parser.add_argument('-i', '--input', type=int, required=True,
+                        help='Input file for inter request wait times')
 
     processes = []
-    for cpu in range(psutil.cpu_count()):
-        print("Starting process", cpu)
-        processes.append(Popen("taskset -c " + str(cpu) + " python eval_server.py",
+    args = parser.parse_args()
+
+    if args.num_proc > psutil.cpu_count():
+        print("Not enough CPUs, exiting!")
+        sys.exit(-1)
+
+    for node in range(args.num_proc):
+        print("Starting process", node)
+        processes.append(Popen("taskset -c " + str(node) + " python eval_server.py",
                                shell=True, preexec_fn=os.setsid).pid)
 
         times = 10
         for i in range(times):
             try:
-                connection = Client(('localhost', 50040 + cpu), authkey=b'password')
+                connection = Client(('localhost', 50040 + node), authkey=b'password')
                 assert connection.recv() == "Done"
                 connection.close()
                 break
@@ -76,7 +100,7 @@ if __name__ == '__main__':
                     sys.exit(-1)
                 time.sleep(5)
 
-    asyncio.run(run(parser.parse_args().num_proc))
+    asyncio.run(run(args))
 
     for p in processes:
         print("Killing processing after completion")
