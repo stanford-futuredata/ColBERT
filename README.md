@@ -1,16 +1,14 @@
-----
-----
+## 🚨 **Announcements** 
 
-**Update: The branch [`new_api`](https://github.com/stanford-futuredata/ColBERT/tree/new_api) contains a new simpler API plus the code for the new [ColBERTv2](https://arxiv.org/abs/2112.01488) model, including a public checkpoint as well as a public release of our LoTTE benchmark.**
+* (1/29/23) We have merged a new index updater feature and support for additional Hugging Face models! These are in beta so please give us feedback as you try them out.
+* (1/24/23) If you're looking for the **DSP** framework for composing ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dsp
 
-----
+[<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />](https://colab.research.google.com/github/stanford-futuredata/ColBERT/blob/main/docs/intro2new.ipynb)
 
-----
+# ColBERT (v2)
 
+### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds.
 
-# ColBERT
-
-### ColBERT is a _fast_ and _accurate_ retrieval model, enabling scalable BERT-based search over large text collections in tens of milliseconds. 
 
 <p align="center">
   <img align="center" src="docs/images/ColBERT-Framework-MaxSim-W370px.png" />
@@ -25,22 +23,32 @@ These rich interactions allow ColBERT to surpass the quality of _single-vector_ 
 
 * [**ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT**](https://arxiv.org/abs/2004.12832) (SIGIR'20).
 * [**Relevance-guided Supervision for OpenQA with ColBERT**](https://arxiv.org/abs/2007.00814) (TACL'21).
-* [**ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction**](https://arxiv.org/abs/2112.01488) (to appear at NAACL'22).
+* [**Baleen: Robust Multi-Hop Reasoning at Scale via Condensed Retrieval**](https://arxiv.org/abs/2101.00436) (NeurIPS'21).
+* [**ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction**](https://arxiv.org/abs/2112.01488) (NAACL'22).
+* [**PLAID: An Efficient Engine for Late Interaction Retrieval**](https://arxiv.org/abs/2205.09707) (CIKM'22).
 
 ----
 
+## ColBERTv1
+
+The ColBERTv1 code from the SIGIR'20 paper is in the [`colbertv1` branch](https://github.com/stanford-futuredata/ColBERT/tree/colbertv1). See [here](#branches) for more information on other branches.
+
+
 ## Installation
 
-ColBERT (currently: [v0.2.0](#releases)) requires Python 3.7+ and Pytorch 1.6+ and uses the [HuggingFace Transformers](https://github.com/huggingface/transformers) library.
+ColBERT requires Python 3.7+ and Pytorch 1.9+ and uses the [Hugging Face Transformers](https://github.com/huggingface/transformers) library.
 
-We strongly recommend creating a conda environment using:
+We strongly recommend creating a conda environment using the commands below. (If you don't have conda, follow the official [conda installation guide](https://docs.anaconda.com/anaconda/install/linux/#installation).)
+
+We have also included a new environment file specifically for CPU-only environments (`conda_env_cpu.yml`), but note that if you are testing CPU execution on a machine that includes GPUs you might need to specify `CUDA_VISIBLE_DEVICES=""` as part of your command. Note that a GPU is required for training and indexing.
 
 ```
-conda env create -f conda_env.yml
-conda activate colbert-v0.2
+conda env create -f conda_env[_cpu].yml
+conda activate colbert
 ```
 
 If you face any problems, please [open a new issue](https://github.com/stanford-futuredata/ColBERT/issues) and we'll help you promptly!
+
 
 
 ## Overview
@@ -49,13 +57,22 @@ Using ColBERT on a dataset typically involves the following steps.
 
 **Step 0: Preprocess your collection.** At its simplest, ColBERT works with tab-separated (TSV) files: a file (e.g., `collection.tsv`) will contain all passages and another (e.g., `queries.tsv`) will contain a set of queries for searching the collection.
 
-**Step 1: Train a ColBERT model.**  You can [train your own ColBERT model](#training) and [validate performance](#validation) on a suitable development set.
+**Step 1: Download the [pre-trained ColBERTv2 checkpoint](https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/colbertv2.0.tar.gz).** This checkpoint has been trained on the MS MARCO Passage Ranking task. You can also _optionally_ [train your own ColBERT model](#training).
 
-**Step 2: Index your collection.** Once you're happy with your ColBERT model, you need to [index your collection](#indexing) to permit fast retrieval. This step encodes all passages into matrices, stores them on disk, and builds data structures for efficient search.
+**Step 2: Index your collection.** Once you have a trained ColBERT model, you need to [index your collection](#indexing) to permit fast retrieval. This step encodes all passages into matrices, stores them on disk, and builds data structures for efficient search.
 
-**Step 3: Search the collection with your queries.** Given your model and index, you can [issue queries over the collection](#retrieval) to retrieve the top-k passages for each query.
+**Step 3: Search the collection with your queries.** Given the model and index, you can [issue queries over the collection](#retrieval) to retrieve the top-k passages for each query.
 
 Below, we illustrate these steps via an example run on the MS MARCO Passage Ranking task.
+
+
+## API Usage Notebook
+
+**NEW**: We have an experimental notebook on [Google Colab](https://colab.research.google.com/github/stanford-futuredata/ColBERT/blob/main/docs/intro2new.ipynb) that you can use with free GPUs. Indexing 10,000 on the free Colab T4 GPU takes six minutes.
+
+This Jupyter notebook **[docs/intro.ipynb notebook](docs/intro.ipynb)** illustrates using the key features of ColBERT with the new Python API.
+
+It includes how to download the ColBERTv2 model checkpoint trained on MS MARCO Passage Ranking and how to download our new LoTTE benchmark.
 
 
 ## Data
@@ -64,105 +81,117 @@ This repository works directly with a simple **tab-separated file** format to st
 
 
 * Queries: each line is `qid \t query text`.
-* Collection: each line is `pid \t passage text`. 
+* Collection: each line is `pid \t passage text`.
 * Top-k Ranking: each line is `qid \t pid \t rank`.
 
 This works directly with the data format of the [MS MARCO Passage Ranking](https://github.com/microsoft/MSMARCO-Passage-Ranking) dataset. You will need the training triples (`triples.train.small.tar.gz`), the official top-1000 ranked lists for the dev set queries (`top1000.dev`), and the dev set relevant passages (`qrels.dev.small.tsv`). For indexing the full collection, you will also need the list of passages (`collection.tar.gz`).
-
-
-
-## Training
-
-Training requires a list of _<query, positive passage, negative passage>_ tab-separated triples.
-
-You can supply **full-text** triples, where each line is `query text \t positive passage text \t negative passage text`. Alternatively, you can supply the query and passage **IDs** as a JSONL file `[qid, pid+, pid-]` per line, in which case you should specify `--collection path/to/collection.tsv` and `--queries path/to/queries.train.tsv`.
-
-
-```
-CUDA_VISIBLE_DEVICES="0,1,2,3" \
-python -m torch.distributed.launch --nproc_per_node=4 -m \
-colbert.train --amp --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 \
---triples /path/to/MSMARCO/triples.train.small.tsv \
---root /root/to/experiments/ --experiment MSMARCO-psg --similarity l2 --run msmarco.psg.l2
-```
-
-You can use one or more GPUs by modifying `CUDA_VISIBLE_DEVICES` and `--nproc_per_node`.
-
-
-## Validation
-
-Before indexing into ColBERT, you can compare a few checkpoints by re-ranking a top-k set of documents per query. This will use ColBERT _on-the-fly_: it will compute document representations _during_ query evaluation.
-
-This script requires the top-k list per query, provided as a tab-separated file whose every line contains a tuple `queryID \t passageID \t rank`, where rank is {1, 2, 3, ...} for each query. The script also accepts the format of MS MARCO's `top1000.dev` and `top1000.eval` and you can optionally supply relevance judgements (qrels) for evaluation. This is a tab-separated file whose every line has a quadruple _<query ID, 0, passage ID, 1>_, like `qrels.dev.small.tsv`.
-
-Example command:
-
-```
-python -m colbert.test --amp --doc_maxlen 180 --mask-punctuation \
---collection /path/to/MSMARCO/collection.tsv \
---queries /path/to/MSMARCO/queries.dev.small.tsv \
---topk /path/to/MSMARCO/top1000.dev  \
---checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert-200000.dnn \
---root /root/to/experiments/ --experiment MSMARCO-psg  [--qrels path/to/qrels.dev.small.tsv]
-```
 
 
 ## Indexing
 
 For fast retrieval, indexing precomputes the ColBERT representations of passages.
 
-Example command:
+Example usage:
 
 ```
-CUDA_VISIBLE_DEVICES="0,1,2,3" OMP_NUM_THREADS=6 \
-python -m torch.distributed.launch --nproc_per_node=4 -m \
-colbert.index --amp --doc_maxlen 180 --mask-punctuation --bsize 256 \
---checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert-200000.dnn \
---collection /path/to/MSMARCO/collection.tsv \
---index_root /root/to/indexes/ --index_name MSMARCO.L2.32x200k \
---root /root/to/experiments/ --experiment MSMARCO-psg
-```
+from colbert.infra import Run, RunConfig, ColBERTConfig
+from colbert import Indexer
 
-The index created here allows you to re-rank the top-k passages retrieved by another method (e.g., BM25).
+if __name__=='__main__':
+    with Run().context(RunConfig(nranks=1, experiment="msmarco")):
 
-We typically recommend that you use ColBERT for **end-to-end** retrieval, where it directly finds its top-k passages from the full collection. For this, you need FAISS indexing.
-
-
-#### FAISS Indexing for end-to-end retrieval
-
-For end-to-end retrieval, you should index the document representations into [FAISS](https://github.com/facebookresearch/faiss).
-
-```
-python -m colbert.index_faiss \
---index_root /root/to/indexes/ --index_name MSMARCO.L2.32x200k \
---partitions 32768 --sample 0.3 \
---root /root/to/experiments/ --experiment MSMARCO-psg
+        config = ColBERTConfig(
+            nbits=2,
+            root="/path/to/experiments",
+        )
+        indexer = Indexer(checkpoint="/path/to/checkpoint", config=config)
+        indexer.index(name="msmarco.nbits=2", collection="/path/to/MSMARCO/collection.tsv")
 ```
 
 
 ## Retrieval
 
-In the simplest case, you want to retrieve from the full collection:
+We typically recommend that you use ColBERT for **end-to-end** retrieval, where it directly finds its top-k passages from the full collection:
 
 ```
-python -m colbert.retrieve \
---amp --doc_maxlen 180 --mask-punctuation --bsize 256 \
---queries /path/to/MSMARCO/queries.dev.small.tsv \
---nprobe 32 --partitions 32768 --faiss_depth 1024 \
---index_root /root/to/indexes/ --index_name MSMARCO.L2.32x200k \
---checkpoint /root/to/experiments/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert-200000.dnn \
---root /root/to/experiments/ --experiment MSMARCO-psg
+from colbert.data import Queries
+from colbert.infra import Run, RunConfig, ColBERTConfig
+from colbert import Searcher
+
+if __name__=='__main__':
+    with Run().context(RunConfig(nranks=1, experiment="msmarco")):
+
+        config = ColBERTConfig(
+            root="/path/to/experiments",
+        )
+        searcher = Searcher(index="msmarco.nbits=2", config=config)
+        queries = Queries("/path/to/MSMARCO/queries.dev.small.tsv")
+        ranking = searcher.search_all(queries, k=100)
+        ranking.save("msmarco.nbits=2.ranking.tsv")
 ```
 
-You may also want to re-rank a top-k set that you've retrieved before with ColBERT or with another model. For this, use `colbert.rerank` similarly and additionally pass `--topk`.
+You can optionally specify the `ncells`, `centroid_score_threshold`, and `ndocs` search hyperparameters to trade off between speed and result quality. Defaults for different values of `k` are listed in colbert/searcher.py.
 
-If you have a large set of queries (or want to reduce memory usage), use **batch-mode** retrieval and/or re-ranking. This can be done by passing `--batch --retrieve_only` to `colbert.retrieve` and passing `--batch --log-scores` to colbert.rerank alongside `--topk` with the `unordered.tsv` output of this retrieval run.
+We can evaluate the MSMARCO rankings using the following command:
 
-Some use cases (e.g., building a user-facing search engines) require more control over retrieval. For those, you typically don't want to use the command line for retrieval. Instead, you want to import our retrieval API from Python and directly work with that (e.g., to build a simple REST API). Instructions for this are coming soon, but you will just need to adapt/modify the retrieval loop in [`colbert/ranking/retrieval.py#L33`](colbert/ranking/retrieval.py#L33).
+```
+python -m utility.evaluate.msmarco_passages --ranking "/path/to/msmarco.nbits=2.ranking.tsv" --qrels "/path/to/MSMARCO/qrels.dev.small.tsv"
+```
 
+## Training
 
-## Releases
+We provide a [pre-trained model checkpoint](https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/colbertv2.0.tar.gz), but we also detail how to train from scratch here.
+Note that this example demonstrates the ColBERTv1 style of training, but the provided checkpoint was trained with ColBERTv2.
 
-* v0.2.0: Sep 2020
-* v0.1.0: June 2020
+Training requires a JSONL triples file with a `[qid, pid+, pid-]` list per line. The query IDs and passage IDs correspond to the specified `queries.tsv` and `collection.tsv` files respectively.
 
+Example usage (training on 4 GPUs):
+
+```
+from colbert.infra import Run, RunConfig, ColBERTConfig
+from colbert import Trainer
+
+if __name__=='__main__':
+    with Run().context(RunConfig(nranks=4, experiment="msmarco")):
+
+        config = ColBERTConfig(
+            bsize=32,
+            root="/path/to/experiments",
+        )
+        trainer = Trainer(
+            triples="/path/to/MSMARCO/triples.train.small.tsv",
+            queries="/path/to/MSMARCO/queries.train.small.tsv",
+            collection="/path/to/MSMARCO/collection.tsv",
+            config=config,
+        )
+
+        checkpoint_path = trainer.train()
+
+        print(f"Saved checkpoint to {checkpoint_path}...")
+```
+
+## Running a lightweight ColBERTv2 server
+We provide a script to run a lightweight server which serves k (upto 100) results in ranked order for a given search query, in JSON format. This script can be used to power DSP programs. 
+
+To run the server, update the environment variables `INDEX_ROOT` and `INDEX_NAME` in the `.env` file to point to the appropriate ColBERT index. The run the following command:
+```
+python server.py
+```
+
+A sample query:
+```
+http://localhost:8893/api/search?query=Who won the 2022 FIFA world cup&k=25
+```
+
+## Branches
+
+### Supported branches
+
+* [`main`](https://github.com/stanford-futuredata/ColBERT/tree/main): Stable branch with ColBERTv2 + PLAID.
+* [`colbertv1`](https://github.com/stanford-futuredata/ColBERT/tree/colbertv1): Legacy branch for ColBERTv1.
+
+### Deprecated branches
+* [`new_api`](https://github.com/stanford-futuredata/ColBERT/tree/new_api): Base ColBERTv2 implementation.
+* [`cpu_inference`](https://github.com/stanford-futuredata/ColBERT/tree/cpu_inference): ColBERTv2 implementation with CPU search support.
+* [`fast_search`](https://github.com/stanford-futuredata/ColBERT/tree/fast_search): ColBERTv2 implementation with PLAID.
+* [`binarization`](https://github.com/stanford-futuredata/ColBERT/tree/binarization): ColBERT with a baseline binarization-based compression strategy (as opposed to ColBERTv2's residual compression, which we found to be more robust).
