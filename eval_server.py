@@ -91,12 +91,12 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
 
 def serve_ColBERT_server():
+    connection = Listener(('localhost', 50049), authkey=b'password').accept()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
     server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(psutil.Process().cpu_num()), server)
     listen_addr = '[::]:5005' + str(psutil.Process().cpu_num())
     server.add_insecure_port(listen_addr)
     print(f"Starting ColBERT server on {listen_addr}")
-    connection = Listener(('localhost', 50049), authkey=b'password').accept()
     connection.send("Done")
     connection.close()
     server.start()

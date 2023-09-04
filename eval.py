@@ -1,3 +1,5 @@
+import sys
+
 import grpc
 import asyncio
 import psutil
@@ -59,9 +61,20 @@ if __name__ == '__main__':
         processes.append(Popen("taskset -c " + str(cpu) + " python eval_server.py",
                                shell=True, preexec_fn=os.setsid).pid)
 
-        connection = Client(('localhost', 50049), authkey=b'password')
-        assert connection.recv() == "Done"
-        connection.close()
+        times = 10
+        for i in range(times):
+            try:
+                connection = Client(('localhost', 50049), authkey=b'password')
+                assert connection.recv() == "Done"
+                connection.close()
+                break
+            except ConnectionRefusedError:
+                if i == times - 1:
+                    print("Failed to receive connection for child server. Terminating!")
+                    for p in processes:
+                        os.killpg(os.getpgid(p), signal.SIGTERM)
+                    sys.exit(-1)
+                time.sleep(5)
 
     asyncio.run(run(parser.parse_args().num_proc))
 
