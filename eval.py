@@ -1,16 +1,14 @@
 import grpc
 import asyncio
-from concurrent import futures
 import psutil
 import server_pb2
 import server_pb2_grpc
 import signal
 from subprocess import Popen
-from threading import Lock
 import argparse
 import time
 import os
-from multiprocessing import Pool
+from multiprocessing.connection import Client
 from colbert.data import Queries
 
 
@@ -44,34 +42,28 @@ async def run(nodes):
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
         tasks.append(asyncio.ensure_future(stubs[i % nodes].Rerank(request)))
 
+    await asyncio.sleep(0)
     save_rankings(await asyncio.gather(*tasks))
 
     print(time.time()-t)
-
-def start_server(i, t):
-    time.sleep(i * t)
-    print("Server started in process", psutil.Process().cpu_num())
-    return Popen("PROC_NUM=" + str(i) + " taskset -c " + str(psutil.Process().cpu_num()) + \
-                 " python eval_server.py", shell=True, preexec_fn=os.setsid).pid
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluator for ColBERT')
     parser.add_argument('-n', '--num_proc', type=int, required=True,
                         help='Number of servers')
-    parser.add_argument('-t', '--timeout', type=int, default=15,
-                        help='Timeout between each process in sec')
 
-    args = parser.parse_args()
+    processes = []
+    for cpu in range(psutil.cpu_count()):
+        print("Starting process", cpu)
+        processes.append(Popen("taskset -c " + str(cpu) + " python eval_server.py",
+                               shell=True, preexec_fn=os.setsid).pid)
 
-    n = args.num_proc
-    t = args.timeout
-    pool = Pool()
-    processes = pool.starmap(start_server, [(i, t) for i in range(n)])
- 
-    time.sleep(2 * t)
-    asyncio.run(run(n))
-    pool.terminate()
+        connection = Client(('localhost', 50049), authkey=b'password')
+        assert connection.recv() == "Done"
+        connection.close()
+
+    asyncio.run(run(parser.parse_args().num_proc))
 
     for p in processes:
         print("Killing processing after completion")

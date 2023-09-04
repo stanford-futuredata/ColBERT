@@ -3,8 +3,8 @@ from concurrent import futures
 import torch
 import server_pb2
 import server_pb2_grpc
-
-import os
+import psutil
+from multiprocessing.connection import Listener
 import gc
 
 import time
@@ -15,7 +15,8 @@ from collections import defaultdict
 
 
 class ColBERTServer(server_pb2_grpc.ServerServicer):
-    def __init__(self):
+    def __init__(self, tag):
+        self.tag = tag
         self.index_name = "msmarco.nbits=2.latest.mmap"
         gold_rankings_files = "/data/msmarco.k=1000.device=gpu.ranking.tsv"
         self.gold_ranks = defaultdict(list)
@@ -65,7 +66,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         Q = self.searcher.encode([query])
         # score = ranker.score_raw_pids(config, Q[i:i+1], torch.tensor(list(docs)[:10000], dtype=torch.int))
         scores_, pids_ = self.ranker.score_raw_pids(self.searcher.config, Q, gr)
-        print("Reranking time of {}: {}".format(qid, time.time() - t2))
+        print("Searching time of {} on node {}: {}".format(qid, self.tag, time.time() - t2))
         # times.append(time.time() - t2)
 
         top_k = []
@@ -85,18 +86,19 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         return self.api_search_query(request.query, request.qid, request.k)
 
     def Rerank(self, request, context):
-        print("Running")
-        # print("Running on", os.environ["PROC_NUM"])
         torch.set_num_threads(1)
         return self.api_rerank_query(request.query, request.qid, request.k)
 
 
 def serve_ColBERT_server():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(), server)
-    listen_addr = '[::]:5005' + str(int(os.environ["PROC_NUM"]))
+    server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(psutil.Process().cpu_num()), server)
+    listen_addr = '[::]:5005' + str(psutil.Process().cpu_num())
     server.add_insecure_port(listen_addr)
     print(f"Starting ColBERT server on {listen_addr}")
+    connection = Listener(('localhost', 50049), authkey=b'password').accept()
+    connection.send("Done")
+    connection.close()
     server.start()
     server.wait_for_termination()
     print("Terminated")
