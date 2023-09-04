@@ -27,7 +27,6 @@ def save_rankings(rankings, filename):
 
 async def run_request(stub, request):
     t = time.time()
-    print(f"Time is {t}")
     out = await stub.Search(request)
     return out, time.time() - t
 
@@ -54,7 +53,6 @@ async def run(args):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
         tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request)))
-        print(f"Sleeping {inter_request_time[i % length]}")
         await asyncio.sleep(inter_request_time[i % length])
 
     await asyncio.sleep(0)
