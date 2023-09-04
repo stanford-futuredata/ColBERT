@@ -70,7 +70,7 @@ if __name__ == '__main__':
                         help='Number of servers')
     parser.add_argument('-o', '--output', type=str, default="rankings.tsv",
                         help='Output file to save results')
-    parser.add_argument('-i', '--input', type=int, required=True,
+    parser.add_argument('-i', '--input', type=str, required=True,
                         help='Input file for inter request wait times')
 
     processes = []
