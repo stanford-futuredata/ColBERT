@@ -31,7 +31,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
     def convert_dict_to_protobuf(self, input_dict):
         query_result = server_pb2.QueryResult()
 
-        query_result.query = input_dict["query"]
+        query_result.qid = input_dict["qid"]
 
         for topk_dict in input_dict["topk"]:
             topk_result = query_result.topk.add()
