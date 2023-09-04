@@ -42,7 +42,7 @@ async def run(nodes):
     for i in range(len(qvals)):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
-        tasks.append(asyncio.ensure_future(stubs[i % nodes].Rerank(request)))
+        tasks.append(asyncio.ensure_future(stubs[i % nodes].Search(request)))
 
     await asyncio.sleep(0)
     save_rankings(await asyncio.gather(*tasks))
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         times = 10
         for i in range(times):
             try:
-                connection = Client(('localhost', 50049), authkey=b'password')
+                connection = Client(('localhost', 50040 + cpu), authkey=b'password')
                 assert connection.recv() == "Done"
                 connection.close()
                 break
