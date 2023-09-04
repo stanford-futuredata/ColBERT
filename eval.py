@@ -13,6 +13,18 @@ import os
 from multiprocessing import Pool
 from colbert.data import Queries
 
+
+def save_rankings(rankings):
+    output = []
+    for q in rankings:
+        for result in q.topk:
+            output.append("\t".join([str(x) for x in [q.qid, result.pid, result.rank, result.score]]))
+
+    f = open("rankings.tsv", "w")
+    f.write("\n".join(output))
+    f.close()
+
+
 async def run(nodes):
     print("Process", psutil.Process().cpu_num())
     t = time.time()
@@ -32,7 +44,7 @@ async def run(nodes):
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
         tasks.append(asyncio.ensure_future(stubs[i % nodes].Rerank(request)))
 
-    out = await asyncio.gather(*tasks)
+    save_rankings(await asyncio.gather(*tasks))
 
     print(time.time()-t)
 

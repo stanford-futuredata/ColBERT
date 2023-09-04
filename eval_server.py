@@ -16,7 +16,6 @@ from collections import defaultdict
 
 class ColBERTServer(server_pb2_grpc.ServerServicer):
     def __init__(self):
-        k = 100
         self.index_name = "msmarco.nbits=2.latest.mmap"
         gold_rankings_files = "/data/msmarco.k=1000.device=gpu.ranking.tsv"
         self.gold_ranks = defaultdict(list)
@@ -57,7 +56,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         del ranks
         del scores
 
-        return self.convert_dict_to_protobuf({"query": query, "topk": top_k})
+        return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
     def api_rerank_query(self, query, qid, k=100):
         gc.collect()
@@ -79,7 +78,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         del pids_
         del Q
 
-        return self.convert_dict_to_protobuf({"query": query, "topk": top_k})
+        return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
     def Search(self, request, context):
         torch.set_num_threads(1)
