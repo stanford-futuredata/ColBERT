@@ -16,7 +16,7 @@ from colbert.data import Queries
 async def run(nodes):
     print("Process", psutil.Process().cpu_num())
     t = time.time()
-    queries = Queries(path="/home/ubuntu/queries.dev.small.tsv")
+    queries = Queries(path="/data/queries.dev.small.tsv")
     qvals = list(queries.items())
     print(qvals)
     tasks = []
