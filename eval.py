@@ -46,7 +46,7 @@ async def run(args):
         channels.append(grpc.aio.insecure_channel('localhost:5005' + str(i)))
         stubs.append(server_pb2_grpc.ServerStub(channels[-1]))
 
-    inter_request_time = [float(x) for x in open(args.input_file).read().split("\n") if x != ""]
+    inter_request_time = [float(x) for x in open(args.input).read().split("\n") if x != ""]
     length = len(inter_request_time)
 
     for i in range(len(qvals)):
