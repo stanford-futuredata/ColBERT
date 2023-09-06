@@ -248,7 +248,7 @@ class IndexUpdater:
         # Update metadata
         print_message("#> Updating metadata for added passages...")
         self.metadata["num_chunks"] = curr_num_chunks
-        self.metadata["num_embeddings"] = torch.sum(self.searcher.ranker.doclens).item()
+        self.metadata["num_embeddings"] += torch.sum(self.searcher.ranker.doclens).item()
         metadata_path = os.path.join(self.index_path, "metadata.json")
         with open(metadata_path, "w") as output_metadata:
             ujson.dump(self.metadata, output_metadata)
