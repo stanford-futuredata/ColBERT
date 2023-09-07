@@ -23,14 +23,20 @@ class ResidualEmbeddings:
         self.residuals = residuals   # (num_embeddings, compressed_dim) uint8
 
     @classmethod
-    def load_chunks(cls, index_path, chunk_idxs, num_embeddings):
+    def load_chunks(cls, index_path, chunk_idxs, num_embeddings, load_index_with_mmap=False):
         num_embeddings += 512  # pad for access with strides
 
         dim, nbits = get_dim_and_nbits(index_path)
 
-        print_message("#> Loading codes and residuals...")
+        if load_index_with_mmap:
+            if len(chunk_idxs) != 1:
+                raise ValueError(
+                    "Index must only have 1 chunk to load with mmap! "
+                    "Use the colbert/utils/coalesce.py to prepare index for mmap."
+                )
 
-        if len(chunk_idxs) == 1: # Memory mapping is enabled for single-file indexes
+            print_message("#> Loading codes and residuals with memory mapping...")
+
             residuals_path = os.path.join(index_path, f'0.residuals.pt')
             codes_path = os.path.join(index_path, f'0.codes.pt')
 
@@ -46,9 +52,9 @@ class ResidualEmbeddings:
             ret = ret[320:]
             ret = torch.reshape(ret, (codes_size, packed_dim))
             residuals = ret
-
-            print("Loaded a single memory-mapped index.")
         else:
+            print_message("#> Loading codes and residuals...")
+
             codes = torch.empty(num_embeddings, dtype=torch.int32)
             residuals = torch.empty(num_embeddings, dim // 8 * nbits, dtype=torch.uint8)
 

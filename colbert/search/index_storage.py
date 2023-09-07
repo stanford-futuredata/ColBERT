@@ -18,12 +18,17 @@ import pathlib
 from torch.utils.cpp_extension import load
 
 class IndexScorer(IndexLoader, CandidateGeneration):
-    def __init__(self, index_path, use_gpu=True):
-        super().__init__(index_path=index_path, use_gpu=use_gpu)
+    def __init__(self, index_path, use_gpu=True, load_index_with_mmap=False):
+        super().__init__(
+            index_path=index_path,
+            use_gpu=use_gpu,
+            load_index_with_mmap=load_index_with_mmap
+        )
 
         IndexScorer.try_load_torch_extensions(use_gpu)
 
-        if self.num_chunks == 1:
+        if load_index_with_mmap:
+            assert self.num_chunks == 1
             self.offsets = torch.cumsum(self.doclens, dim=0)
             self.offsets = torch.cat( (torch.zeros(1, dtype=torch.int64), self.offsets) )
         else:
@@ -62,8 +67,6 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         cls.decompress_residuals = decompress_residuals_cpp.decompress_residuals_cpp
 
         cls.loaded_extensions = True
-    def lookup_eids(self, embedding_ids, codes=None, out_device='cuda'):
-        return self.embeddings_strided.lookup_eids(embedding_ids, codes=codes, out_device=out_device)
 
     def lookup_pids(self, passage_ids, out_device='cuda', return_mask=False):
         return self.embeddings_strided.lookup_pids(passage_ids, out_device)
