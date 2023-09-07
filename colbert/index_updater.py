@@ -74,11 +74,17 @@ class IndexUpdater:
         these pids will no longer apppear in future searches with this searcher
         to erase passage data from index, call persist_to_disk() after calling remove()
         """
+        invalid_pids = self._check_pids(pids)
+        if invalid_pids:
+            raise ValueError("Invalid PIDs", invalid_pids)
+
         print_message(f"#> Removing pids: {pids}...")
         self._remove_pid_from_ivf(pids)
         self.removed_pids.extend(pids)
 
-    def create_embs_and_doclens(self, passages, embs_path="embs.pt", doclens_path="doclens.pt", persist=False):
+    def create_embs_and_doclens(
+        self, passages, embs_path="embs.pt", doclens_path="doclens.pt", persist=False
+    ):
         # Extend doclens and embs of self.searcher.ranker
         embs, doclens = self.encoder.encode_passages(passages)
         compressed_embs = self.searcher.ranker.codec.compress(embs)
@@ -248,7 +254,9 @@ class IndexUpdater:
         # Update metadata
         print_message("#> Updating metadata for added passages...")
         self.metadata["num_chunks"] = curr_num_chunks
-        self.metadata["num_embeddings"] += torch.sum(self.searcher.ranker.doclens).item()
+        self.metadata["num_embeddings"] += torch.sum(
+            self.searcher.ranker.doclens
+        ).item()
         metadata_path = os.path.join(self.index_path, "metadata.json")
         with open(metadata_path, "w") as output_metadata:
             ujson.dump(self.metadata, output_metadata)
@@ -316,6 +324,13 @@ class IndexUpdater:
             ):
                 return i
         raise ValueError("Passage ID out of range")
+
+    def _check_pids(self, pids):
+        invalid_pids = []
+        for pid in pids:
+            if pid < 0 or pid >= len(self.searcher.ranker.doclens):
+                invalid_pids.append(pid)
+        return invalid_pids
 
     def _remove_pid_from_ivf(self, pids):
         # Helper function for IndexUpdater.remove()
