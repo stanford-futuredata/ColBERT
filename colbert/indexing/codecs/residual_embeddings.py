@@ -31,8 +31,8 @@ class ResidualEmbeddings:
         if load_index_with_mmap:
             if len(chunk_idxs) != 1:
                 raise ValueError(
-                    "Index must only have 1 chunk to load with mmap! "
-                    "Use the colbert/utils/coalesce.py to prepare index for mmap."
+                    "Index must only have 1 chunk to load with memory mapping!"
+                    "Use the colbert/utils/coalesce.py to prepare index for memory mapping."
                 )
 
             print_message("#> Loading codes and residuals with memory mapping...")
