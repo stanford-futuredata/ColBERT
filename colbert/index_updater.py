@@ -74,9 +74,9 @@ class IndexUpdater:
         these pids will no longer apppear in future searches with this searcher
         to erase passage data from index, call persist_to_disk() after calling remove()
         """
-        if not self._check_pids(pids):
-            print_message(f"#> ERROR: pids are not valid!")
-            return
+        invalid_pids = self._check_pids(pids)
+        if invalid_pids:
+            raise ValueError("Invalid PIDs", invalid_pids)
 
         print_message(f"#> Removing pids: {pids}...")
         self._remove_pid_from_ivf(pids)
