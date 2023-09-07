@@ -79,6 +79,10 @@ def main(args):
 
     index_updater = IndexUpdater(config, searcher, checkpoint)
 
+
+    # Try removing an invalid passage (should not cause downstream error)
+    index_updater.remove([len(searcher.ranker.doclens)])
+
     # Remove the first passage from top-k results (no persisting to disk)
     n = 1
     index_updater.remove(top_k_ids[:n])
