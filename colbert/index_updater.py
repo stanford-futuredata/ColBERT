@@ -326,7 +326,11 @@ class IndexUpdater:
         raise ValueError("Passage ID out of range")
 
     def _check_pids(self, pids):
-        return min(pids) >= 0 and max(pids) < len(self.searcher.ranker.doclens)
+        invalid_pids = []
+        for pid in pids:
+            if pid < 0 or pid >= len(self.searcher.ranker.doclens):
+                invalid_pids.append(pid)
+        return invalid_pids
 
     def _remove_pid_from_ivf(self, pids):
         # Helper function for IndexUpdater.remove()
