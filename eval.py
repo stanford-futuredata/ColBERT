@@ -49,7 +49,16 @@ async def run(args):
     inter_request_time = [float(x) for x in open(args.input).read().split("\n") if x != ""]
     length = len(inter_request_time)
 
-    for i in range(len(qvals)):
+    # Warmup
+    for i in range(100):
+        request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
+        tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request)))
+        await asyncio.sleep(0)
+
+    await asyncio.gather(*tasks)
+
+    tasks = []
+    for i in range(len(100, qvals)):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
         tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request)))
