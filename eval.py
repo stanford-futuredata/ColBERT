@@ -57,6 +57,8 @@ async def run(args):
 
     await asyncio.gather(*tasks)
 
+    print("Warmup complete!")
+
     tasks = []
     for i in range(len(100, qvals)):
         print(i, channels[i % nodes])
