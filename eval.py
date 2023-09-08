@@ -58,17 +58,19 @@ async def run(args):
     await asyncio.sleep(0)
     ret = list(zip(*await asyncio.gather(*tasks)))
 
-    save_rankings(ret[0], args.output)
+    # save_rankings(ret[0], args.output)
 
-    print("Timings:", ret[1])
-    print(f"Total time for {len(qvals)} requests:",  time.time()-t)
+    total_time = time.time()-t
+
+    open(args.output, "w").write("\n".join(ret[1]) + f"\nTotal time: {total_time}")
+    print(f"Total time for {len(qvals)} requests:",  total_time)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluator for ColBERT')
     parser.add_argument('-n', '--num_proc', type=int, required=True,
                         help='Number of servers')
-    parser.add_argument('-o', '--output', type=str, default="rankings.tsv",
+    parser.add_argument('-o', '--output', type=str, required=True,
                         help='Output file to save results')
     parser.add_argument('-i', '--input', type=str, required=True,
                         help='Input file for inter request wait times')
