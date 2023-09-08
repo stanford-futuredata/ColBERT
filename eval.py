@@ -71,9 +71,9 @@ async def run(args):
 
     # save_rankings(ret[0], args.output)
 
-    total_time = time.time()-t
+    total_time = str(time.time()-t)
 
-    open(args.output, "w").write("\n".join(ret[1]) + f"\nTotal time: {total_time}")
+    open(args.output, "w").write("\n".join([str(x) for x in ret[1]]) + f"\nTotal time: {total_time}")
     print(f"Total time for {len(qvals)} requests:",  total_time)
 
 
