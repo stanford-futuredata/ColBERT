@@ -5,7 +5,7 @@ import tqdm
 from colbert.indexing.loaders import load_doclens
 from colbert.utils.utils import print_message, flatten
 
-def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path):
+def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path, padding=True):
     print_message("#> Optimizing IVF to store map from centroids to list of pids..")
 
     print_message("#> Building the emb2pid mapping..")
@@ -42,6 +42,15 @@ def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path):
         offset += length
     ivf = torch.cat(unique_pids_per_centroid)
     ivf_lengths = torch.tensor(ivf_lengths)
+
+    max_stride = ivf_lengths.max().item()
+    zero = torch.zeros(1, dtype=torch.long, device=ivf_lengths.device)
+    offsets = torch.cat((zero, torch.cumsum(ivf_lengths, dim=0)))
+    inner_dims = ivf.size()[1:]
+
+    if offsets[-2] + max_stride > ivf.size(0):
+        padding = torch.zeros(max_stride, *inner_dims, dtype=ivf.dtype, device=ivf.device)
+        ivf = torch.cat((ivf, padding))
 
     original_ivf_path = os.path.join(index_path, 'ivf.pt')
     optimized_ivf_path = os.path.join(index_path, 'ivf.pid.pt')
