@@ -17,8 +17,9 @@ from collections import defaultdict
 class ColBERTServer(server_pb2_grpc.ServerServicer):
     def __init__(self, tag):
         self.tag = tag
-        self.index_name = "msmarco.nbits=2.latest.mmap"
-        gold_rankings_files = "/data/msmarco.k=1000.device=gpu.ranking.tsv"
+        self.index_name = "wiki.2018.latest"
+        prefix = "/data"
+        gold_rankings_files = prefix + "/C3.tsv.annotated"
         self.gold_ranks = defaultdict(list)
 
         with open(gold_rankings_files, newline='', encoding='utf-8') as tsvfile:
@@ -26,7 +27,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
             for line in tsv_reader:
                 self.gold_ranks[int(line[0])].append(int(line[1]))
 
-        self.searcher = Searcher(index=f"/data/indexes/{self.index_name}/")
+        self.searcher = Searcher(index=f"{prefix}/indexes/{self.index_name}/")
         self.ranker = self.searcher.ranker
 
     def convert_dict_to_protobuf(self, input_dict):

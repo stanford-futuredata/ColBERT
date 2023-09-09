@@ -25,17 +25,19 @@ def save_rankings(rankings, filename):
     f.close()
 
 
-async def run_request(stub, request):
+async def run_request(stub, request, experiment):
     t = time.time()
-    out = await stub.Rerank(request)
+    if experiment == "search":
+        out = await stub.Search(request)
+    else:
+        out = await stub.Rerank(request)
     return out, time.time() - t
 
 
 async def run(args):
     print("Main process running on CPU", psutil.Process().cpu_num())
     nodes = args.num_proc
-    t = time.time()
-    queries = Queries(path="/data/queries.dev.small.tsv")
+    queries = Queries(path="/data/questions.tsv")
     qvals = list(queries.items())
     print(qvals)
     tasks = []
@@ -52,7 +54,7 @@ async def run(args):
     # Warmup
     for i in range(100):
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
-        tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request)))
+        tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request, args.experiment)))
         await asyncio.sleep(0)
 
     await asyncio.gather(*tasks)
@@ -60,6 +62,8 @@ async def run(args):
     print("Warmup complete!")
 
     tasks = []
+    t = time.time()
+
     for i in range(100, len(qvals)):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
@@ -74,7 +78,7 @@ async def run(args):
     total_time = str(time.time()-t)
 
     open(args.output, "w").write("\n".join([str(x) for x in ret[1]]) + f"\nTotal time: {total_time}")
-    print(f"Total time for {len(qvals)} requests:",  total_time)
+    print(f"Total time for {len(qvals)-100} requests:",  total_time)
 
 
 if __name__ == '__main__':
@@ -85,6 +89,8 @@ if __name__ == '__main__':
                         help='Output file to save results')
     parser.add_argument('-i', '--input', type=str, required=True,
                         help='Input file for inter request wait times')
+    parser.add_argument('-e', '--experiment', type=str, default="search",
+                        help='search or rerank')
 
     processes = []
     args = parser.parse_args()
