@@ -27,7 +27,7 @@ def save_rankings(rankings, filename):
 
 async def run_request(stub, request):
     t = time.time()
-    out = await stub.Search(request)
+    out = await stub.Rerank(request)
     return out, time.time() - t
 
 
