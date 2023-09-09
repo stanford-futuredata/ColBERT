@@ -9,7 +9,6 @@ from colbert.indexing.codecs.residual import ResidualCodec
 from colbert.indexing.utils import optimize_ivf
 from colbert.search.strided_tensor import StridedTensor
 
-import os, psutil
 
 class IndexLoader:
     def __init__(self, index_path, use_gpu=True):
@@ -28,13 +27,9 @@ class IndexLoader:
 
     def _load_ivf(self):
         print_message(f"#> Loading IVF...")
-        process = psutil.Process()
-        print("ivf 1:", process.memory_info().rss)
 
         if os.path.exists(os.path.join(self.index_path, "ivf.pid.pt")):
             ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pid.pt"), map_location='cpu')
-            print("ivf 2:", process.memory_info().rss)
-
         else:
             assert os.path.exists(os.path.join(self.index_path, "ivf.pt"))
             ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pt"), map_location='cpu')
@@ -45,14 +40,9 @@ class IndexLoader:
             ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]
         else:
             # ivf, ivf_lengths = ivf.cuda(), torch.LongTensor(ivf_lengths).cuda()  # FIXME: REMOVE THIS LINE!
-            print("ivf 3:", process.memory_info().rss)
             ivf = StridedTensor(ivf, ivf_lengths, use_gpu=self.use_gpu)
-            print("ivf 4:", process.memory_info().rss)
-
 
         self.ivf = ivf
-        print("ivf 5:", process.memory_info().rss)
-
 
     def _load_doclens(self):
         doclens = []

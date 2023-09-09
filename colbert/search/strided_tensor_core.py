@@ -1,6 +1,5 @@
 import torch
 import random
-import os, psutil
 
 import numpy as np
 
@@ -23,9 +22,6 @@ class StridedTensorCore:
         self.inner_dims = self.tensor.size()[1:]
         self.use_gpu = use_gpu
 
-        process = psutil.Process()
-        print("1:", process.memory_info().rss)
-
         self.lengths = lengths.long() if torch.is_tensor(lengths) else torch.LongTensor(lengths)
 
         self.strides = _select_strides(self.lengths, [.5, .75, .9, .95]) + [self.lengths.max().item()]
@@ -33,8 +29,6 @@ class StridedTensorCore:
 
         zero = torch.zeros(1, dtype=torch.long, device=self.lengths.device)
         self.offsets = torch.cat((zero, torch.cumsum(self.lengths, dim=0)))
-
-        print("2:", process.memory_info().rss)
 
         if self.offsets[-2] + self.max_stride > self.tensor.size(0):
             # if self.tensor.size(0) > 10_000_000:
@@ -44,11 +38,8 @@ class StridedTensorCore:
             padding = torch.zeros(self.max_stride, *self.inner_dims, dtype=self.tensor.dtype, device=self.tensor.device)
             self.tensor = torch.cat((self.tensor, padding))
 
-        print("3:", process.memory_info().rss)
-
         self.views = {stride: _create_view(self.tensor, stride, self.inner_dims) for stride in self.strides}
 
-        print("4:", process.memory_info().rss)
     @classmethod
     def from_packed_tensor(cls, tensor, lengths):
         return cls(tensor, lengths)
