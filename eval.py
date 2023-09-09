@@ -67,7 +67,7 @@ async def run(args):
     for i in range(100, len(qvals)):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
-        tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request)))
+        tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request,  args.experiment)))
         await asyncio.sleep(inter_request_time[i % length])
 
     await asyncio.sleep(0)
