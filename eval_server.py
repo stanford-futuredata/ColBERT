@@ -5,7 +5,6 @@ import server_pb2
 import server_pb2_grpc
 import psutil
 from multiprocessing.connection import Listener
-import gc
 
 import time
 import csv
@@ -44,7 +43,6 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         return query_result
 
     def api_search_query(self, query, qid, k=100):
-        gc.collect()
         t2 = time.time()
         pids, ranks, scores = self.searcher.search(query, k)
         print("Searching time of {}: {}".format(qid, time.time() - t2))
@@ -54,14 +52,9 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
             top_k.append({'pid': pid, 'rank': rank, 'score': score})
         top_k = list(sorted(top_k, key=lambda p: (-1 * p['score'], p['pid'])))
 
-        del pids
-        del ranks
-        del scores
-
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
     def api_rerank_query(self, query, qid, k=100):
-        gc.collect()
         t2 = time.time()
         gr = torch.tensor(self.gold_ranks[qid], dtype=torch.int)
         Q = self.searcher.encode([query])
@@ -74,11 +67,6 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
             top_k.append({'pid': pid, 'rank': rank + 1, 'score': score})
         top_k = list(sorted(top_k, key=lambda p: (-1 * p['score'], p['pid'])))[:k]
-
-        del gr
-        del scores_
-        del pids_
-        del Q
 
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 

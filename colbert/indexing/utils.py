@@ -5,7 +5,7 @@ import tqdm
 from colbert.indexing.loaders import load_doclens
 from colbert.utils.utils import print_message, flatten
 
-def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path, padding=True):
+def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path):
     print_message("#> Optimizing IVF to store map from centroids to list of pids..")
 
     print_message("#> Building the emb2pid mapping..")
