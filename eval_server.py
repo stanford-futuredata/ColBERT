@@ -63,7 +63,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
     def api_rerank_query(self, query, qid, k=100):
         gc.collect()
         t2 = time.time()
-        gr = torch.tensor(self.gold_ranks[qid][:k], dtype=torch.int)
+        gr = torch.tensor(self.gold_ranks[qid], dtype=torch.int)
         Q = self.searcher.encode([query])
         # score = ranker.score_raw_pids(config, Q[i:i+1], torch.tensor(list(docs)[:10000], dtype=torch.int))
         scores_, pids_ = self.ranker.score_raw_pids(self.searcher.config, Q, gr)
