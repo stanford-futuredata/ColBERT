@@ -266,6 +266,10 @@ class IndexUpdater:
         torch.save((self.curr_ivf, self.curr_ivf_lengths), optimized_ivf_path)
         print_message(f"#> Persisted updated IVF to {optimized_ivf_path}")
 
+        self.removed_pids = []
+        self.first_new_emb = torch.sum(self.searcher.ranker.doclens).item()
+        self.first_new_pid = len(self.searcher.ranker.doclens)
+
     # HELPER FUNCTIONS BELOW
 
     def _load_disk_ivf(self):
