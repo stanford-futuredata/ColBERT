@@ -139,11 +139,7 @@ class IndexUpdater:
         self.searcher.ranker.ivf = new_ivf_tensor
 
         # Rebuild StridedTensor within searcher
-        self.searcher.ranker.embeddings_strided = ResidualEmbeddingsStrided(
-            self.searcher.ranker.codec,
-            self.searcher.ranker.embeddings,
-            self.searcher.ranker.doclens,
-        )
+        self.searcher.ranker.set_embeddings_strided()
 
     def add(self, passages):
         """
@@ -419,8 +415,8 @@ class IndexUpdater:
         assert sum(new_ivf_lengths) == len(new_ivf)
 
         # Replace the current ivf with new_ivf
-        self.curr_ivf = torch.tensor(new_ivf)
-        self.curr_ivf_lengths = torch.tensor(new_ivf_lengths)
+        self.curr_ivf = torch.tensor(new_ivf, dtype=self.curr_ivf.dtype)
+        self.curr_ivf_lengths = torch.tensor(new_ivf_lengths, dtype=self.curr_ivf_lengths.dtype)
 
     def _write_to_last_chunk(self, pid_start, pid_end, emb_start, emb_end):
         # Helper function for IndexUpdater.persist_to_disk()
