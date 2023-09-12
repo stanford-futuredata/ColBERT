@@ -59,21 +59,36 @@ class Searcher:
 
         return Q
 
-    def search(self, text: str, k=10, filter_fn=None, full_length_search=False):
+    def search(self, text: str, k=10, filter_fn=None, full_length_search=False, passages_to_rerank=None):
         Q = self.encode(text, full_length_search=full_length_search)
-        return self.dense_search(Q, k, filter_fn=filter_fn)
+        return self.dense_search(Q, k, filter_fn=filter_fn, passages_to_rerank=passages_to_rerank)
 
-    def search_all(self, queries: TextQueries, k=10, filter_fn=None, full_length_search=False):
+    def search_all(self, queries: TextQueries, k=10, filter_fn=None, full_length_search=False, passages_to_rerank=None):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
         Q = self.encode(queries_, full_length_search=full_length_search)
 
-        return self._search_all_Q(queries, Q, k, filter_fn=filter_fn)
+        return self._search_all_Q(queries, Q, k, filter_fn=filter_fn, passages_to_rerank=passages_to_rerank)
 
-    def _search_all_Q(self, queries, Q, k, filter_fn=None):
-        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], k, filter_fn=filter_fn)))
-                           for query_idx in tqdm(range(Q.size(0)))]
+    def _search_all_Q(self, queries, Q, k, filter_fn=None, passages_to_rerank=None):
+        qids = list(queries.keys())
+
+        if passages_to_rerank is None:
+            passages_to_rerank = {qid: None for qid in qids}
+
+        all_scored_pids = [
+            list(
+                zip(
+                    *self.dense_search(
+                        Q[query_idx:query_idx+1],
+                        k, filter_fn=filter_fn,
+                        passages_to_rerank=passages_to_rerank[qid]
+                    )
+                )
+            )
+            for query_idx, qid in tqdm(enumerate(qids))
+        ]
 
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
 
@@ -85,7 +100,7 @@ class Searcher:
 
         return Ranking(data=data, provenance=provenance)
 
-    def dense_search(self, Q: torch.Tensor, k=10, filter_fn=None):
+    def dense_search(self, Q: torch.Tensor, k=10, filter_fn=None, passages_to_rerank=None):
         if k <= 10:
             if self.config.ncells is None:
                 self.configure(ncells=1)
@@ -108,6 +123,6 @@ class Searcher:
             if self.config.ndocs is None:
                 self.configure(ndocs=max(k * 4, 4096))
 
-        pids, scores = self.ranker.rank(self.config, Q, filter_fn=filter_fn)
+        pids, scores = self.ranker.rank(self.config, Q, filter_fn=filter_fn, passages_to_rerank=passages_to_rerank)
 
         return pids[:k], list(range(1, k+1)), scores[:k]
