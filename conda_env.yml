@@ -3,12 +3,14 @@ channels:
   - pytorch
   - defaults
 dependencies:
-  - python=3.7
+  - python=3.8
   - pip=20.2.2
-  - cudatoolkit=10.1
-  - pytorch=1.6.0
+  # - cudatoolkit=10.1
+  - cudatoolkit=11.0
+  # - pytorch=1.6.0
+  - pytorch=1.7.1
   - torchvision=0.7.0
-  - faiss-gpu=1.6.3
+  - faiss-gpu=1.6.3 ### incompatible with pytorch and cuda
   - pip:
     - mlflow
     - tensorboard

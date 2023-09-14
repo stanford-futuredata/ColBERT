@@ -1,5 +1,3 @@
-experiments/
-checkpoints/
 data/
 logs/
 
@@ -13,3 +11,5 @@ __pycache__/
 
 # mac
 .DS_Store
+
+*.dnn
