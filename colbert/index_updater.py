@@ -120,11 +120,12 @@ class IndexUpdater:
 
         # Build partitions for each pid and update IndexUpdater's current ivf
         start = 0
+        ivf = self.curr_ivf.tolist()
         for doclen in doclens:
             end = start + doclen
             codes = compressed_embs.codes[start:end]
             partitions, _ = self._build_passage_partitions(codes)
-            self._add_pid_to_ivf(partitions, curr_pid)
+            ivf = self._add_pid_to_ivf(partitions, curr_pid, ivf)
 
             start = end
             curr_pid += 1
@@ -378,7 +379,7 @@ class IndexUpdater:
         partitions, ivf_lengths = values.unique_consecutive(return_counts=True)
         return partitions, ivf_lengths
 
-    def _add_pid_to_ivf(self, partitions, pid):
+    def _add_pid_to_ivf(self, partitions, pid, old_ivf):
         """
         Helper function for IndexUpdater.add()
 
@@ -391,7 +392,6 @@ class IndexUpdater:
         """
         new_ivf = []
         new_ivf_lengths = []
-        old_ivf = self.curr_ivf.tolist()
         old_ivf_lengths = self.curr_ivf_lengths.tolist()
 
         partitions_runner = 0
@@ -417,6 +417,8 @@ class IndexUpdater:
         # Replace the current ivf with new_ivf
         self.curr_ivf = torch.tensor(new_ivf, dtype=self.curr_ivf.dtype)
         self.curr_ivf_lengths = torch.tensor(new_ivf_lengths, dtype=self.curr_ivf_lengths.dtype)
+
+        return new_ivf
 
     def _write_to_last_chunk(self, pid_start, pid_end, emb_start, emb_end):
         # Helper function for IndexUpdater.persist_to_disk()
