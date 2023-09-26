@@ -5,10 +5,12 @@
 # I think multiprocessing.Manager can do that!
 
 import os
+import jsonl
 import itertools
 
-from colbert.evaluation.loaders import load_collection
+from colbert.utils.utils import print_message
 from colbert.infra.run import Run
+from colbert.evaluation.loaders import load_collection
 
 
 class Collection:
@@ -36,7 +38,27 @@ class Collection:
         return load_collection(path)
 
     def _load_jsonl(self, path):
-        raise NotImplementedError()
+        assert path.endswith('.jsonl'), "ColBERTv2.0 only support .tsv and .jsonl collection files for now."
+        print_message("#> Loading collection...")
+
+        with open(path, 'r') as json_file:
+            collection_list = list(json_file)
+        
+            collection = []
+            for line_idx, line in enumerate(collection_list):
+                if line_idx % (1000*1000) == 0:
+                    print(f'{line_idx // 1000 // 1000}M', end=' ', flush=True)
+                
+                passage = json.loads(line)
+
+                pid = passage['id']
+                collection.append(passage['contents'])
+
+                assert int(pid) == line_idx, f"pid={pid}, line_idx={line_idx}"
+
+        print()
+
+        return collection_list
 
     def provenance(self):
         return self.path

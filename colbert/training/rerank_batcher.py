@@ -23,7 +23,7 @@ class RerankBatcher():
         self.tokenizer = RerankerTokenizer(total_maxlen=config.doc_maxlen, base=config.checkpoint)
         self.position = 0
 
-        self.triples = Examples.cast(triples, nway=self.nway).tolist(rank, nranks)
+        self.triples = Examples.cast(triples, nway=self.nway, shuffle=config.shuffle_triples).tolist(rank, nranks)
         self.queries = Queries.cast(queries)
         self.collection = Collection.cast(collection)
 

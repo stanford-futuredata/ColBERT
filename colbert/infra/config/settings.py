@@ -152,6 +152,10 @@ class TrainingSettings:
     ignore_scores: bool = DefaultVal(False)
 
     model_name: str = DefaultVal(None) # DefaultVal('bert-base-uncased')
+    
+    model_type: str = DefaultVal('encoder-only')
+
+    shuffle_triples: bool = DefaultVal(False)
 
 @dataclass
 class IndexingSettings:

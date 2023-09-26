@@ -14,6 +14,9 @@ from colbert.parameters import DEVICE
 
 from colbert.modeling.colbert import ColBERT
 from colbert.modeling.reranker.electra import ElectraReranker
+from colbert.modeling.reranker.codeT5p import CodeT5pReranker
+from colbert.modeling.reranker.deberta import DebertaV2Reranker
+from colbert.modeling.reranker.codet5p_encdec import CodeT5pEncDecReranker
 
 from colbert.utils.utils import print_message
 from colbert.training.utils import print_progress, manage_checkpoints
@@ -47,7 +50,16 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     if not config.reranker:
         colbert = ColBERT(name=config.checkpoint, colbert_config=config)
     else:
-        colbert = ElectraReranker.from_pretrained(config.checkpoint)
+        if config.model_type == "encoder-only":
+            if 't5' in str(config.checkpoint):
+                colbert = CodeT5pReranker.from_pretrained(config.checkpoint)
+            elif 'deberta' in str(config.checkpoint):
+                colbert = DebertaV2Reranker.from_pretrained(config.checkpoint)
+            else:
+                colbert = ElectraReranker.from_pretrained(config.checkpoint)
+        else:
+            if 't5' in str(config.checkpoint):
+                colbert = CodeT5pEncDecReranker(config.checkpoint)
 
     colbert = colbert.to(DEVICE)
     colbert.train()
@@ -84,6 +96,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
 
     #     reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
 
+    print("Starting training...")
     for batch_idx, BatchSteps in zip(range(start_batch_idx, config.maxsteps), reader):
         if (warmup_bert is not None) and warmup_bert <= batch_idx:
             set_bert_grad(colbert, True)
