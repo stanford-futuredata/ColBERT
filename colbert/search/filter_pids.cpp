@@ -119,7 +119,9 @@ void filter_pids_helper(int ncentroids, int nquery_vectors, int npids,
     for (int i = 0; i < nfiltered_docs; i++) {
         std::pair<float, int> score_and_pid = global_approx_scores.top();
         filtered_pids[i] = score_and_pid.second;
-        global_approx_scores.pop();
+        if (!global_approx_scores.empty()) {
+            global_approx_scores.pop();
+        }
     }
 }
 
