@@ -206,7 +206,16 @@ if __name__=='__main__':
 
 Additionally you can use ranx to fuse multiple ranking together too! Just pass the rankings and fusion strategy and the rest will be taken care of:-
 ```python
+rankings = ["ranking_1.tsv","ranking_2.tsv","ranking_3.tsv"]
 
+with Run().context(RunConfig(
+        nranks=number_of_gpu_devices,
+        root="path/to/experiments", 
+        experiment="awesome_experiment", 
+        name='awesome_run_name'
+)):
+    reranker = Reranker()
+    ranking_path = reranker.fuse_rankings(rankings, strategy="wsum", params={"weights": [0.4,0.4,0.2]})
 ```
 
 ## Running a lightweight ColBERTv2 server
