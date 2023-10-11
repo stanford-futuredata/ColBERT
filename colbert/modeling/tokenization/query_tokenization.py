@@ -4,6 +4,7 @@ from colbert.modeling.hf_colbert import class_factory
 from colbert.infra import ColBERTConfig
 from colbert.modeling.tokenization.utils import _split_into_batches
 from colbert.utils.utils import batch
+from colbert.parameters import DEVICE
 
 
 class QueryTokenizer():
@@ -38,7 +39,7 @@ class QueryTokenizer():
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        ids = self.tok(batch_text, add_special_tokens=False)['input_ids']
+        ids = self.tok(batch_text, add_special_tokens=False).to(DEVICE)['input_ids']
 
         if not add_special_tokens:
             return ids
@@ -60,7 +61,7 @@ class QueryTokenizer():
 
         if full_length_search:
             # Tokenize each string in the batch
-            un_truncated_ids = self.tok(batch_text, add_special_tokens=False)['input_ids']
+            un_truncated_ids = self.tok(batch_text, add_special_tokens=False).to(DEVICE)['input_ids']
             # Get the longest length in the batch
             max_length_in_batch = max(len(x) for x in un_truncated_ids)
             # Set the max length
@@ -70,7 +71,7 @@ class QueryTokenizer():
             max_length = self.query_maxlen
 
         obj = self.tok(batch_text, padding='max_length', truncation=True,
-                       return_tensors='pt', max_length=max_length)
+                       return_tensors='pt', max_length=max_length).to(DEVICE)
 
         ids, mask = obj['input_ids'], obj['attention_mask']
 
@@ -82,7 +83,7 @@ class QueryTokenizer():
             assert len(context) == len(batch_text), (len(context), len(batch_text))
 
             obj_2 = self.tok(context, padding='longest', truncation=True,
-                            return_tensors='pt', max_length=self.background_maxlen)
+                            return_tensors='pt', max_length=self.background_maxlen).to(DEVICE)
 
             ids_2, mask_2 = obj_2['input_ids'][:, 1:], obj_2['attention_mask'][:, 1:]  # Skip the first [SEP]
 
