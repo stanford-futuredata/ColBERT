@@ -41,7 +41,6 @@ async def run(args):
     nodes = args.num_servers
     queries = Queries(path="/home/ubuntu/data/questions.tsv")
     qvals = list(queries.items())
-    print(qvals)
     tasks = []
     channels = []
     stubs = []
@@ -50,7 +49,7 @@ async def run(args):
         channels.append(grpc.aio.insecure_channel('localhost:5005' + str(i)))
         stubs.append(server_pb2_grpc.ServerStub(channels[-1]))
 
-    inter_request_time = [float(x) for x in open(args.input).read().split("\n") if x != ""]
+    inter_request_time = [float(x) for x in open(args.timings).read().split("\n") if x != ""]
     length = len(inter_request_time)
 
     # Warmup
@@ -111,8 +110,10 @@ if __name__ == '__main__':
 
     for node in range(args.num_servers):
         print("Starting process", node)
-        args = f"-w {args.num_workers} -s {args.skip_encoding} -i {args.index}"
-        processes.append(Popen("taskset -c " + str(node) + f" python eval_server.py -w {args}",
+        arg_str = f"-w {args.num_workers} -i {args.index}" 
+        if args.skip_encoding: arg_str += " -s"
+        print("taskset -c " + str(node) + f" python eval_server.py {arg_str}")
+        processes.append(Popen("taskset -c " + str(node) + f" python eval_server.py {arg_str}",
                                shell=True, preexec_fn=os.setsid).pid)
 
         times = 10
