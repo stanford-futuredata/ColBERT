@@ -13,7 +13,6 @@ import os
 from multiprocessing.connection import Client
 from colbert.data import Queries
 
-
 def save_rankings(rankings, filename):
     output = []
     for q in rankings:
@@ -29,15 +28,18 @@ async def run_request(stub, request, experiment):
     t = time.time()
     if experiment == "search":
         out = await stub.Search(request)
-    else:
+    elif experiment == "rerank":
         out = await stub.Rerank(request)
+    else:
+        out = await stub.Serve(request)
+
     return out, time.time() - t
 
 
 async def run(args):
     print("Main process running on CPU", psutil.Process().cpu_num())
-    nodes = args.num_proc
-    queries = Queries(path="/data/questions.tsv")
+    nodes = args.num_servers
+    queries = Queries(path="/home/ubuntu/data/questions.tsv")
     qvals = list(queries.items())
     print(qvals)
     tasks = []
@@ -73,7 +75,7 @@ async def run(args):
     await asyncio.sleep(0)
     ret = list(zip(*await asyncio.gather(*tasks)))
 
-    # save_rankings(ret[0], args.output)
+    save_rankings(ret[0], args.rankings_file)
 
     total_time = str(time.time()-t)
 
@@ -83,25 +85,34 @@ async def run(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluator for ColBERT')
-    parser.add_argument('-n', '--num_proc', type=int, required=True,
+    parser.add_argument('-w', '--num_workers', type=int, required=True,
+                       help='Number of worker threads per server')
+    parser.add_argument('-n', '--num_servers', type=int, required=True,
                         help='Number of servers')
     parser.add_argument('-o', '--output', type=str, required=True,
                         help='Output file to save results')
-    parser.add_argument('-i', '--input', type=str, required=True,
+    parser.add_argument('-r', '--ranking_file', type=str, required=True,
+                        help='Output file to save rankings')
+    parser.add_argument('-t', '--timings', type=str, required=True,
                         help='Input file for inter request wait times')
-    parser.add_argument('-e', '--experiment', type=str, default="search",
-                        help='search or rerank')
+    parser.add_argument('-s', '--skip_encoding', action='store_true',
+                        help='Use precomputed encoding')
+    parser.add_argument('-e', '--experiment', type=str, default="search", choices=["search", "rerank", "serve"],
+                        help='search or rerank or serve (pisa + rerank)')
+    parser.add_argument('-i', '--index', type=str, default="search", choices=["wiki", "lifestyle"],
+                        required=True, help='Index to run')
 
     processes = []
     args = parser.parse_args()
 
-    if args.num_proc > psutil.cpu_count():
+    if args.num_servers > psutil.cpu_count():
         print("Not enough CPUs, exiting!")
         sys.exit(-1)
 
-    for node in range(args.num_proc):
+    for node in range(args.num_servers):
         print("Starting process", node)
-        processes.append(Popen("taskset -c " + str(node) + " python eval_server.py",
+        args = f"-w {args.num_workers} -s {args.skip_encoding} -i {args.index}"
+        processes.append(Popen("taskset -c " + str(node) + f" python eval_server.py -w {args}",
                                shell=True, preexec_fn=os.setsid).pid)
 
         times = 10

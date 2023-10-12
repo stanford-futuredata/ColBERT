@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package splade;
+
+service Splade {
+  rpc GenerateQuery(QueryStr) returns (QueryStr) {};
+}
+
+message QueryStr {
+  string query = 1;
+  int32 multiplier = 2;
+}
