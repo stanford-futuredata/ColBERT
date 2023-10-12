@@ -24,6 +24,11 @@ class ServerStub(object):
                 request_serializer=server__pb2.Query.SerializeToString,
                 response_deserializer=server__pb2.QueryResult.FromString,
                 )
+        self.Serve = channel.unary_unary(
+                '/colbert.Server/Serve',
+                request_serializer=server__pb2.Query.SerializeToString,
+                response_deserializer=server__pb2.QueryResult.FromString,
+                )
 
 
 class ServerServicer(object):
@@ -41,6 +46,12 @@ class ServerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Serve(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ServerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -51,6 +62,11 @@ def add_ServerServicer_to_server(servicer, server):
             ),
             'Rerank': grpc.unary_unary_rpc_method_handler(
                     servicer.Rerank,
+                    request_deserializer=server__pb2.Query.FromString,
+                    response_serializer=server__pb2.QueryResult.SerializeToString,
+            ),
+            'Serve': grpc.unary_unary_rpc_method_handler(
+                    servicer.Serve,
                     request_deserializer=server__pb2.Query.FromString,
                     response_serializer=server__pb2.QueryResult.SerializeToString,
             ),
@@ -93,6 +109,23 @@ class Server(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/colbert.Server/Rerank',
+            server__pb2.Query.SerializeToString,
+            server__pb2.QueryResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Serve(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/colbert.Server/Serve',
             server__pb2.Query.SerializeToString,
             server__pb2.QueryResult.FromString,
             options, channel_credentials,

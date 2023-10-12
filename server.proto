@@ -5,6 +5,7 @@ package colbert;
 service Server {
   rpc Search(Query) returns (QueryResult) {}
   rpc Rerank(Query) returns (QueryResult) {}
+  rpc Serve(Query) returns (QueryResult) {}
 }
 
 message Query {
