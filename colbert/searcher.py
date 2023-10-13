@@ -41,7 +41,7 @@ class Searcher:
         use_gpu = self.config.total_visible_gpus > 0
         if use_gpu:
             self.checkpoint = self.checkpoint.cuda()
-        load_index_with_mmap = self.config.load_index_with_mmap
+        load_index_with_mmap = config.load_index_with_mmap if config is not None else self.config.load_index_with_mmap
         if load_index_with_mmap and use_gpu:
             raise ValueError(f"Memory-mapped index can only be used with CPU!")
         self.ranker = IndexScorer(self.index, use_gpu, load_index_with_mmap)

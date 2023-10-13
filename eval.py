@@ -39,7 +39,7 @@ async def run_request(stub, request, experiment):
 async def run(args):
     print("Main process running on CPU", psutil.Process().cpu_num())
     nodes = args.num_servers
-    queries = Queries(path="/home/ubuntu/data/questions.tsv")
+    queries = Queries(path=f"/home/ubuntu/data/{index}/questions.tsv")
     qvals = list(queries.items())
     tasks = []
     channels = []

@@ -18,6 +18,8 @@ import csv
 from colbert import Searcher
 from collections import defaultdict
 import requests
+from colbert.infra.run import Run
+from colbert.infra.config import ColBERTConfig
 
 sys.path.append(os.environ["SPLADE_PATH"])
 
@@ -43,8 +45,12 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
             tsv_reader = csv.reader(tsvfile, delimiter='\t')
             for line in tsv_reader:
                 self.gold_ranks[int(line[0])].append(int(line[1]))
-
-        self.searcher = Searcher(index=f"{prefix}/indexes/{self.index_name}/")
+        
+        config = Run().config
+        config = ColBERTConfig.from_existing(None, config)
+        config.load_index_with_mmap = self.suffix != ""
+        print(config)
+        self.searcher = Searcher(index=f"{prefix}/indexes/{self.index_name}/", config=config)
         self.ranker = self.searcher.ranker
         
         if os.path.isfile(f"{prefix}/{index}/encodings.pt"):
@@ -85,10 +91,11 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         scores_, pids_ = self.ranker.score_raw_pids(self.searcher.config, Q, gr)
         print("Searching time of {} on node {}: {}".format(qid, self.tag, time.time() - t2))
 
+        scores_sorter = scores_.sort(descending=True)
+        pids_, scores_ = pids_[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
         top_k = []
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
             top_k.append({'pid': pid, 'rank': rank + 1, 'score': score})
-        top_k = list(sorted(top_k, key=lambda p: (-1 * p['score'], p['pid'])))[:k]
 
         del gr
         del scores_
@@ -125,10 +132,11 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         scores_, pids_ = self.ranker.score_raw_pids(self.searcher.config, Q, gr)
         print("Searching time of {} on node {}: {}".format(qid, self.tag, time.time() - t2))
 
+        scores_sorter = scores_.sort(descending=True)
+        pids_, scores_ = pids_[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
         top_k = []
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
             top_k.append({'pid': pid, 'rank': rank + 1, 'score': score})
-        top_k = list(sorted(top_k, key=lambda p: (-1 * p['score'], p['pid'])))[:k]
 
         del gr
         del scores_
