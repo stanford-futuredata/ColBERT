@@ -74,7 +74,7 @@ async def run(args):
     await asyncio.sleep(0)
     ret = list(zip(*await asyncio.gather(*tasks)))
 
-    save_rankings(ret[0], args.rankings_file)
+    save_rankings(ret[0], args.ranking_file)
 
     total_time = str(time.time()-t)
 

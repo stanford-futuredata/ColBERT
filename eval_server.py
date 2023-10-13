@@ -55,6 +55,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
             self.enc = {}
             for q in qvals:
                 self.enc[q[0]] = self.searcher.encode([q[1]])
+            torch.save(self.enc, "{prefix}/{index}/encodings.pt")
 
     def convert_dict_to_protobuf(self, input_dict):
         query_result = server_pb2.QueryResult()
