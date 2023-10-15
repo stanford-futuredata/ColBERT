@@ -3,25 +3,31 @@ import ujson
 
 from functools import partial
 from colbert.utils.utils import print_message
-from colbert.modeling.tokenization import QueryTokenizer, DocTokenizer, tensorize_triples
+from colbert.modeling.tokenization import (
+    QueryTokenizer,
+    DocTokenizer,
+    tensorize_triples,
+)
 
 from colbert.utils.runs import Run
 
 
-class EagerBatcher():
+class EagerBatcher:
     def __init__(self, args, rank=0, nranks=1):
         self.rank, self.nranks = rank, nranks
         self.bsize, self.accumsteps = args.bsize, args.accumsteps
 
         self.query_tokenizer = QueryTokenizer(args.query_maxlen)
         self.doc_tokenizer = DocTokenizer(args.doc_maxlen)
-        self.tensorize_triples = partial(tensorize_triples, self.query_tokenizer, self.doc_tokenizer)
+        self.tensorize_triples = partial(
+            tensorize_triples, self.query_tokenizer, self.doc_tokenizer
+        )
 
         self.triples_path = args.triples
         self._reset_triples()
 
     def _reset_triples(self):
-        self.reader = open(self.triples_path, mode='r', encoding="utf-8")
+        self.reader = open(self.triples_path, mode="r", encoding="utf-8")
         self.position = 0
 
     def __iter__(self):
@@ -34,7 +40,7 @@ class EagerBatcher():
             if (self.position + line_idx) % self.nranks != self.rank:
                 continue
 
-            query, pos, neg = line.strip().split('\t')
+            query, pos, neg = line.strip().split("\t")
 
             queries.append(query)
             positives.append(pos)
@@ -50,12 +56,16 @@ class EagerBatcher():
     def collate(self, queries, positives, negatives):
         assert len(queries) == len(positives) == len(negatives) == self.bsize
 
-        return self.tensorize_triples(queries, positives, negatives, self.bsize // self.accumsteps)
+        return self.tensorize_triples(
+            queries, positives, negatives, self.bsize // self.accumsteps
+        )
 
     def skip_to_batch(self, batch_idx, intended_batch_size):
         self._reset_triples()
 
-        Run.warn(f'Skipping to batch #{batch_idx} (with intended_batch_size = {intended_batch_size}) for training.')
+        Run.warn(
+            f"Skipping to batch #{batch_idx} (with intended_batch_size = {intended_batch_size}) for training."
+        )
 
         _ = [self.reader.readline() for _ in range(batch_idx * intended_batch_size)]
 

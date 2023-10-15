@@ -4,7 +4,7 @@ import numpy as np
 from bitarray import bitarray
 
 
-class IndexManager():
+class IndexManager:
     def __init__(self, dim):
         self.dim = dim
 
@@ -32,7 +32,9 @@ def load_compressed_index_part(filename, dim, bits):
         a.fromfile(f)
 
     n = len(a) // dim // bits
-    part = torch.tensor(np.frombuffer(a.tobytes(), dtype=np.uint8))  # TODO: isn't from_numpy(.) faster?
+    part = torch.tensor(
+        np.frombuffer(a.tobytes(), dtype=np.uint8)
+    )  # TODO: isn't from_numpy(.) faster?
     part = part.reshape((n, int(np.ceil(dim * bits / 8))))
 
     return part

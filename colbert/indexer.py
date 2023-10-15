@@ -15,14 +15,16 @@ from colbert.indexing.collection_indexer import encode
 class Indexer:
     def __init__(self, checkpoint, config=None):
         """
-           Use Run().context() to choose the run's configuration. They are NOT extracted from `config`.
+        Use Run().context() to choose the run's configuration. They are NOT extracted from `config`.
         """
 
         self.index_path = None
         self.checkpoint = checkpoint
         self.checkpoint_config = ColBERTConfig.load_from_checkpoint(checkpoint)
 
-        self.config = ColBERTConfig.from_existing(self.checkpoint_config, config, Run().config)
+        self.config = ColBERTConfig.from_existing(
+            self.checkpoint_config, config, Run().config
+        )
         self.configure(checkpoint=checkpoint)
 
     def configure(self, **kw_args):
@@ -40,14 +42,18 @@ class Indexer:
             filename = os.path.join(directory, filename)
 
             delete = filename.endswith(".json")
-            delete = delete and ('metadata' in filename or 'doclen' in filename or 'plan' in filename)
+            delete = delete and (
+                "metadata" in filename or "doclen" in filename or "plan" in filename
+            )
             delete = delete or filename.endswith(".pt")
-            
+
             if delete:
                 deleted.append(filename)
-        
+
         if len(deleted):
-            print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
+            print_message(
+                f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds..."
+            )
             time.sleep(20)
 
             for filename in deleted:
@@ -56,21 +62,25 @@ class Indexer:
         return deleted
 
     def index(self, name, collection, overwrite=False):
-        assert overwrite in [True, False, 'reuse', 'resume']
+        assert overwrite in [True, False, "reuse", "resume"]
 
-        self.configure(collection=collection, index_name=name, resume=overwrite=='resume')
+        self.configure(
+            collection=collection, index_name=name, resume=overwrite == "resume"
+        )
         self.configure(bsize=64, partitions=None)
 
         self.index_path = self.config.index_path_
-        index_does_not_exist = (not os.path.exists(self.config.index_path_))
+        index_does_not_exist = not os.path.exists(self.config.index_path_)
 
-        assert (overwrite in [True, 'reuse', 'resume']) or index_does_not_exist, self.config.index_path_
+        assert (
+            overwrite in [True, "reuse", "resume"]
+        ) or index_does_not_exist, self.config.index_path_
         create_directory(self.config.index_path_)
 
         if overwrite is True:
             self.erase()
 
-        if index_does_not_exist or overwrite != 'reuse':
+        if index_does_not_exist or overwrite != "reuse":
             self.__launch(collection)
 
         return self.index_path

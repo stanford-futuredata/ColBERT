@@ -16,7 +16,7 @@ from colbert.infra.launcher import print_memory_stats
 
 import time
 
-TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
+TextQueries = Union[str, "list[str]", "dict[int, str]", Queries]
 
 
 class Searcher:
@@ -31,7 +31,9 @@ class Searcher:
 
         self.checkpoint = checkpoint or self.index_config.checkpoint
         self.checkpoint_config = ColBERTConfig.load_from_checkpoint(self.checkpoint)
-        self.config = ColBERTConfig.from_existing(self.checkpoint_config, self.index_config, initial_config)
+        self.config = ColBERTConfig.from_existing(
+            self.checkpoint_config, self.index_config, initial_config
+        )
 
         self.collection = Collection.cast(collection or self.config.collection)
         self.configure(checkpoint=self.checkpoint, collection=self.collection)
@@ -55,7 +57,9 @@ class Searcher:
         bsize = 128 if len(queries) > 128 else None
 
         self.checkpoint.query_tokenizer.query_maxlen = self.config.query_maxlen
-        Q = self.checkpoint.queryFromText(queries, bsize=bsize, to_cpu=True, full_length_search=full_length_search)
+        Q = self.checkpoint.queryFromText(
+            queries, bsize=bsize, to_cpu=True, full_length_search=full_length_search
+        )
 
         return Q
 
@@ -63,7 +67,9 @@ class Searcher:
         Q = self.encode(text, full_length_search=full_length_search)
         return self.dense_search(Q, k, filter_fn=filter_fn)
 
-    def search_all(self, queries: TextQueries, k=10, filter_fn=None, full_length_search=False):
+    def search_all(
+        self, queries: TextQueries, k=10, filter_fn=None, full_length_search=False
+    ):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
 
@@ -72,13 +78,21 @@ class Searcher:
         return self._search_all_Q(queries, Q, k, filter_fn=filter_fn)
 
     def _search_all_Q(self, queries, Q, k, filter_fn=None):
-        all_scored_pids = [list(zip(*self.dense_search(Q[query_idx:query_idx+1], k, filter_fn=filter_fn)))
-                           for query_idx in tqdm(range(Q.size(0)))]
+        all_scored_pids = [
+            list(
+                zip(
+                    *self.dense_search(
+                        Q[query_idx : query_idx + 1], k, filter_fn=filter_fn
+                    )
+                )
+            )
+            for query_idx in tqdm(range(Q.size(0)))
+        ]
 
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
 
         provenance = Provenance()
-        provenance.source = 'Searcher::search_all'
+        provenance.source = "Searcher::search_all"
         provenance.queries = queries.provenance()
         provenance.config = self.config.export()
         provenance.k = k
@@ -110,4 +124,4 @@ class Searcher:
 
         pids, scores = self.ranker.rank(self.config, Q, filter_fn=filter_fn)
 
-        return pids[:k], list(range(1, k+1)), scores[:k]
+        return pids[:k], list(range(1, k + 1)), scores[:k]

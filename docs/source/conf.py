@@ -12,7 +12,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../colbert'))
+
+sys.path.insert(0, os.path.abspath("../../colbert"))
 
 print("current directory")
 print(str(os.listdir()))
@@ -20,12 +21,14 @@ print(str(os.listdir()))
 
 # -- Project information -----------------------------------------------------
 
-project = 'ColBERT'
-copyright = '2022, Omar Khattab, Keshav Santhanam, Jon Saad-Falcon, Christopher Potts, Matei Zaharia'
-author = 'Omar Khattab, Keshav Santhanam, Jon Saad-Falcon, Christopher Potts, Matei Zaharia'
+project = "ColBERT"
+copyright = "2022, Omar Khattab, Keshav Santhanam, Jon Saad-Falcon, Christopher Potts, Matei Zaharia"
+author = (
+    "Omar Khattab, Keshav Santhanam, Jon Saad-Falcon, Christopher Potts, Matei Zaharia"
+)
 
 # The full version, including alpha/beta/rc tags
-release = 'v2'
+release = "v2"
 
 
 # -- General configuration ---------------------------------------------------
@@ -33,18 +36,20 @@ release = 'v2'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.duration',
-    		  'sphinx.ext.doctest',
-    		  'sphinx.ext.autodoc',
-    		  'sphinx.ext.autosummary']
+extensions = [
+    "sphinx.ext.duration",
+    "sphinx.ext.doctest",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+]
 
 autodoc_mock_imports = ["torch", "colbert", "tqdm"]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The root document.
-root_doc = 'index_2'
+root_doc = "index_2"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -57,9 +62,9 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = "alabaster"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]

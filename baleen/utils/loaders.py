@@ -20,9 +20,12 @@ def load_contexts(first_hop_topk_path):
             last = (qid, facts)
 
     # assert len(qid2backgrounds) in [0, len(queries)], (len(qid2backgrounds), len(queries))
-    print_message(f"#> {first_hop_topk_path} has {len(qid2backgrounds)} qids. Last = {last}")
+    print_message(
+        f"#> {first_hop_topk_path} has {len(qid2backgrounds)} qids. Last = {last}"
+    )
 
     return qid2backgrounds
+
 
 def load_collectionX(collection_path, dict_in_dict=False):
     print_message("#> Loading collection...")
@@ -33,10 +36,10 @@ def load_collectionX(collection_path, dict_in_dict=False):
         for line_idx, line in enumerate(f):
             line = ujson.loads(line)
 
-            assert type(line['text']) is list
-            assert line['pid'] == line_idx, (line_idx, line)
+            assert type(line["text"]) is list
+            assert line["pid"] == line_idx, (line_idx, line)
 
-            passage = [line['title'] + ' | ' + sentence for sentence in line['text']]
+            passage = [line["title"] + " | " + sentence for sentence in line["text"]]
 
             if dict_in_dict:
                 collectionX[line_idx] = {}

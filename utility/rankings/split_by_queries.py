@@ -15,17 +15,22 @@ def main(args):
     for qrels_idx, qrels in enumerate(args.all_queries):
         with open(qrels) as f:
             for line in f:
-                qid, *_ = line.strip().split('\t')
+                qid, *_ = line.strip().split("\t")
                 qid = int(qid)
 
-                assert qid_to_file_idx.get(qid, qrels_idx) == qrels_idx, (qid, qrels_idx)
+                assert qid_to_file_idx.get(qid, qrels_idx) == qrels_idx, (
+                    qid,
+                    qrels_idx,
+                )
                 qid_to_file_idx[qid] = qrels_idx
 
-    all_outputs_paths = [f'{args.ranking}.{idx}' for idx in range(len(args.all_queries))]
+    all_outputs_paths = [
+        f"{args.ranking}.{idx}" for idx in range(len(args.all_queries))
+    ]
 
     assert all(not os.path.exists(path) for path in all_outputs_paths)
 
-    all_outputs = [open(path, 'w') for path in all_outputs_paths]
+    all_outputs = [open(path, "w") for path in all_outputs_paths]
 
     with open(args.ranking) as f:
         print_message(f"#> Loading ranked lists from {f.name} ..")
@@ -33,12 +38,14 @@ def main(args):
         last_file_idx = -1
 
         for line in file_tqdm(f):
-            qid, *_ = line.strip().split('\t')
+            qid, *_ = line.strip().split("\t")
 
             file_idx = qid_to_file_idx[int(qid)]
 
             if file_idx != last_file_idx:
-                print_message(f"#> Switched to file #{file_idx} at {all_outputs[file_idx].name}")
+                print_message(
+                    f"#> Switched to file #{file_idx} at {all_outputs[file_idx].name}"
+                )
 
             last_file_idx = file_idx
 
@@ -56,11 +63,13 @@ def main(args):
 if __name__ == "__main__":
     random.seed(12345)
 
-    parser = ArgumentParser(description='.')
+    parser = ArgumentParser(description=".")
 
     # Input Arguments
-    parser.add_argument('--ranking', dest='ranking', required=True, type=str)
-    parser.add_argument('--all-queries', dest='all_queries', required=True, type=str, nargs='+')
+    parser.add_argument("--ranking", dest="ranking", required=True, type=str)
+    parser.add_argument(
+        "--all-queries", dest="all_queries", required=True, type=str, nargs="+"
+    )
 
     args = parser.parse_args()
 

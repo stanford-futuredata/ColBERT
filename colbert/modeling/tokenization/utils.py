@@ -1,7 +1,9 @@
 import torch
 
 
-def tensorize_triples(query_tokenizer, doc_tokenizer, queries, passages, scores, bsize, nway):
+def tensorize_triples(
+    query_tokenizer, doc_tokenizer, queries, passages, scores, bsize, nway
+):
     # assert len(passages) == len(scores) == bsize * nway
     # assert bsize is None or len(queries) % bsize == 0
 
@@ -50,7 +52,7 @@ def _sort_by_length(ids, mask, bsize):
 def _split_into_batches(ids, mask, bsize):
     batches = []
     for offset in range(0, ids.size(0), bsize):
-        batches.append((ids[offset:offset+bsize], mask[offset:offset+bsize]))
+        batches.append((ids[offset : offset + bsize], mask[offset : offset + bsize]))
 
     return batches
 
@@ -58,6 +60,6 @@ def _split_into_batches(ids, mask, bsize):
 def _split_into_batches2(scores, bsize):
     batches = []
     for offset in range(0, len(scores), bsize):
-        batches.append(scores[offset:offset+bsize])
+        batches.append(scores[offset : offset + bsize])
 
     return batches

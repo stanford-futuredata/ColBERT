@@ -9,7 +9,9 @@ class Baleen:
         self.condenser = condenser
 
     def search(self, query, num_hops, depth=100, verbose=False):
-        assert depth % num_hops == 0, f"depth={depth} must be divisible by num_hops={num_hops}."
+        assert (
+            depth % num_hops == 0
+        ), f"depth={depth} must be divisible by num_hops={num_hops}."
         k = depth // num_hops
 
         searcher = self.searcher
@@ -32,27 +34,17 @@ class Baleen:
                 # print(f'[{score}] \t\t {searcher.collection[pid]}')
                 if len(ranking_) < k and pid not in facts_pids:
                     ranking_.append(pid)
-                
-                if len(pids_bag) < k * (hop_idx+1):
+
+                if len(pids_bag) < k * (hop_idx + 1):
                     pids_bag.add(pid)
-            
-            stage1_preds, facts, stage2_L3x = condenser.condense(query, backs=facts, ranking=ranking_)
-            context = ' [SEP] '.join([collectionX.get((pid, sid), '') for pid, sid in facts])
+
+            stage1_preds, facts, stage2_L3x = condenser.condense(
+                query, backs=facts, ranking=ranking_
+            )
+            context = " [SEP] ".join(
+                [collectionX.get((pid, sid), "") for pid, sid in facts]
+            )
 
         assert len(pids_bag) == depth
 
         return stage2_L3x, pids_bag, stage1_preds
-
-            
-
-
-            
-                
-
-        
-            
-
-
-
-
-

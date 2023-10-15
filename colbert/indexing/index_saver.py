@@ -10,7 +10,7 @@ from colbert.indexing.codecs.residual import ResidualCodec
 from colbert.utils.utils import print_message
 
 
-class IndexSaver():
+class IndexSaver:
     def __init__(self, config):
         self.config = config
 
@@ -30,20 +30,24 @@ class IndexSaver():
     def check_chunk_exists(self, chunk_idx):
         # TODO: Verify that the chunk has the right amount of data?
 
-        doclens_path = os.path.join(self.config.index_path_, f'doclens.{chunk_idx}.json')
+        doclens_path = os.path.join(
+            self.config.index_path_, f"doclens.{chunk_idx}.json"
+        )
         if not os.path.exists(doclens_path):
             return False
 
-        metadata_path = os.path.join(self.config.index_path_, f'{chunk_idx}.metadata.json')
+        metadata_path = os.path.join(
+            self.config.index_path_, f"{chunk_idx}.metadata.json"
+        )
         if not os.path.exists(metadata_path):
             return False
 
         path_prefix = os.path.join(self.config.index_path_, str(chunk_idx))
-        codes_path = f'{path_prefix}.codes.pt'
+        codes_path = f"{path_prefix}.codes.pt"
         if not os.path.exists(codes_path):
             return False
 
-        residuals_path = f'{path_prefix}.residuals.pt'  # f'{path_prefix}.residuals.bn'
+        residuals_path = f"{path_prefix}.residuals.pt"  # f'{path_prefix}.residuals.bn'
         if not os.path.exists(residuals_path):
             return False
 
@@ -80,11 +84,19 @@ class IndexSaver():
         path_prefix = os.path.join(self.config.index_path_, str(chunk_idx))
         compressed_embs.save(path_prefix)
 
-        doclens_path = os.path.join(self.config.index_path_, f'doclens.{chunk_idx}.json')
-        with open(doclens_path, 'w') as output_doclens:
+        doclens_path = os.path.join(
+            self.config.index_path_, f"doclens.{chunk_idx}.json"
+        )
+        with open(doclens_path, "w") as output_doclens:
             ujson.dump(doclens, output_doclens)
 
-        metadata_path = os.path.join(self.config.index_path_, f'{chunk_idx}.metadata.json')
-        with open(metadata_path, 'w') as output_metadata:
-            metadata = {'passage_offset': offset, 'num_passages': len(doclens), 'num_embeddings': len(compressed_embs)}
+        metadata_path = os.path.join(
+            self.config.index_path_, f"{chunk_idx}.metadata.json"
+        )
+        with open(metadata_path, "w") as output_metadata:
+            metadata = {
+                "passage_offset": offset,
+                "num_passages": len(doclens),
+                "num_embeddings": len(compressed_embs),
+            }
             ujson.dump(metadata, output_metadata)

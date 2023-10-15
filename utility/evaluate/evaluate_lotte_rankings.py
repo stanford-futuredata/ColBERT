@@ -33,7 +33,9 @@ def evaluate_dataset(query_type, dataset, split, k, data_rootdir, rankings_rootd
             qid = int(line["qid"])
             num_total_qids += 1
             if qid not in rankings:
-                print(f"WARNING: qid {qid} not found in {rankings_path}!", file=sys.stderr)
+                print(
+                    f"WARNING: qid {qid} not found in {rankings_path}!", file=sys.stderr
+                )
                 continue
             answer_pids = set(line["answer_pids"])
             if len(set(rankings[qid][:k]).intersection(answer_pids)) > 0:

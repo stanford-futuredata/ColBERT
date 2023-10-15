@@ -20,14 +20,18 @@ def sample_negatives(negatives, num_sampled, biased=False):
         num_sampled_top100 = num_sampled // 2
         num_sampled_rest = num_sampled - num_sampled_top100
 
-        return random.sample(negatives[:100], num_sampled_top100) + random.sample(negatives[100:], num_sampled_rest)
+        return random.sample(negatives[:100], num_sampled_top100) + random.sample(
+            negatives[100:], num_sampled_rest
+        )
 
     return random.sample(negatives, num_sampled)
 
 
-def sample_for_query(qid, ranking, npositives, depth_positive, depth_negative, cutoff_negative):
+def sample_for_query(
+    qid, ranking, npositives, depth_positive, depth_negative, cutoff_negative
+):
     """
-        Requires that the ranks are sorted per qid.
+    Requires that the ranks are sorted per qid.
     """
     assert npositives <= depth_positive < cutoff_negative < depth_negative
 
@@ -64,13 +68,22 @@ def main(args):
     NonEmptyQIDs = 0
 
     for processing_idx, qid in enumerate(qid2rankings):
-        l = sample_for_query(qid, qid2rankings[qid], args.positives, args.depth_positive, args.depth_negative, args.cutoff_negative)
-        NonEmptyQIDs += (len(l) > 0)
+        l = sample_for_query(
+            qid,
+            qid2rankings[qid],
+            args.positives,
+            args.depth_positive,
+            args.depth_negative,
+            args.cutoff_negative,
+        )
+        NonEmptyQIDs += len(l) > 0
         Triples.extend(l)
 
         if processing_idx % (10_000) == 0:
-            print_message(f"#> Done with {processing_idx+1} questions!\t\t "
-                          f"{str(len(Triples) / 1000)}k triples for {NonEmptyQIDs} unqiue QIDs.")
+            print_message(
+                f"#> Done with {processing_idx+1} questions!\t\t "
+                f"{str(len(Triples) / 1000)}k triples for {NonEmptyQIDs} unqiue QIDs."
+            )
 
     print_message(f"#> Sub-sample the triples (if > {MAX_NUM_TRIPLES})..")
     print_message(f"#> len(Triples) = {len(Triples)}")
@@ -82,20 +95,22 @@ def main(args):
     print_message("#> Shuffling the triples...")
     random.shuffle(Triples)
 
-    print_message("#> Writing {}M examples to file.".format(len(Triples) / 1000.0 / 1000.0))
+    print_message(
+        "#> Writing {}M examples to file.".format(len(Triples) / 1000.0 / 1000.0)
+    )
 
-    with open(args.output, 'w') as f:
+    with open(args.output, "w") as f:
         for example in Triples:
             ujson.dump(example, f)
-            f.write('\n')
+            f.write("\n")
 
-    with open(f'{args.output}.meta', 'w') as f:
-        args.cmd = ' '.join(sys.argv)
+    with open(f"{args.output}.meta", "w") as f:
+        args.cmd = " ".join(sys.argv)
         args.git_hash = git.Repo(search_parent_directories=True).head.object.hexsha
         ujson.dump(args.__dict__, f, indent=4)
-        f.write('\n')
+        f.write("\n")
 
-    print('\n\n', args, '\n\n')
+    print("\n\n", args, "\n\n")
     print(args.output)
     print_message("#> Done.")
 
@@ -103,18 +118,18 @@ def main(args):
 if __name__ == "__main__":
     random.seed(12345)
 
-    parser = ArgumentParser(description='Create training triples from ranked list.')
+    parser = ArgumentParser(description="Create training triples from ranked list.")
 
     # Input / Output Arguments
-    parser.add_argument('--ranking', dest='ranking', required=True, type=str)
-    parser.add_argument('--output', dest='output', required=True, type=str)
+    parser.add_argument("--ranking", dest="ranking", required=True, type=str)
+    parser.add_argument("--output", dest="output", required=True, type=str)
 
     # Weak Supervision Arguments.
-    parser.add_argument('--positives', dest='positives', required=True, type=int)
-    parser.add_argument('--depth+', dest='depth_positive', required=True, type=int)
+    parser.add_argument("--positives", dest="positives", required=True, type=int)
+    parser.add_argument("--depth+", dest="depth_positive", required=True, type=int)
 
-    parser.add_argument('--depth-', dest='depth_negative', required=True, type=int)
-    parser.add_argument('--cutoff-', dest='cutoff_negative', required=True, type=int)
+    parser.add_argument("--depth-", dest="depth_negative", required=True, type=int)
+    parser.add_argument("--cutoff-", dest="cutoff_negative", required=True, type=int)
 
     args = parser.parse_args()
 

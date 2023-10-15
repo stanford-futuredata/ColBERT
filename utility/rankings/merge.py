@@ -18,13 +18,13 @@ def main(args):
 
         with open(path) as f:
             for line in file_tqdm(f):
-                qid, pid, rank, score = line.strip().split('\t')
+                qid, pid, rank, score = line.strip().split("\t")
                 qid, pid, rank = map(int, [qid, pid, rank])
                 score = float(score)
 
                 Rankings[qid].append((score, rank, pid))
 
-    with open(args.output, 'w') as f:
+    with open(args.output, "w") as f:
         print_message(f"#> Writing the output rankings to {args.output} ..")
 
         for qid in tqdm.tqdm(Rankings):
@@ -37,7 +37,7 @@ def main(args):
                     break
 
                 line = [qid, pid, rank, score]
-                line = '\t'.join(map(str, line)) + '\n'
+                line = "\t".join(map(str, line)) + "\n"
                 f.write(line)
 
 
@@ -45,10 +45,10 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="merge_rankings.")
 
     # Input Arguments.
-    parser.add_argument('--input', dest='input', required=True, nargs='+')
-    parser.add_argument('--output', dest='output', required=True, type=str)
+    parser.add_argument("--input", dest="input", required=True, nargs="+")
+    parser.add_argument("--output", dest="output", required=True, type=str)
 
-    parser.add_argument('--depth', dest='depth', required=True, type=int)
+    parser.add_argument("--depth", dest="depth", required=True, type=int)
 
     args = parser.parse_args()
 

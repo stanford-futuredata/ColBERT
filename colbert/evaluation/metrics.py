@@ -5,7 +5,13 @@ from colbert.utils.runs import Run
 
 
 class Metrics:
-    def __init__(self, mrr_depths: set, recall_depths: set, success_depths: set, total_queries=None):
+    def __init__(
+        self,
+        mrr_depths: set,
+        recall_depths: set,
+        success_depths: set,
+        total_queries=None,
+    ):
         self.results = {}
         self.mrr_sums = {depth: 0.0 for depth in mrr_depths}
         self.recall_sums = {depth: 0.0 for depth in recall_depths}
@@ -25,14 +31,18 @@ class Metrics:
 
         self.results[query_key] = ranking
 
-        positives = [i for i, (_, pid, _) in enumerate(ranking) if pid in gold_positives]
+        positives = [
+            i for i, (_, pid, _) in enumerate(ranking) if pid in gold_positives
+        ]
 
         if len(positives) == 0:
             return
 
         for depth in self.mrr_sums:
             first_positive = positives[0]
-            self.mrr_sums[depth] += (1.0 / (first_positive+1.0)) if first_positive < depth else 0.0
+            self.mrr_sums[depth] += (
+                (1.0 / (first_positive + 1.0)) if first_positive < depth else 0.0
+            )
 
         for depth in self.success_sums:
             first_positive = positives[0]
@@ -44,13 +54,19 @@ class Metrics:
 
     def print_metrics(self, query_idx):
         for depth in sorted(self.mrr_sums):
-            print("MRR@" + str(depth), "=", self.mrr_sums[depth] / (query_idx+1.0))
+            print("MRR@" + str(depth), "=", self.mrr_sums[depth] / (query_idx + 1.0))
 
         for depth in sorted(self.success_sums):
-            print("Success@" + str(depth), "=", self.success_sums[depth] / (query_idx+1.0))
+            print(
+                "Success@" + str(depth),
+                "=",
+                self.success_sums[depth] / (query_idx + 1.0),
+            )
 
         for depth in sorted(self.recall_sums):
-            print("Recall@" + str(depth), "=", self.recall_sums[depth] / (query_idx+1.0))
+            print(
+                "Recall@" + str(depth), "=", self.recall_sums[depth] / (query_idx + 1.0)
+            )
 
     def log(self, query_idx):
         assert query_idx >= self.max_query_idx
@@ -60,15 +76,15 @@ class Metrics:
         Run.log_metric("ranking/num_queries_added", self.num_queries_added, query_idx)
 
         for depth in sorted(self.mrr_sums):
-            score = self.mrr_sums[depth] / (query_idx+1.0)
+            score = self.mrr_sums[depth] / (query_idx + 1.0)
             Run.log_metric("ranking/MRR." + str(depth), score, query_idx)
 
         for depth in sorted(self.success_sums):
-            score = self.success_sums[depth] / (query_idx+1.0)
+            score = self.success_sums[depth] / (query_idx + 1.0)
             Run.log_metric("ranking/Success." + str(depth), score, query_idx)
 
         for depth in sorted(self.recall_sums):
-            score = self.recall_sums[depth] / (query_idx+1.0)
+            score = self.recall_sums[depth] / (query_idx + 1.0)
             Run.log_metric("ranking/Recall." + str(depth), score, query_idx)
 
     def output_final_metrics(self, path, query_idx, num_queries):
@@ -83,20 +99,20 @@ class Metrics:
         output = defaultdict(dict)
 
         for depth in sorted(self.mrr_sums):
-            score = self.mrr_sums[depth] / (query_idx+1.0)
-            output['mrr'][depth] = score
+            score = self.mrr_sums[depth] / (query_idx + 1.0)
+            output["mrr"][depth] = score
 
         for depth in sorted(self.success_sums):
-            score = self.success_sums[depth] / (query_idx+1.0)
-            output['success'][depth] = score
+            score = self.success_sums[depth] / (query_idx + 1.0)
+            output["success"][depth] = score
 
         for depth in sorted(self.recall_sums):
-            score = self.recall_sums[depth] / (query_idx+1.0)
-            output['recall'][depth] = score
+            score = self.recall_sums[depth] / (query_idx + 1.0)
+            output["recall"][depth] = score
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             ujson.dump(output, f, indent=4)
-            f.write('\n')
+            f.write("\n")
 
 
 def evaluate_recall(qrels, queries, topK_pids):
@@ -104,8 +120,11 @@ def evaluate_recall(qrels, queries, topK_pids):
         return
 
     assert set(qrels.keys()) == set(queries.keys())
-    recall_at_k = [len(set.intersection(set(qrels[qid]), set(topK_pids[qid]))) / max(1.0, len(qrels[qid]))
-                   for qid in qrels]
+    recall_at_k = [
+        len(set.intersection(set(qrels[qid]), set(topK_pids[qid])))
+        / max(1.0, len(qrels[qid]))
+        for qid in qrels
+    ]
     recall_at_k = sum(recall_at_k) / len(qrels)
     recall_at_k = round(recall_at_k, 3)
     print("Recall @ maximum depth =", recall_at_k)

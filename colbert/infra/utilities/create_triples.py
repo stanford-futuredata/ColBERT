@@ -23,13 +23,17 @@ class Triples:
         NonEmptyQIDs = 0
 
         for processing_idx, qid in enumerate(self.qid2rankings):
-            l = sample_for_query(qid, self.qid2rankings[qid], positives, depth, False, None)
-            NonEmptyQIDs += (len(l) > 0)
+            l = sample_for_query(
+                qid, self.qid2rankings[qid], positives, depth, False, None
+            )
+            NonEmptyQIDs += len(l) > 0
             Triples.extend(l)
 
             if processing_idx % (10_000) == 0:
-                print_message(f"#> Done with {processing_idx+1} questions!\t\t "
-                              f"{str(len(Triples) / 1000)}k triples for {NonEmptyQIDs} unqiue QIDs.")
+                print_message(
+                    f"#> Done with {processing_idx+1} questions!\t\t "
+                    f"{str(len(Triples) / 1000)}k triples for {NonEmptyQIDs} unqiue QIDs."
+                )
 
         print_message(f"#> Sub-sample the triples (if > {MAX_NUM_TRIPLES})..")
         print_message(f"#> len(Triples) = {len(Triples)}")
@@ -49,4 +53,3 @@ class Triples:
         Examples(data=self.Triples).save(new_path)
 
         # save_metadata(f'{output}.meta', args)  # TODO: What args to save?? {seed, positives, depth, rankings if path or else whatever provenance the rankings object shares}
-

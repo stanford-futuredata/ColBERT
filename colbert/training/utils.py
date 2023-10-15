@@ -8,16 +8,22 @@ from colbert.infra.run import Run
 
 
 def print_progress(scores):
-    positive_avg, negative_avg = round(scores[:, 0].mean().item(), 2), round(scores[:, 1].mean().item(), 2)
-    print("#>>>   ", positive_avg, negative_avg, '\t\t|\t\t', positive_avg - negative_avg)
+    positive_avg, negative_avg = round(scores[:, 0].mean().item(), 2), round(
+        scores[:, 1].mean().item(), 2
+    )
+    print(
+        "#>>>   ", positive_avg, negative_avg, "\t\t|\t\t", positive_avg - negative_avg
+    )
 
 
-def manage_checkpoints(args, colbert, optimizer, batch_idx, savepath=None, consumed_all_triples=False):
+def manage_checkpoints(
+    args, colbert, optimizer, batch_idx, savepath=None, consumed_all_triples=False
+):
     # arguments = dict(args)
 
     # TODO: Call provenance() on the values that support it??
 
-    checkpoints_path = savepath or os.path.join(Run().path_, 'checkpoints')
+    checkpoints_path = savepath or os.path.join(Run().path_, "checkpoints")
     name = None
 
     try:
@@ -27,7 +33,7 @@ def manage_checkpoints(args, colbert, optimizer, batch_idx, savepath=None, consu
 
     if not os.path.exists(checkpoints_path):
         os.makedirs(checkpoints_path)
-    
+
     path_save = None
 
     if consumed_all_triples or (batch_idx % 2000 == 0):
@@ -44,7 +50,7 @@ def manage_checkpoints(args, colbert, optimizer, batch_idx, savepath=None, consu
         print(f"#> Saving a checkpoint to {path_save} ..")
 
         checkpoint = {}
-        checkpoint['batch'] = batch_idx
+        checkpoint["batch"] = batch_idx
         # checkpoint['epoch'] = 0
         # checkpoint['model_state_dict'] = model.state_dict()
         # checkpoint['optimizer_state_dict'] = optimizer.state_dict()

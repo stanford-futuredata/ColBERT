@@ -22,9 +22,11 @@ class ElectraReader(ElectraPreTrainedModel):
         self.learn_labels = learn_labels
 
     def forward(self, encoding):
-        outputs = self.electra(encoding.input_ids,
-                               attention_mask=encoding.attention_mask,
-                               token_type_ids=encoding.token_type_ids)[0]
+        outputs = self.electra(
+            encoding.input_ids,
+            attention_mask=encoding.attention_mask,
+            token_type_ids=encoding.token_type_ids,
+        )[0]
 
         scores = self.linear(outputs)
 
@@ -32,7 +34,7 @@ class ElectraReader(ElectraPreTrainedModel):
             scores = scores[:, 0].squeeze(1)
         else:
             scores = scores.squeeze(-1)
-            candidates = (encoding.input_ids == 103)
+            candidates = encoding.input_ids == 103
             scores = self._mask_2d_index(scores, candidates)
 
         return scores
@@ -46,10 +48,14 @@ class ElectraReader(ElectraPreTrainedModel):
 
         # Get flat scores corresponding to the True mask positions, with -inf at the end
         flat_scores = scores[mask]
-        flat_scores = torch.cat((flat_scores, torch.ones(1, device=self.device) * float('-inf')))
+        flat_scores = torch.cat(
+            (flat_scores, torch.ones(1, device=self.device) * float("-inf"))
+        )
 
         # Get 2D indexes
-        rowidxs, nnzs = torch.unique(torch.nonzero(mask, as_tuple=False)[:, 0], return_counts=True)
+        rowidxs, nnzs = torch.unique(
+            torch.nonzero(mask, as_tuple=False)[:, 0], return_counts=True
+        )
         max_nnzs = nnzs.max().item()
 
         rows = [[-1] * max_nnzs for _ in range(bsize)]
@@ -74,6 +80,9 @@ class ElectraReader(ElectraPreTrainedModel):
         assert positions.max() < maxlen
 
         embeddings = embeddings.view(bsize * maxlen, hdim)
-        positions = positions + torch.arange(bsize, device=positions.device).unsqueeze(-1) * maxlen
+        positions = (
+            positions
+            + torch.arange(bsize, device=positions.device).unsqueeze(-1) * maxlen
+        )
 
         return embeddings[positions]

@@ -11,15 +11,15 @@ def main(args):
     out_file = args.output
 
     # Get num_chunks from metadata
-    filepath = os.path.join(in_file, 'metadata.json')
-    with open(filepath, 'r') as f:
+    filepath = os.path.join(in_file, "metadata.json")
+    with open(filepath, "r") as f:
         metadata = ujson.load(f)
-    num_chunks = metadata['num_chunks']
+    num_chunks = metadata["num_chunks"]
     print(f"Num_chunks = {num_chunks}")
 
     # Create output dir if not already created
     if not os.path.exists(out_file):
-       os.makedirs(out_file)
+        os.makedirs(out_file)
 
     ## Coalesce doclens ##
     print("Coalescing doclens files...")
@@ -27,14 +27,14 @@ def main(args):
     temp = []
     # read into one large list
     for i in tqdm(range(num_chunks)):
-        filepath = os.path.join(in_file, f'doclens.{i}.json')
-        with open(filepath, 'r') as f:
+        filepath = os.path.join(in_file, f"doclens.{i}.json")
+        with open(filepath, "r") as f:
             chunk = ujson.load(f)
         temp.extend(chunk)
 
     # write to output json
-    filepath = os.path.join(out_file, 'doclens.0.json')
-    with open(filepath, 'w') as f:
+    filepath = os.path.join(out_file, "doclens.0.json")
+    with open(filepath, "w") as f:
         ujson.dump(temp, f)
 
     ## Coalesce codes ##
@@ -43,7 +43,7 @@ def main(args):
     temp = torch.empty(0, dtype=torch.int32)
     # read into one large tensor
     for i in tqdm(range(num_chunks)):
-        filepath = os.path.join(in_file, f'{i}.codes.pt')
+        filepath = os.path.join(in_file, f"{i}.codes.pt")
         chunk = torch.load(filepath)
         temp = torch.cat((temp, chunk))
 
@@ -51,7 +51,7 @@ def main(args):
     index_len = temp.size()[0]
 
     # write to output tensor
-    filepath = os.path.join(out_file, '0.codes.pt')
+    filepath = os.path.join(out_file, "0.codes.pt")
     torch.save(temp, filepath)
 
     ## Coalesce residuals ##
@@ -60,20 +60,20 @@ def main(args):
     temp = torch.empty(0, dtype=torch.uint8)
     # read into one large tensor
     for i in tqdm(range(num_chunks)):
-        filepath = os.path.join(in_file, f'{i}.residuals.pt')
+        filepath = os.path.join(in_file, f"{i}.residuals.pt")
         chunk = torch.load(filepath)
         temp = torch.cat((temp, chunk))
 
     print("Saving residuals to output directory (this may take a few minutes)...")
 
     # write to output tensor
-    filepath = os.path.join(out_file, '0.residuals.pt')
+    filepath = os.path.join(out_file, "0.residuals.pt")
     torch.save(temp, filepath)
 
     # save metadata.json
-    metadata['num_chunks'] = 1
-    filepath = os.path.join(out_file, 'metadata.json')
-    with open(filepath, 'w') as f:
+    metadata["num_chunks"] = 1
+    filepath = os.path.join(out_file, "metadata.json")
+    with open(filepath, "w") as f:
         ujson.dump(metadata, f, indent=4)
 
     metadata_0 = {}
@@ -81,24 +81,32 @@ def main(args):
     metadata_0["passage_offset"] = 0
     metadata_0["embedding_offset"] = 0
 
-    filepath = os.path.join(in_file, str(num_chunks-1) + '.metadata.json')
-    with open(filepath, 'r') as f:
+    filepath = os.path.join(in_file, str(num_chunks - 1) + ".metadata.json")
+    with open(filepath, "r") as f:
         metadata_last = ujson.load(f)
-        metadata_0["num_passages"] = int(metadata_last["num_passages"]) + int(metadata_last["passage_offset"])
+        metadata_0["num_passages"] = int(metadata_last["num_passages"]) + int(
+            metadata_last["passage_offset"]
+        )
 
-    filepath = os.path.join(out_file, '0.metadata.json')
-    with open(filepath, 'w') as f:
+    filepath = os.path.join(out_file, "0.metadata.json")
+    with open(filepath, "w") as f:
         ujson.dump(metadata_0, f, indent=4)
 
-    filepath = os.path.join(in_file, 'plan.json')
-    with open(filepath, 'r') as f:
+    filepath = os.path.join(in_file, "plan.json")
+    with open(filepath, "r") as f:
         plan = ujson.load(f)
-    plan['num_chunks'] = 1
-    filepath = os.path.join(out_file, 'plan.json')
-    with open(filepath, 'w') as f:
+    plan["num_chunks"] = 1
+    filepath = os.path.join(out_file, "plan.json")
+    with open(filepath, "w") as f:
         ujson.dump(plan, f, indent=4)
 
-    other_files = ['avg_residual.pt', 'buckets.pt', 'centroids.pt', 'ivf.pt', 'ivf.pid.pt']
+    other_files = [
+        "avg_residual.pt",
+        "buckets.pt",
+        "centroids.pt",
+        "ivf.pt",
+        "ivf.pid.pt",
+    ]
     for filename in other_files:
         filepath = os.path.join(in_file, filename)
         if os.path.isfile(filepath):
@@ -109,7 +117,9 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Coalesce multi-file index into a single file.")
+    parser = argparse.ArgumentParser(
+        description="Coalesce multi-file index into a single file."
+    )
     parser.add_argument(
         "--input", type=str, required=True, help="Path to input index directory"
     )

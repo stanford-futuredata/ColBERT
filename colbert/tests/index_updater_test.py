@@ -79,7 +79,6 @@ def main(args):
 
     index_updater = IndexUpdater(config, searcher, checkpoint)
 
-
     # Try removing an invalid passage
     raised = False
     try:

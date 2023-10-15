@@ -9,7 +9,7 @@ from colbert.modeling.reranker.electra import ElectraReranker
 from colbert.utils.utils import flatten
 
 
-DEFAULT_MODEL = 'cross-encoder/ms-marco-MiniLM-L-6-v2'
+DEFAULT_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
 class Scorer:
@@ -33,7 +33,9 @@ class Scorer:
         offset = config.rank * share
         endpos = (1 + config.rank) * share
 
-        return self._score_pairs(qids[offset:endpos], pids[offset:endpos], show_progress=(config.rank < 1))
+        return self._score_pairs(
+            qids[offset:endpos], pids[offset:endpos], show_progress=(config.rank < 1)
+        )
 
     def _score_pairs(self, qids, pids, show_progress=False):
         tokenizer = AutoTokenizer.from_pretrained(self.model)
@@ -46,21 +48,29 @@ class Scorer:
         model.eval()
         with torch.inference_mode():
             with torch.cuda.amp.autocast():
-                for offset in tqdm.tqdm(range(0, len(qids), self.bsize), disable=(not show_progress)):
+                for offset in tqdm.tqdm(
+                    range(0, len(qids), self.bsize), disable=(not show_progress)
+                ):
                     endpos = offset + self.bsize
 
                     queries_ = [self.queries[qid] for qid in qids[offset:endpos]]
                     passages_ = [self.collection[pid] for pid in pids[offset:endpos]]
 
-                    features = tokenizer(queries_, passages_, padding='longest', truncation=True,
-                                            return_tensors='pt', max_length=self.maxlen).to(model.device)
+                    features = tokenizer(
+                        queries_,
+                        passages_,
+                        padding="longest",
+                        truncation=True,
+                        return_tensors="pt",
+                        max_length=self.maxlen,
+                    ).to(model.device)
 
                     scores.append(model(**features).logits.flatten())
 
         scores = torch.cat(scores)
         scores = scores.tolist()
 
-        Run().print(f'Returning with {len(scores)} scores')
+        Run().print(f"Returning with {len(scores)} scores")
 
         return scores
 

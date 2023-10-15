@@ -5,16 +5,17 @@ from .strided_tensor_core import _create_mask, _create_view
 
 
 class CandidateGeneration:
-
     def __init__(self, use_gpu=True):
         self.use_gpu = use_gpu
 
     def get_cells(self, Q, ncells):
-        scores = (self.codec.centroids @ Q.T)
+        scores = self.codec.centroids @ Q.T
         if ncells == 1:
             cells = scores.argmax(dim=0, keepdim=True).permute(1, 0)
         else:
-            cells = scores.topk(ncells, dim=0, sorted=False).indices.permute(1, 0)  # (32, ncells)
+            cells = scores.topk(ncells, dim=0, sorted=False).indices.permute(
+                1, 0
+            )  # (32, ncells)
         cells = cells.flatten().contiguous()  # (32 * ncells,)
         cells = cells.unique(sorted=False)
         return cells, scores
@@ -22,7 +23,9 @@ class CandidateGeneration:
     def generate_candidate_eids(self, Q, ncells):
         cells, scores = self.get_cells(Q, ncells)
 
-        eids, cell_lengths = self.ivf.lookup(cells)  # eids = (packedlen,)  lengths = (32 * ncells,)
+        eids, cell_lengths = self.ivf.lookup(
+            cells
+        )  # eids = (packedlen,)  lengths = (32 * ncells,)
         eids = eids.long()
         if self.use_gpu:
             eids = eids.cuda()

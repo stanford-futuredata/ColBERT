@@ -22,9 +22,13 @@ class StridedTensorCore:
         self.inner_dims = self.tensor.size()[1:]
         self.use_gpu = use_gpu
 
-        self.lengths = lengths.long() if torch.is_tensor(lengths) else torch.LongTensor(lengths)
+        self.lengths = (
+            lengths.long() if torch.is_tensor(lengths) else torch.LongTensor(lengths)
+        )
 
-        self.strides = _select_strides(self.lengths, [.5, .75, .9, .95]) + [self.lengths.max().item()]
+        self.strides = _select_strides(self.lengths, [0.5, 0.75, 0.9, 0.95]) + [
+            self.lengths.max().item()
+        ]
         self.max_stride = self.strides[-1]
 
         zero = torch.zeros(1, dtype=torch.long, device=self.lengths.device)
@@ -35,10 +39,18 @@ class StridedTensorCore:
             #     print("#> WARNING: StridedTensor has to add padding, internally, to a large tensor.")
             #     print("#> WARNING: Consider doing this padding in advance to save memory!")
 
-            padding = torch.zeros(self.max_stride, *self.inner_dims, dtype=self.tensor.dtype, device=self.tensor.device)
+            padding = torch.zeros(
+                self.max_stride,
+                *self.inner_dims,
+                dtype=self.tensor.dtype,
+                device=self.tensor.device,
+            )
             self.tensor = torch.cat((self.tensor, padding))
 
-        self.views = {stride: _create_view(self.tensor, stride, self.inner_dims) for stride in self.strides}
+        self.views = {
+            stride: _create_view(self.tensor, stride, self.inner_dims)
+            for stride in self.strides
+        }
 
     @classmethod
     def from_packed_tensor(cls, tensor, lengths):
@@ -77,14 +89,20 @@ class StridedTensorCore:
     # # @profile
     def as_padded_tensor(self):
         if self.use_gpu:
-            view = _create_view(self.tensor.cuda(), self.max_stride, self.inner_dims)[self.offsets[:-1]]
-            mask = _create_mask(self.lengths.cuda(), self.max_stride, like=view, use_gpu=self.use_gpu)
+            view = _create_view(self.tensor.cuda(), self.max_stride, self.inner_dims)[
+                self.offsets[:-1]
+            ]
+            mask = _create_mask(
+                self.lengths.cuda(), self.max_stride, like=view, use_gpu=self.use_gpu
+            )
         else:
-            #import pdb
-            #pdb.set_trace()
+            # import pdb
+            # pdb.set_trace()
             view = _create_view(self.tensor, self.max_stride, self.inner_dims)
             view = view[self.offsets[:-1]]
-            mask = _create_mask(self.lengths, self.max_stride, like=view, use_gpu=self.use_gpu)
+            mask = _create_mask(
+                self.lengths, self.max_stride, like=view, use_gpu=self.use_gpu
+            )
 
         return view, mask
 
@@ -92,17 +110,21 @@ class StridedTensorCore:
         raise NotImplementedError()
 
 
-
 def _select_strides(lengths, quantiles):
     if lengths.size(0) < 5_000:
         return _get_quantiles(lengths, quantiles)
-    
+
     sample = torch.randint(0, lengths.size(0), size=(2_000,))
 
     return _get_quantiles(lengths[sample], quantiles)
 
+
 def _get_quantiles(lengths, quantiles):
-    return torch.quantile(lengths.float(), torch.tensor(quantiles, device=lengths.device)).int().tolist()
+    return (
+        torch.quantile(lengths.float(), torch.tensor(quantiles, device=lengths.device))
+        .int()
+        .tolist()
+    )
 
 
 def _create_view(tensor, stride, inner_dims):

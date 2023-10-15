@@ -15,7 +15,7 @@ class Queries:
         if data:
             assert isinstance(data, dict), type(data)
         self._load_data(data) or self._load_file(path)
-    
+
     def __len__(self):
         return len(self.data)
 
@@ -24,9 +24,9 @@ class Queries:
 
     def provenance(self):
         return self.path
-    
+
     def toDict(self):
-        return {'provenance': self.provenance()}
+        return {"provenance": self.provenance()}
 
     def _load_data(self, data):
         if data is None:
@@ -37,7 +37,7 @@ class Queries:
 
         for qid, content in data.items():
             if isinstance(content, dict):
-                self.data[qid] = content['question']
+                self.data[qid] = content["question"]
                 self._qas[qid] = content
             else:
                 self.data[qid] = content
@@ -48,10 +48,10 @@ class Queries:
         return True
 
     def _load_file(self, path):
-        if not path.endswith('.json'):
+        if not path.endswith(".json"):
             self.data = load_queries(path)
             return True
-        
+
         # Load QAs
         self.data = {}
         self._qas = {}
@@ -60,9 +60,9 @@ class Queries:
             for line in f:
                 qa = ujson.loads(line)
 
-                assert qa['qid'] not in self.data
-                self.data[qa['qid']] = qa['question']
-                self._qas[qa['qid']] = qa
+                assert qa["qid"] not in self.data
+                self.data[qa["qid"]] = qa["question"]
+                self._qas[qa["qid"]] = qa
 
         return self.data
 
@@ -82,24 +82,24 @@ class Queries:
         return self.data.items()
 
     def save(self, new_path):
-        assert new_path.endswith('.tsv')
+        assert new_path.endswith(".tsv")
         assert not os.path.exists(new_path), new_path
 
-        with Run().open(new_path, 'w') as f:
+        with Run().open(new_path, "w") as f:
             for qid, content in self.data.items():
-                content = f'{qid}\t{content}\n'
+                content = f"{qid}\t{content}\n"
                 f.write(content)
-            
+
             return f.name
 
     def save_qas(self, new_path):
-        assert new_path.endswith('.json')
+        assert new_path.endswith(".json")
         assert not os.path.exists(new_path), new_path
 
-        with open(new_path, 'w') as f:
+        with open(new_path, "w") as f:
             for qid, qa in self._qas.items():
-                qa['qid'] = qid
-                f.write(ujson.dumps(qa) + '\n')
+                qa["qid"] = qid
+                f.write(ujson.dumps(qa) + "\n")
 
     def _load_tsv(self, path):
         raise NotImplementedError

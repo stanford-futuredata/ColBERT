@@ -4,7 +4,11 @@ import ujson
 from functools import partial
 from colbert.infra.config.config import ColBERTConfig
 from colbert.utils.utils import print_message, zipstar
-from colbert.modeling.tokenization import QueryTokenizer, DocTokenizer, tensorize_triples
+from colbert.modeling.tokenization import (
+    QueryTokenizer,
+    DocTokenizer,
+    tensorize_triples,
+)
 from colbert.evaluation.loaders import load_collection
 
 from colbert.data.collection import Collection
@@ -14,14 +18,18 @@ from colbert.data.examples import Examples
 # from colbert.utils.runs import Run
 
 
-class LazyBatcher():
-    def __init__(self, config: ColBERTConfig, triples, queries, collection, rank=0, nranks=1):
+class LazyBatcher:
+    def __init__(
+        self, config: ColBERTConfig, triples, queries, collection, rank=0, nranks=1
+    ):
         self.bsize, self.accumsteps = config.bsize, config.accumsteps
         self.nway = config.nway
 
         self.query_tokenizer = QueryTokenizer(config)
         self.doc_tokenizer = DocTokenizer(config)
-        self.tensorize_triples = partial(tensorize_triples, self.query_tokenizer, self.doc_tokenizer)
+        self.tensorize_triples = partial(
+            tensorize_triples, self.query_tokenizer, self.doc_tokenizer
+        )
         self.position = 0
 
         self.triples = Examples.cast(triples, nway=self.nway).tolist(rank, nranks)
@@ -35,7 +43,9 @@ class LazyBatcher():
         return len(self.triples)
 
     def __next__(self):
-        offset, endpos = self.position, min(self.position + self.bsize, len(self.triples))
+        offset, endpos = self.position, min(
+            self.position + self.bsize, len(self.triples)
+        )
         self.position = endpos
 
         if offset + self.bsize > len(self.triples):
@@ -45,7 +55,7 @@ class LazyBatcher():
 
         for position in range(offset, endpos):
             query, *pids = self.triples[position]
-            pids = pids[:self.nway]
+            pids = pids[: self.nway]
 
             query = self.queries[query]
 
@@ -59,7 +69,7 @@ class LazyBatcher():
             all_queries.append(query)
             all_passages.extend(passages)
             all_scores.extend(scores)
-        
+
         assert len(all_scores) in [0, len(all_passages)], len(all_scores)
 
         return self.collate(all_queries, all_passages, all_scores)
@@ -68,7 +78,9 @@ class LazyBatcher():
         assert len(queries) == self.bsize
         assert len(passages) == self.nway * self.bsize
 
-        return self.tensorize_triples(queries, passages, scores, self.bsize // self.accumsteps, self.nway)
+        return self.tensorize_triples(
+            queries, passages, scores, self.bsize // self.accumsteps, self.nway
+        )
 
     # def skip_to_batch(self, batch_idx, intended_batch_size):
     #     Run.warn(f'Skipping to batch #{batch_idx} (with intended_batch_size = {intended_batch_size}) for training.')

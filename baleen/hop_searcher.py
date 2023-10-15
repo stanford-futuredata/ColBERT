@@ -5,11 +5,11 @@ from colbert.data import Queries
 from colbert.infra.config import ColBERTConfig
 
 
-TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
+TextQueries = Union[str, "list[str]", "dict[int, str]", Queries]
 
 
 class HopSearcher(Searcher):
-    def __init__(self, *args, config=None, interaction='flipr', **kw_args):
+    def __init__(self, *args, config=None, interaction="flipr", **kw_args):
         defaults = ColBERTConfig(query_maxlen=64, interaction=interaction)
         config = ColBERTConfig.from_existing(defaults, config)
 
@@ -21,7 +21,9 @@ class HopSearcher(Searcher):
         bsize = 128 if len(queries) > 128 else None
 
         self.checkpoint.query_tokenizer.query_maxlen = self.config.query_maxlen
-        Q = self.checkpoint.queryFromText(queries, context=context, bsize=bsize, to_cpu=True)
+        Q = self.checkpoint.queryFromText(
+            queries, context=context, bsize=bsize, to_cpu=True
+        )
 
         return Q
 

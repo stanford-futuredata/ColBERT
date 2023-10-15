@@ -1,5 +1,3 @@
-
-
 # Not just the corpus, but also an arbitrary number of query sets, indexed by name in a dictionary/dotdict.
 # And also query sets with top-k PIDs.
 # QAs too? TripleSets too?

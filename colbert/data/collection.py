@@ -1,4 +1,3 @@
-
 # Could be .tsv or .json. The latter always allows more customization via optional parameters.
 # I think it could be worth doing some kind of parallel reads too, if the file exceeds 1 GiBs.
 # Just need to use a datastructure that shares things across processes without too much pickling.
@@ -30,7 +29,7 @@ class Collection:
 
     def _load_file(self, path):
         self.path = path
-        return self._load_tsv(path) if path.endswith('.tsv') else self._load_jsonl(path)
+        return self._load_tsv(path) if path.endswith(".tsv") else self._load_jsonl(path)
 
     def _load_tsv(self, path):
         return load_collection(path)
@@ -40,20 +39,20 @@ class Collection:
 
     def provenance(self):
         return self.path
-    
+
     def toDict(self):
-        return {'provenance': self.provenance()}
+        return {"provenance": self.provenance()}
 
     def save(self, new_path):
-        assert new_path.endswith('.tsv'), "TODO: Support .json[l] too."
+        assert new_path.endswith(".tsv"), "TODO: Support .json[l] too."
         assert not os.path.exists(new_path), new_path
 
-        with Run().open(new_path, 'w') as f:
+        with Run().open(new_path, "w") as f:
             # TODO: expects content to always be a string here; no separate title!
             for pid, content in enumerate(self.data):
-                content = f'{pid}\t{content}\n'
+                content = f"{pid}\t{content}\n"
                 f.write(content)
-            
+
             return f.name
 
     def enumerate(self, rank):
@@ -79,9 +78,11 @@ class Collection:
 
             if len(L) < chunksize:
                 return
-    
+
     def get_chunksize(self):
-        return min(25_000, 1 + len(self) // Run().nranks)  # 25k is great, 10k allows things to reside on GPU??
+        return min(
+            25_000, 1 + len(self) // Run().nranks
+        )  # 25k is great, 10k allows things to reside on GPU??
 
     @classmethod
     def cast(cls, obj):
