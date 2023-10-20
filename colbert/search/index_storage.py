@@ -94,9 +94,9 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
             if filter_fn is not None:
                 filtered_pids = filter_fn(pids)
-                assert isinstance(filtered_pids, torch.tensor)
-                assert filtered_pids.dtype == pids.dtype
-                assert filtered_pids.device == pids.device
+                assert isinstance(filtered_pids, torch.Tensor), type(filterd_pids)
+                assert filtered_pids.dtype == pids.dtype, f"filtered_pids.dtype={filtered_pids.dtype}, pids.dtype={pids.dtype}"
+                assert filtered_pids.device == pids.device, f"{filtered_pids.device={filtered_pids.device}, pids.device={pids.device}"
                 pids = filtered_pids
                 if len(pids) == 0:
                     return [], []
