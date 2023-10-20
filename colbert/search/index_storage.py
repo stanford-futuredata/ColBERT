@@ -84,12 +84,20 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         all_pids = torch.unique(self.emb2pid[embedding_ids.long()].cuda(), sorted=False)
         return all_pids
 
-    def rank(self, config, Q, filter_fn=None):
+    def rank(self, config, Q, filter_fn=None, pids=None):
         with torch.inference_mode():
-            pids, centroid_scores = self.retrieve(config, Q)
+            if pids is None:
+                pids, centroid_scores = self.retrieve(config, Q)
+            else:
+                pids_, centroid_scores = self.retrieve(config, Q)
+                pids = torch.tensor(pids, dtype=pids_.dtype, device=pids_.device)
 
             if filter_fn is not None:
-                pids = filter_fn(pids)
+                filtered_pids = filter_fn(pids)
+                assert isinstance(filtered_pids, torch.tensor)
+                assert filtered_pids.dtype == pids.dtype
+                assert filtered_pids.device == pids.device
+                pids = filtered_pids
                 if len(pids) == 0:
                     return [], []
 
