@@ -6,27 +6,63 @@
 
 import os
 import itertools
+import mmap
 
 from colbert.evaluation.loaders import load_collection
 from colbert.infra.run import Run
 
 
 class Collection:
-    def __init__(self, path=None, data=None):
+    def __init__(self, path=None, data=None, load_collection_with_mmap=True):
         self.path = path
-        self.data = data or self._load_file(path)
+        self.load_collection_with_mmap = load_collection_with_mmap
+        if self.load_collection_with_mmap:
+            with open(self.path, 'r') as file:
+                self.mmap_file = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+        else:
+            self.data = data or self._load_file(path)
+
+    def __del__(self):
+        if hasattr(self, "load_collection_with_mmap") and self.load_collection_with_mmap and self.mmap_file:
+            self.mmap_file.close()
 
     def __iter__(self):
-        # TODO: If __data isn't there, stream from disk!
-        return self.data.__iter__()
+        if self.load_collection_with_mmap:
+            self.mmap_file.seek(0)
+            return self
+        else:
+            return iter(self.data)
+
+    def __next__(self):
+        if self.load_collection_with_mmap:
+            line = self.mmap_file.readline()
+            if not line:
+                raise StopIteration
+            return line.decode("utf-8").strip().split("\t")[1]
+        else:
+            raise StopIteration
 
     def __getitem__(self, item):
-        # TODO: Load from disk the first time this is called. Unless self.data is already not None.
-        return self.data[item]
+        if self.load_collection_with_mmap:
+            with open(self.path, 'r') as file:
+                self.mmap_file.seek(0)
+
+                for idx, line in enumerate(self):
+                    if idx == item:
+                        return line
+                raise IndexError("Index out of range")
+        else:
+            return self.data[item]
 
     def __len__(self):
-        # TODO: Load here too. Basically, let's make data a property function and, on first call, either load or get __data.
-        return len(self.data)
+        if self.load_collection_with_mmap:
+            self.mmap_file.seek(0)
+            count = 0
+            while self.mmap_file.readline():
+                count += 1
+            return count
+        else:
+            return len(self.data)
 
     def _load_file(self, path):
         self.path = path
@@ -40,7 +76,7 @@ class Collection:
 
     def provenance(self):
         return self.path
-    
+
     def toDict(self):
         return {'provenance': self.provenance()}
 
@@ -53,7 +89,7 @@ class Collection:
             for pid, content in enumerate(self.data):
                 content = f'{pid}\t{content}\n'
                 f.write(content)
-            
+
             return f.name
 
     def enumerate(self, rank):
@@ -79,14 +115,14 @@ class Collection:
 
             if len(L) < chunksize:
                 return
-    
+
     def get_chunksize(self):
         return min(25_000, 1 + len(self) // Run().nranks)  # 25k is great, 10k allows things to reside on GPU??
 
     @classmethod
-    def cast(cls, obj):
+    def cast(cls, obj, load_collection_with_mmap=False):
         if type(obj) is str:
-            return cls(path=obj)
+            return cls(path=obj, load_collection_with_mmap=load_collection_with_mmap)
 
         if type(obj) is list:
             return cls(data=obj)

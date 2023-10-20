@@ -18,7 +18,7 @@ class ColBERT(BaseColBERT):
 
     def __init__(self, name='bert-base-uncased', colbert_config=None):
         super().__init__(name, colbert_config)
-        self.use_gpu = colbert_config.total_visible_gpus > 0
+        self.use_gpu = colbert_config.gpus > 0
 
         ColBERT.try_load_torch_extensions(self.use_gpu)
 
@@ -176,12 +176,10 @@ def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig()):
     return colbert_score_reduce(scores, D_mask, config)
 
 
-def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
+def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig(), use_gpu=True):
     """
         Works with a single query only.
     """
-
-    use_gpu = config.total_visible_gpus > 0
 
     if use_gpu:
         Q, D_packed, D_lengths = Q.cuda(), D_packed.cuda(), D_lengths.cuda()

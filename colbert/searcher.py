@@ -23,7 +23,7 @@ class Searcher:
     def __init__(self, index, checkpoint=None, collection=None, config=None):
         print_memory_stats()
 
-        initial_config = ColBERTConfig.from_existing(config, Run().config)
+        initial_config = ColBERTConfig.from_existing(Run().config, config)
 
         default_index_root = initial_config.index_root_
         self.index = os.path.join(default_index_root, index)
@@ -33,11 +33,11 @@ class Searcher:
         self.checkpoint_config = ColBERTConfig.load_from_checkpoint(self.checkpoint)
         self.config = ColBERTConfig.from_existing(self.checkpoint_config, self.index_config, initial_config)
 
-        self.collection = Collection.cast(collection or self.config.collection)
-        self.configure(checkpoint=self.checkpoint, collection=self.collection)
+        self.collection = Collection.cast(collection or self.config.collection, load_collection_with_mmap=config.load_collection_with_mmap)
+        self.configure(checkpoint=self.checkpoint)
 
         self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config)
-        use_gpu = self.config.total_visible_gpus > 0
+        use_gpu = self.config.gpus > 0
         if use_gpu:
             self.checkpoint = self.checkpoint.cuda()
         load_index_with_mmap = self.config.load_index_with_mmap

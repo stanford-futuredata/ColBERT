@@ -24,7 +24,7 @@ class IndexLoader:
 
     def _load_codec(self):
         print_message(f"#> Loading codec...")
-        self.codec = ResidualCodec.load(self.index_path)
+        self.codec = ResidualCodec.load(self.index_path, use_gpu=self.use_gpu)
 
     def _load_ivf(self):
         print_message(f"#> Loading IVF...")

@@ -18,12 +18,12 @@ from torch.utils.cpp_extension import load
 class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
-    def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None):
-        self.use_gpu = config.total_visible_gpus > 0
+    def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None, use_gpu=True):
+        self.use_gpu = use_gpu
 
         ResidualCodec.try_load_torch_extensions(self.use_gpu)
 
-        if self.use_gpu > 0:
+        if self.use_gpu:
             self.centroids = centroids.cuda().half()
         else:
             self.centroids = centroids.float()
@@ -132,7 +132,7 @@ class ResidualCodec:
         cls.loaded_extensions = True
 
     @classmethod
-    def load(cls, index_path):
+    def load(cls, index_path, use_gpu=True):
         config = ColBERTConfig.load_from_index(index_path)
         centroids_path = os.path.join(index_path, 'centroids.pt')
         avgresidual_path = os.path.join(index_path, 'avg_residual.pt')
@@ -145,7 +145,7 @@ class ResidualCodec:
         if avg_residual.dim() == 0:
             avg_residual = avg_residual.item()
 
-        return cls(config=config, centroids=centroids, avg_residual=avg_residual, bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights)
+        return cls(config=config, centroids=centroids, avg_residual=avg_residual, bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights, use_gpu=use_gpu)
 
     def save(self, index_path):
         assert self.avg_residual is not None
