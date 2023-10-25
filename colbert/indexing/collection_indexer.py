@@ -143,7 +143,7 @@ class CollectionIndexer():
             nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
             torch.distributed.all_reduce(nonzero_ranks)
         else:
-            if torch.distributed.is_initialized():
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
                 self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
                 torch.distributed.all_reduce(self.num_sample_embs)
 
