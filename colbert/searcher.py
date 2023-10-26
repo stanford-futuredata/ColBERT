@@ -20,13 +20,14 @@ TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
 
 
 class Searcher:
-    def __init__(self, index, checkpoint=None, collection=None, config=None):
+    def __init__(self, index, checkpoint=None, collection=None, config=None, index_root=None):
         print_memory_stats()
 
         initial_config = ColBERTConfig.from_existing(config, Run().config)
 
         default_index_root = initial_config.index_root_
-        self.index = os.path.join(default_index_root, index)
+        index_root = index_root if index_root else default_index_root
+        self.index = os.path.join(index_root, index)
         self.index_config = ColBERTConfig.load_from_index(self.index)
 
         self.checkpoint = checkpoint or self.index_config.checkpoint
