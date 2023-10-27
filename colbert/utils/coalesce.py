@@ -57,12 +57,15 @@ def main(args):
     ## Coalesce residuals ##
     print("Coalescing residuals files...")
 
-    temp = torch.empty(0, dtype=torch.uint8)
+    # Allocate all the memory needed in the beginning. Starting from torch.empty() and concatenating repeatedly results in excessive memory use and is much much slower.
+    temp = torch.zeros(((metadata['num_embeddings'], int(metadata['config']['dim'] * metadata['config']['nbits'] // 8))), dtype=torch.uint8)
+    cur_offset = 0
     # read into one large tensor
     for i in tqdm(range(num_chunks)):
         filepath = os.path.join(in_file, f'{i}.residuals.pt')
         chunk = torch.load(filepath)
-        temp = torch.cat((temp, chunk))
+        temp[cur_offset : cur_offset + len(chunk):] = chunk
+        cur_offset += len(chunk)
 
     print("Saving residuals to output directory (this may take a few minutes)...")
 
