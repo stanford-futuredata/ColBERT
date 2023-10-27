@@ -32,7 +32,7 @@ class Examples:
                 examples.append(example)
         
         if self.shuffle:
-            random.shuffle(examples)
+            random.Random(42).shuffle(examples)
         
         return examples
 
