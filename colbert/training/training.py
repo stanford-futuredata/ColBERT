@@ -104,8 +104,15 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
 
         this_batch_loss = 0.0
 
+        if config.amp_dtype=="bf16":
+            amp_dtype = torch.bfloat16
+        elif config.amp_dtype=="fp16":
+            amp_dtype = torch.float16
+        else:
+            print_message(f"Unknown amp_dtype: {config.amp_dtype}. Using fp16.")
+
         for batch in BatchSteps:
-            with amp.context():
+            with amp.context(dtype = amp_dtype):
                 try:
                     queries, passages, target_scores = batch
                     encoding = [queries, passages]

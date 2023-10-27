@@ -157,6 +157,8 @@ class TrainingSettings:
 
     shuffle_triples: bool = DefaultVal(False)
 
+    amp_dtype: str = DefaultVal('fp16')
+
 @dataclass
 class IndexingSettings:
     index_path: str = DefaultVal(None)
