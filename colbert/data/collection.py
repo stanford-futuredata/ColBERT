@@ -5,7 +5,7 @@
 # I think multiprocessing.Manager can do that!
 
 import os
-import jsonl
+import json
 import itertools
 
 from colbert.utils.utils import print_message
@@ -58,7 +58,7 @@ class Collection:
 
         print()
 
-        return collection_list
+        return collection
 
     def provenance(self):
         return self.path
