@@ -39,7 +39,7 @@ async def run_request(stub, request, experiment):
 async def run(args):
     print("Main process running on CPU", psutil.Process().cpu_num())
     nodes = args.num_servers
-    queries = Queries(path=f"/home/ubuntu/data/{index}/questions.tsv")
+    queries = Queries(path=f"/home/ubuntu/data/{args.index}/questions.tsv")
     qvals = list(queries.items())
     tasks = []
     channels = []
@@ -113,7 +113,7 @@ if __name__ == '__main__':
         arg_str = f"-w {args.num_workers} -i {args.index}" 
         if args.skip_encoding: arg_str += " -s"
         print("taskset -c " + str(node) + f" python eval_server.py {arg_str}")
-        processes.append(Popen("taskset -c " + str(node) + f" python eval_server.py {arg_str}",
+        processes.append(Popen("taskset -c " + str(node) + f" python eval_server_async.py {arg_str}",
                                shell=True, preexec_fn=os.setsid).pid)
 
         times = 10

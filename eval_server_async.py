@@ -5,6 +5,7 @@ from concurrent import futures
 import torch
 import server_pb2
 import server_pb2_grpc
+from grpc import aio
 import psutil
 from multiprocessing.connection import Listener
 import gc
@@ -38,7 +39,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         self.gold_ranks = defaultdict(list)
         self.skip_encoding = skip_encoding
 
-        channel = grpc.insecure_channel('localhost:50060')
+        channel = grpc.aio.insecure_channel('localhost:50060')
         self.splade_stub = splade_pb2_grpc.SpladeStub(channel)
 
         with open(gold_rankings_files, newline='', encoding='utf-8') as tsvfile:
@@ -76,11 +77,11 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
         return query_result
     
-    def api_serve_query(self, query, qid, k=100):
+    async def api_serve_query(self, query, qid, k=100):
         gc.collect()
         t2 = time.time()
         url = 'http://localhost:8080'
-        splade_q = self.splade_stub.GenerateQuery(splade_pb2.QueryStr(query=query, multiplier=self.multiplier))
+        splade_q = await self.splade_stub.GenerateQuery(splade_pb2.QueryStr(query=query, multiplier=self.multiplier))
         data = {"query": splade_q.query, "k": 200}
         headers = {'Content-Type': 'application/json'}
         
@@ -104,7 +105,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
-    def api_search_query(self, query, qid, k=100):
+    async def api_search_query(self, query, qid, k=100):
         gc.collect()
         t2 = time.time()
         if not self.skip_encoding:
@@ -124,7 +125,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
-    def api_rerank_query(self, query, qid, k=100):
+    async def api_rerank_query(self, query, qid, k=100):
         gc.collect()
         t2 = time.time()
         gr = torch.tensor(self.gold_ranks[qid][:200], dtype=torch.int)
@@ -145,30 +146,31 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k[:k]})
 
-    def Search(self, request, context):
+    async def Search(self, request, context):
         torch.set_num_threads(1)
-        return self.api_search_query(request.query, request.qid, request.k)
+        return await self.api_search_query(request.query, request.qid, request.k)
 
-    def Serve(self, request, context):
+    async def Serve(self, request, context):
         torch.set_num_threads(1)
-        return self.api_serve_query(request.query, request.qid, request.k)
+        return await self.api_serve_query(request.query, request.qid, request.k)
 
-    def Rerank(self, request, context):
+    async def Rerank(self, request, context):
         torch.set_num_threads(1)
-        return self.api_rerank_query(request.query, request.qid, request.k)
+        return await self.api_rerank_query(request.query, request.qid, request.k)
 
 
-def serve_ColBERT_server(args):
+async def serve_ColBERT_server(args):
     connection = Listener(('localhost', 50040 + psutil.Process().cpu_num()), authkey=b'password').accept()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=args.num_workers))
+    # server = grpc.server(futures.ThreadPoolExecutor(max_workers=args.num_workers))
+    server = aio.server()
     server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(psutil.Process().cpu_num(), args.index, args.skip_encoding), server)
     listen_addr = '[::]:5005' + str(psutil.Process().cpu_num())
     server.add_insecure_port(listen_addr)
     print(f"Starting ColBERT server on {listen_addr}")
     connection.send("Done")
     connection.close()
-    server.start()
-    server.wait_for_termination()
+    await server.start()
+    await server.wait_for_termination()
     print("Terminated")
 
 
