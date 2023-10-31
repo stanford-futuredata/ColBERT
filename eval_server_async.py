@@ -1,3 +1,5 @@
+import asyncio
+import aiohttp
 import argparse
 import sys
 import grpc
@@ -64,6 +66,12 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
                 self.enc[q[0]] = self.searcher.encode([q[1]])
             torch.save(self.enc, f"{prefix}/{index}/encodings.pt")
 
+    async def fetch_url(self, url, data):
+        headers = {'Content-Type': 'application/json'}
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=json.dumps(data), headers=headers) as response:
+                return await response.text()
+
     def convert_dict_to_protobuf(self, input_dict):
         query_result = server_pb2.QueryResult()
 
@@ -83,9 +91,8 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         url = 'http://localhost:8080'
         splade_q = await self.splade_stub.GenerateQuery(splade_pb2.QueryStr(query=query, multiplier=self.multiplier))
         data = {"query": splade_q.query, "k": 200}
-        headers = {'Content-Type': 'application/json'}
         
-        response = requests.post(url, data=json.dumps(data), headers=headers).text
+        response = await self.fetch_url(url, data)
         response = json.loads(response).get('results', {})
         gr = torch.tensor([int(x) for x in response.keys()], dtype=torch.int)
         Q = self.searcher.encode([query]) if not self.skip_encoding else self.enc[qid]
@@ -184,4 +191,4 @@ if __name__ == '__main__':
                         required=True, help='Index to run')
 
     args = parser.parse_args()
-    serve_ColBERT_server(args)
+    asyncio.run(serve_ColBERT_server(args))
