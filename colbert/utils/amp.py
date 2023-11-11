@@ -11,8 +11,8 @@ class MixedPrecisionManager():
         if self.activated:
             self.scaler = torch.cuda.amp.GradScaler()
 
-    def context(self):
-        return torch.cuda.amp.autocast() if self.activated else NullContextManager()
+    def context(self, dtype):
+        return torch.cuda.amp.autocast(dtype=dtype) if self.activated else NullContextManager()
 
     def backward(self, loss):
         if self.activated:

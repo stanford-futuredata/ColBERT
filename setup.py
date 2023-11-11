@@ -29,6 +29,7 @@ setuptools.setup(
     ], 
     extras_require={
         'faiss-gpu': ['faiss-gpu>=1.7.0'],
-        'torch': ['torch==1.13.1']
+        'torch': ['torch==1.13.1'],
+        'ranx': ['ranx==0.3.16']
     }
 )

@@ -9,8 +9,13 @@ from colbert.evaluation.loaders import load_queries
 
 
 class Queries:
-    def __init__(self, path=None, data=None):
+    def __init__(self, path=None, data=None, query_id_key='id', query_key='query', body_key='body', include_body=True, body_char_limit=1000):
         self.path = path
+        self.query_key = query_key
+        self.query_id_key = query_id_key
+        self.body_key = body_key
+        self.include_body = include_body
+        self.body_char_limit = body_char_limit
 
         if data:
             assert isinstance(data, dict), type(data)
@@ -37,7 +42,7 @@ class Queries:
 
         for qid, content in data.items():
             if isinstance(content, dict):
-                self.data[qid] = content['question']
+                self.data[qid] = content[self.query_key]
                 self._qas[qid] = content
             else:
                 self.data[qid] = content
@@ -48,7 +53,7 @@ class Queries:
         return True
 
     def _load_file(self, path):
-        if not path.endswith('.json'):
+        if not (path.endswith('.json') or path.endswith('.jsonl')):
             self.data = load_queries(path)
             return True
         
@@ -60,9 +65,12 @@ class Queries:
             for line in f:
                 qa = ujson.loads(line)
 
-                assert qa['qid'] not in self.data
-                self.data[qa['qid']] = qa['question']
-                self._qas[qa['qid']] = qa
+                assert qa[self.query_id_key] not in self.data
+                if self.include_body and self.body_key in qa:
+                    self.data[qa[self.query_id_key]] = qa[self.query_key] + '|' + qa[self.body_key][:self.body_char_limit]
+                else:
+                    self.data[qa[self.query_id_key]] = qa[self.query_key]
+                self._qas[qa[self.query_id_key]] = qa
 
         return self.data
 
@@ -98,7 +106,7 @@ class Queries:
 
         with open(new_path, 'w') as f:
             for qid, qa in self._qas.items():
-                qa['qid'] = qid
+                qa[self.query_id_key] = qid
                 f.write(ujson.dumps(qa) + '\n')
 
     def _load_tsv(self, path):
