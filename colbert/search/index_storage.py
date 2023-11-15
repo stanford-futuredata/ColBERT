@@ -45,7 +45,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             extra_cflags=["-O3"],
             verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
         )
-        cls.filter_pids = filter_pids_cpp.filter_pids_cpp
+        cls.filter_pids_cpp = filter_pids_cpp.filter_pids_cpp
 
         print_message(f"Loading decompress_residuals_cpp extension (set COLBERT_LOAD_TORCH_EXTENSION_VERBOSE=True for more info)...")
         decompress_residuals_cpp = load(
@@ -58,7 +58,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             extra_cflags=["-O3"],
             verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
         )
-        cls.decompress_residuals = decompress_residuals_cpp.decompress_residuals_cpp
+        cls.decompress_residuals_cpp = decompress_residuals_cpp.decompress_residuals_cpp
 
         cls.loaded_extensions = True
 
@@ -89,8 +89,8 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             if pids is None:
                 pids, centroid_scores = self.retrieve(config, Q)
             else:
-                pids_, centroid_scores = self.retrieve(config, Q)
-                pids = torch.tensor(pids, dtype=pids_.dtype, device=pids_.device)
+                centroid_scores = None
+                pids = torch.tensor(pids, dtype=pids.dtype, device=Q.device)
 
             if filter_fn is not None:
                 filtered_pids = filter_fn(pids)
@@ -101,7 +101,9 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 if len(pids) == 0:
                     return [], []
 
-            scores, pids = self.score_pids(config, Q, pids, centroid_scores)
+            if centroid_scores is not None:
+                pids = self.filter_pids(config, Q, pids, centroid_scores)
+            scores, pids = self.score_pids(config, Q, pids)
 
             scores_sorter = scores.sort(descending=True)
 
@@ -109,7 +111,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
             return pids, scores
 
-    def score_pids(self, config, Q, pids, centroid_scores):
+    def filter_pids(self, config, Q, pids, centroid_scores):
         """
             Always supply a flat list or tensor for `pids`.
 
@@ -160,16 +162,19 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             if config.ndocs // 4 < len(approx_scores):
                 pids = pids[torch.topk(approx_scores, k=(config.ndocs // 4)).indices]
         else:
-            pids = IndexScorer.filter_pids(
+            pids = IndexScorer.filter_pids_cpp(
                     pids, centroid_scores, self.embeddings.codes, self.doclens,
                     self.offsets, idx, config.ndocs
                 )
 
+        return pids
+
+    def score_pids(self, config, Q, pids):
         # Rank final list of docs using full approximate embeddings (including residuals)
         if self.use_gpu:
             D_packed, D_mask = self.lookup_pids(pids)
         else:
-            D_packed = IndexScorer.decompress_residuals(
+            D_packed = IndexScorer.decompress_residuals_cpp(
                     pids,
                     self.doclens,
                     self.offsets,
