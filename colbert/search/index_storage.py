@@ -90,7 +90,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
                 pids, centroid_scores = self.retrieve(config, Q)
             else:
                 centroid_scores = None
-                pids = torch.tensor(pids, dtype=pids.dtype, device=Q.device)
+                pids = torch.tensor(pids, dtype=torch.int32, device=Q.device)
 
             if filter_fn is not None:
                 filtered_pids = filter_fn(pids)
