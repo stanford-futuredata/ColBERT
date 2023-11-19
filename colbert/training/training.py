@@ -17,14 +17,8 @@ from colbert.modeling.colbert import ColBERT
 from colbert.utils.utils import print_message
 from colbert.training.utils import print_progress, manage_checkpoints
 
-from colbert.modeling.gradient_reversal_layer import GradientReversalFunction
-
-from torch.utils.tensorboard import SummaryWriter
-
 
 def train(args):
-    writer = SummaryWriter('/home/jhkim980112/workspace/tensorboard_log/' + args.experiment)
-
     random.seed(12345)
     np.random.seed(12345)
     torch.manual_seed(12345)
@@ -46,15 +40,12 @@ def train(args):
     if args.rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    colbert = ColBERT.from_pretrained(args.base_model, 
+    colbert = ColBERT.from_pretrained(args.base_model,
                                       query_maxlen=args.query_maxlen,
                                       doc_maxlen=args.doc_maxlen,
                                       dim=args.dim,
                                       similarity_metric=args.similarity,
-                                      mask_punctuation=args.mask_punctuation,
-                                      use_gradient_reversal=args.lp_loss)
-
-    #colbert.model.resize_token_embeddings(len(colbert.tokenizer))
+                                      mask_punctuation=args.mask_punctuation)
 
     if args.checkpoint is not None:
         assert args.resume_optimizer is False, "TODO: This would mean reload optimizer too."
@@ -71,7 +62,6 @@ def train(args):
     if args.rank == 0:
         torch.distributed.barrier()
 
-    #DEVICE = torch.device("cuda:"+str(args.rank))
     colbert = colbert.to(DEVICE)
     colbert.train()
 
@@ -89,10 +79,7 @@ def train(args):
 
     start_time = time.time()
     train_loss = 0.0
-    train_ir_loss = 0.0
-    train_lp_loss = 0.0
-    lp_acc = (0,0,0)
-    
+
     start_batch_idx = 0
 
     if args.resume:
@@ -104,28 +91,17 @@ def train(args):
     for batch_idx, BatchSteps in zip(range(start_batch_idx, args.maxsteps), reader):
         this_batch_loss = 0.0
 
-        for queries, passages, sources, targets in BatchSteps:
+        for queries, passages in BatchSteps:
             with amp.context():
-                if args.lp_loss:
-                    ir_scores, lp_loss, lp_acc = colbert(queries, passages, sources, targets)#.view(2, -1).permute(1, 0)
-                    ir_scores = ir_scores.view(2, -1).permute(1, 0)
-                    ir_loss = criterion(ir_scores, labels[:ir_scores.size(0)])
-                    loss = ir_loss + lp_loss
-                    scores = ir_scores
-                else:
-                    scores, _, _ = colbert(queries, passages, sources, targets)
-                    scores = scores.view(2, -1).permute(1, 0)
-                    loss = criterion(scores, labels[:scores.size(0)])
-                    
+                scores = colbert(queries, passages).view(2, -1).permute(1, 0)
+                loss = criterion(scores, labels[:scores.size(0)])
                 loss = loss / args.accumsteps
+
             if args.rank < 1:
                 print_progress(scores)
 
             amp.backward(loss)
 
-            if args.lp_loss:
-                train_ir_loss += ir_loss.item()
-                train_lp_loss += lp_loss.item()
             train_loss += loss.item()
             this_batch_loss += loss.item()
 
@@ -142,20 +118,6 @@ def train(args):
             Run.log_metric('train/batch_loss', this_batch_loss, step=batch_idx, log_to_mlflow=log_to_mlflow)
             Run.log_metric('train/examples', num_examples_seen, step=batch_idx, log_to_mlflow=log_to_mlflow)
             Run.log_metric('train/throughput', num_examples_seen / elapsed, step=batch_idx, log_to_mlflow=log_to_mlflow)
-            
-            writer.add_scalar("train_loss/batch_loss", this_batch_loss, batch_idx+1)
-            writer.add_scalar("train_loss/IR_loss", train_ir_loss/(batch_idx+1), batch_idx+1)
-            writer.add_scalar("train_loss/LP_loss", train_lp_loss/(batch_idx+1), batch_idx+1)    
-            writer.add_scalar("train_loss/avg_loss", train_loss/(batch_idx+1), batch_idx+1)
-            
-            writer.add_scalar("lp_accuracy/src", lp_acc[0], batch_idx+1)
-            writer.add_scalar("lp_accuracy/trg", lp_acc[1], batch_idx+1)
-            writer.add_scalar("lp_accuracy/avg", lp_acc[2], batch_idx+1)
-            writer.add_scalar("num of examples", num_examples_seen, batch_idx+1)
 
             print_message(batch_idx, avg_loss)
-            print(num_examples_seen)
             manage_checkpoints(args, colbert, optimizer, batch_idx+1)
-            
-            
-    writer.close()

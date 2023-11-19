@@ -9,7 +9,7 @@ from colbert.indexing.loaders import load_doclens
 
 
 def main():
-    random.seed(1234)
+    random.seed(12345)
 
     parser = Arguments(description='Faiss indexing for end-to-end retrieval with ColBERT.')
     parser.add_index_use_input()

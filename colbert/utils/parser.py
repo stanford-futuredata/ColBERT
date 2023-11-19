@@ -48,11 +48,7 @@ class Arguments():
         self.add_argument('--amp', dest='amp', default=False, action='store_true')
 
     def add_training_input(self):
-        # Multi-lingual setting
-        self.add_argument('--base_model', dest='base_model', default='xlm-roberta-base')
-        self.add_argument('--lp_loss', dest='lp_loss', default=False, type=bool)
-        self.add_argument('--parallel', dest='parallel', required=False)
-        
+        self.add_argument('--base_model', dest='base_model', default='bert-base-multilingual-cased')
         self.add_argument('--triples', dest='triples', required=True)
         self.add_argument('--queries', dest='queries', default=None)
         self.add_argument('--collection', dest='collection', default=None)

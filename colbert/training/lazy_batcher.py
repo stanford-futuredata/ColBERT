@@ -1,6 +1,5 @@
 import os
 import ujson
-import pandas as pd
 
 from functools import partial
 from colbert.utils.utils import print_message
@@ -21,11 +20,6 @@ class LazyBatcher():
         self.triples = self._load_triples(args.triples, rank, nranks)
         self.queries = self._load_queries(args.queries)
         self.collection = self._load_collection(args.collection)
-        
-        # Load SRC-TRG parallel corpus
-        self.src_sequence, self.trg_sequence  = self._load_parallel_corpus(args.parallel)
-        #self.src_sequence = self._load_src_sequence(args.src_seq)
-        #self.trg_sequence = self._load_trg_sequence(args.trg_seq)
 
     def _load_triples(self, path, rank, nranks):
         """
@@ -73,16 +67,6 @@ class LazyBatcher():
                 collection.append(passage)
 
         return collection
-
-    def _load_parallel_corpus(self, path):
-
-        reader = pd.read_excel(path)
-        
-        src = reader['src_seq']
-        trg = reader['trg_seq']
-    
-        return src, trg
-
 
     def __iter__(self):
         return self

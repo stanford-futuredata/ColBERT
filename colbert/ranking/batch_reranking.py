@@ -74,7 +74,7 @@ def score_by_range(positions, loaded_parts, all_query_embeddings, all_query_rank
 def batch_rerank(args):
     positions, loaded_parts, thread = prepare_ranges(args.index_path, args.dim, args.step, args.part_range)
 
-    inference = ModelInference(args.colbert, amp=args.amp, base_model=args.base_model)
+    inference = ModelInference(args.colbert, amp=args.amp)
     queries, topK_pids = args.queries, args.topK_pids
 
     with torch.no_grad():

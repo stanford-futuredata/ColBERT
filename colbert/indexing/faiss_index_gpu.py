@@ -48,7 +48,7 @@ class FaissIndexGPU():
         assert self.ngpu > 0
 
         vres = faiss.GpuResourcesVector()
-        vdev = faiss.Int32Vector()
+        vdev = faiss.IntVector()
 
         for i in range(self.ngpu):
             vdev.push_back(i)
