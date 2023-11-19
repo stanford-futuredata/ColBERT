@@ -35,7 +35,8 @@ class LazyBatcher():
         with open(path) as f:
             for line_idx, line in enumerate(f):
                 if line_idx % nranks == rank:
-                    qid, pos, neg = ujson.loads(line)
+                    qid, pos, neg = line.split('\t')
+                    #ujson.loads(line)
                     triples.append((qid, pos, neg))
 
         return triples
@@ -60,10 +61,11 @@ class LazyBatcher():
 
         with open(path) as f:
             for line_idx, line in enumerate(f):
-                pid, passage, title, *_ = line.strip().split('\t')
+                pid, passage, *_ = line.strip().split('\t')
+                #pid, passage, title, *_ = line.strip().split('\t')
                 assert pid == 'id' or int(pid) == line_idx
 
-                passage = title + ' | ' + passage
+                #passage = title + ' | ' + passage
                 collection.append(passage)
 
         return collection
@@ -85,7 +87,7 @@ class LazyBatcher():
 
         for position in range(offset, endpos):
             query, pos, neg = self.triples[position]
-            query, pos, neg = self.queries[query], self.collection[pos], self.collection[neg]
+            query, pos, neg = self.queries[int(query)], self.collection[int(pos)], self.collection[int(neg)]
 
             queries.append(query)
             positives.append(pos)
