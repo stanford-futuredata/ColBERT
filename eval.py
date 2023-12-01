@@ -113,8 +113,7 @@ if __name__ == '__main__':
         arg_str = f"-w {args.num_workers} -i {args.index}" 
         if args.skip_encoding: arg_str += " -s"
         print("taskset -c " + str(node) + f" python eval_server.py {arg_str}")
-        processes.append(Popen("taskset -c " + str(node) + f" python eval_server_async.py {arg_str}",
-                               shell=True, preexec_fn=os.setsid).pid)
+        processes.append(Popen(f"python eval_server_async.py {arg_str}".split(" ")))
 
         times = 10
         for i in range(times):
@@ -135,4 +134,4 @@ if __name__ == '__main__':
 
     for p in processes:
         print("Killing processing after completion")
-        os.killpg(os.getpgid(p), signal.SIGTERM)
+        p.kill()

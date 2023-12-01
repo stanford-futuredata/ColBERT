@@ -27,8 +27,9 @@ import splade_pb2
 import splade_pb2_grpc
 
 class ColBERTServer(server_pb2_grpc.ServerServicer):
-    def __init__(self, tag, index, skip_encoding):
-        self.tag = tag
+    def __init__(self, num_workers, index, skip_encoding):
+        self.tag = 0
+        self.threads = num_workers
         self.suffix = ""
         self.index_name = "wiki.2018.latest" if index == "wiki" else "lifestyle.dev.nbits=2.latest"
         self.multiplier = 250 if index == "wiki" else 500
@@ -77,7 +78,6 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         return query_result
     
     def api_serve_query(self, query, qid, k=100):
-        gc.collect()
         t2 = time.time()
         url = 'http://localhost:8080'
         splade_q = self.splade_stub.GenerateQuery(splade_pb2.QueryStr(query=query, multiplier=self.multiplier))
@@ -97,15 +97,9 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
             top_k.append({'pid': pid, 'rank': rank + 1, 'score': score})
 
-        del gr
-        del scores_
-        del pids_
-        del Q
-
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
     def api_search_query(self, query, qid, k=100):
-        gc.collect()
         t2 = time.time()
         if not self.skip_encoding:
             pids, ranks, scores = self.searcher.search(query, k)
@@ -118,51 +112,55 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
             top_k.append({'pid': pid, 'rank': rank, 'score': score})
         top_k = list(sorted(top_k, key=lambda p: (-1 * p['score'], p['pid'])))
 
-        del pids
-        del ranks
-        del scores
-
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
     def api_rerank_query(self, query, qid, k=100):
-        gc.collect()
         t2 = time.time()
-        gr = torch.tensor(self.gold_ranks[qid][:200], dtype=torch.int)
-        Q = self.searcher.encode([query]) if not self.skip_encoding else self.enc[qid]
-        scores_, pids_ = self.ranker.score_raw_pids(self.searcher.config, Q, gr)
+        splade_q = self.splade_stub.GenerateQuery(splade_pb2.QueryStr(query=query, multiplier=self.multiplier))
+        # print("Splade time", time.time()-t2)
+        url = 'http://localhost:8080'
+        data = {"query": splade_q.query, "k": 200}
+        # data = {"query": query, "k": 200}
+        headers = {'Content-Type': 'application/json'}
+
+        tpost = time.time()
+        response = requests.post(url, data=json.dumps(data), headers=headers).text
+        response = json.loads(response).get('results', {})
+        # print("Searching time of {} on node {}: {}".format(qid, self.tag, time.time() - t2))
+
+        pids_ = []
+        scores_ = []
+
+        for kk, v in response.items():
+            pids_.append(int(kk))
+            scores_.append(float(v))
+
         print("Searching time of {} on node {}: {}".format(qid, self.tag, time.time() - t2))
 
-        scores_sorter = scores_.sort(descending=True)
-        pids_, scores_ = pids_[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
         top_k = []
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
             top_k.append({'pid': pid, 'rank': rank + 1, 'score': score})
 
-        del gr
-        del scores_
-        del pids_
-        del Q
-
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k[:k]})
 
     def Search(self, request, context):
-        torch.set_num_threads(1)
+        torch.set_num_threads(self.threads)
         return self.api_search_query(request.query, request.qid, request.k)
 
     def Serve(self, request, context):
-        torch.set_num_threads(1)
+        torch.set_num_threads(self.threads)
         return self.api_serve_query(request.query, request.qid, request.k)
 
     def Rerank(self, request, context):
-        torch.set_num_threads(1)
+        torch.set_num_threads(self.threads)
         return self.api_rerank_query(request.query, request.qid, request.k)
 
 
 def serve_ColBERT_server(args):
-    connection = Listener(('localhost', 50040 + psutil.Process().cpu_num()), authkey=b'password').accept()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=args.num_workers))
-    server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(psutil.Process().cpu_num(), args.index, args.skip_encoding), server)
-    listen_addr = '[::]:5005' + str(psutil.Process().cpu_num())
+    connection = Listener(('localhost', 50040, authkey=b'password').accept()
+    server = grpc.server(futures.ThreadPoolExecutor())
+    server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(args.num_workers, args.index, args.skip_encoding), server)
+    listen_addr = '[::]:50050'
     server.add_insecure_port(listen_addr)
     print(f"Starting ColBERT server on {listen_addr}")
     connection.send("Done")
