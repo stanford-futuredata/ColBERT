@@ -100,7 +100,7 @@ For fast retrieval, indexing precomputes the ColBERT representations of passages
 
 Example usage:
 
-```
+```python
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Indexer
 
@@ -120,7 +120,7 @@ if __name__=='__main__':
 
 We typically recommend that you use ColBERT for **end-to-end** retrieval, where it directly finds its top-k passages from the full collection:
 
-```
+```python
 from colbert.data import Queries
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Searcher
@@ -154,7 +154,7 @@ Training requires a JSONL triples file with a `[qid, pid+, pid-]` list per line.
 
 Example usage (training on 4 GPUs):
 
-```
+```python
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Trainer
 
