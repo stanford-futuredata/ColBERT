@@ -1,5 +1,8 @@
 import importlib
+import torch
+from turtle import forward
 from unicodedata import name
+from typing import Optional
 import torch.nn as nn
 import transformers
 from transformers import BertPreTrainedModel, BertModel, AutoTokenizer, AutoModel, AutoConfig
@@ -54,6 +57,29 @@ def find_class_names(model_type, class_type):
 
     return None
 
+class PruningHead(nn.Module):
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.dim = 32
+        self.heads = 4
+        self.query = nn.Linear(hidden_size, self.dim)
+        self.key = nn.Linear(hidden_size, self.dim)
+        self.value = nn.Linear(hidden_size, self.dim)
+        self.attention = nn.MultiheadAttention(self.dim, self.heads, batch_first=True)
+        self.linear = nn.Linear(self.dim, 1)
+
+    def forward(self, hidden_states: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        query = self.query(hidden_states)
+        key = self.key(hidden_states)
+        value = self.value(hidden_states)
+
+        if attention_mask is not None:
+            attention_mask = attention_mask[:, None].expand(-1, attention_mask.shape[-1], -1).repeat(self.heads, 1, 1)
+
+        out = self.attention.forward(query, key, value, attn_mask=attention_mask)
+
+        return self.linear(out[0])
+
 
 def class_factory(name_or_path):
     loadedConfig  = AutoConfig.from_pretrained(name_or_path)
@@ -92,6 +118,15 @@ def class_factory(name_or_path):
             self.config = config
             self.dim = colbert_config.dim
             self.linear = nn.Linear(config.hidden_size, colbert_config.dim, bias=False)
+            self.pruning_head = None
+            if colbert_config.prune:
+                # self.pruning_head = nn.Sequential(
+                #     nn.Linear(config.hidden_size, config.hidden_size),
+                #     nn.ReLU(),
+                #     nn.Linear(config.hidden_size, 1)
+                # )
+                self.pruning_head = PruningHead(config.hidden_size)
+                # self.pruning_head = nn.Linear(config.hidden_size, 1)
             setattr(self,self.base_model_prefix, model_class_object(config))
 
             # if colbert_config.relu:

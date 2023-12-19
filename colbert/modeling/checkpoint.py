@@ -73,16 +73,13 @@ class Checkpoint(ColBERT):
                 D, mask = [], []
 
                 for D_, mask_ in batches:
-                    D.append(D_)
-                    mask.append(mask_)
+                    D.extend(D_)
+                    mask.extend(mask_)
 
-                D, mask = torch.cat(D)[reverse_indices], torch.cat(mask)[reverse_indices]
+                D = [D[idx][mask[idx][:, 0].bool()] for idx in reverse_indices.tolist()]
+                doclens = [mask[idx].sum().item() for idx in reverse_indices.tolist()]
 
-                doclens = mask.squeeze(-1).sum(-1).tolist()
-
-                D = D.view(-1, self.colbert_config.dim)
-                D = D[mask.bool().flatten()].cpu()
-
+                D = torch.cat(D).cpu()
                 return (D, doclens, *returned_text)
 
             assert keep_dims is False
