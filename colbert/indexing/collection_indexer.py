@@ -103,7 +103,7 @@ class CollectionIndexer():
         self.num_embeddings_est = num_passages * avg_doclen_est
         self.num_partitions = int(2 ** np.floor(np.log2(16 * np.sqrt(self.num_embeddings_est))))
 
-        Run().print_main(f'Creaing {self.num_partitions:,} partitions.')
+        Run().print_main(f'Creating {self.num_partitions:,} partitions.')
         Run().print_main(f'*Estimated* {int(self.num_embeddings_est):,} embeddings.')
 
         self._save_plan()
@@ -116,13 +116,17 @@ class CollectionIndexer():
         # So the formula is max(100% * min(total, 100k), 15% * min(total, 1M), ...)
         # Then we subsample the vectors to 100 * num_partitions
 
-        typical_doclen = 120  # let's keep sampling independent of the actual doc_maxlen
-        sampled_pids = 16 * np.sqrt(typical_doclen * num_passages)
-        # sampled_pids = int(2 ** np.floor(np.log2(1 + sampled_pids)))
+        # typical_doclen = 120  # let's keep sampling independent of the actual doc_maxlen
+        # sampled_pids = 16 * np.sqrt(typical_doclen * num_passages)
+        # # sampled_pids = int(2 ** np.floor(np.log2(1 + sampled_pids)))
+
+        sampled_pids = np.sqrt(self.config.doc_maxlen * num_passages)
         sampled_pids = min(1 + int(sampled_pids), num_passages)
 
         sampled_pids = random.sample(range(num_passages), sampled_pids)
-        Run().print_main(f"# of sampled PIDs = {len(sampled_pids)} \t sampled_pids[:3] = {sampled_pids[:3]}")
+        Run().print_main(
+            f"# of sampled PIDs = {len(sampled_pids)} \t sampled_pids[:3] = {sampled_pids[:3]}"
+        )
 
         return set(sampled_pids)
 
