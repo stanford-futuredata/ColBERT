@@ -109,6 +109,7 @@ class DocSettings:
     dim: int = DefaultVal(128)
     doc_maxlen: int = DefaultVal(220)
     mask_punctuation: bool = DefaultVal(True)
+    prune: bool = DefaultVal(False)
 
 
 @dataclass
@@ -162,6 +163,8 @@ class IndexingSettings:
     kmeans_niters: int = DefaultVal(4)
 
     resume: bool = DefaultVal(False)
+
+    prune_threshold: float = DefaultVal(None)
 
     @property
     def index_path_(self):
