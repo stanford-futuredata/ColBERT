@@ -164,7 +164,7 @@ class IndexingSettings:
 
     resume: bool = DefaultVal(False)
 
-    prune_threshold: float = DefaultVal(None)
+    prune_threshold: float = 0.0
 
     @property
     def index_path_(self):
