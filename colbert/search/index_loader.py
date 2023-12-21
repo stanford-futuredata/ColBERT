@@ -11,9 +11,10 @@ from colbert.search.strided_tensor import StridedTensor
 
 
 class IndexLoader:
-    def __init__(self, index_path, use_gpu=True):
+    def __init__(self, index_path, use_gpu=True, load_index_with_mmap=False):
         self.index_path = index_path
         self.use_gpu = use_gpu
+        self.load_index_with_mmap = load_index_with_mmap
 
         self._load_codec()
         self._load_pid_map()
@@ -64,8 +65,12 @@ class IndexLoader:
         self.doclens = torch.tensor(doclens)
 
     def _load_embeddings(self):
-        self.embeddings = ResidualCodec.Embeddings.load_chunks(self.index_path, range(self.num_chunks),
-                                                               self.num_embeddings)
+        self.embeddings = ResidualCodec.Embeddings.load_chunks(
+                self.index_path,
+                range(self.num_chunks),
+                self.num_embeddings,
+                self.load_index_with_mmap,
+        )
 
     @property
     def metadata(self):

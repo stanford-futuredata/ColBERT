@@ -79,6 +79,15 @@ def main(args):
 
     index_updater = IndexUpdater(config, searcher, checkpoint)
 
+
+    # Try removing an invalid passage
+    raised = False
+    try:
+        index_updater.remove([len(searcher.ranker.doclens)])
+    except ValueError as e:
+        raised = True
+    assert raised
+
     # Remove the first passage from top-k results (no persisting to disk)
     n = 1
     index_updater.remove(top_k_ids[:n])
