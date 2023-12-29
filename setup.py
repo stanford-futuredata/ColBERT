@@ -30,9 +30,12 @@ setuptools.setup(
         "tqdm",
         "transformers",
         "ujson",
-        "faiss-cpu",
     ],
-    extras_require={"faiss-gpu": ["faiss-gpu>=1.7.0"], "torch": ["torch==1.13.1"]},
+    extras_require={
+        "faiss-gpu": ["faiss-gpu>=1.7.0"],
+        "faiss-cpu": ["faiss-cpu>=1.7.0"],
+        "torch": ["torch==1.13.1"],
+    },
     include_package_data=True,
     package_data=package_data,
 )
