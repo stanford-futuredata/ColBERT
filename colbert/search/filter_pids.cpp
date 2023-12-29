@@ -68,10 +68,10 @@ void* maxsim(void* args) {
     return NULL;
 }
 
-void filter_pids_helper(int ncentroids, int nquery_vectors, int npids,
+std::vector<int> filter_pids_helper(int ncentroids, int nquery_vectors, int npids,
                         int* pids, float* centroid_scores, int* codes,
                         int64_t* doclens, int64_t* offsets, bool* idx,
-                        int nfiltered_docs, int* filtered_pids) {
+                        int nfiltered_docs) {
     auto nthreads = at::get_num_threads();
 
     pthread_t threads[nthreads];
@@ -116,13 +116,17 @@ void filter_pids_helper(int ncentroids, int nquery_vectors, int npids,
         }
     }
 
+    std::vector<int> filtered_pids;
     for (int i = 0; i < nfiltered_docs; i++) {
-        std::pair<float, int> score_and_pid = global_approx_scores.top();
-        filtered_pids[i] = score_and_pid.second;
-        if (!global_approx_scores.empty()) {
-            global_approx_scores.pop();
+        if (global_approx_scores.empty()) {
+            break;
         }
+        std::pair<float, int> score_and_pid = global_approx_scores.top();
+        global_approx_scores.pop();
+        filtered_pids.push_back(score_and_pid.second);
     }
+
+    return filtered_pids;
 }
 
 torch::Tensor filter_pids(const torch::Tensor pids,
@@ -142,25 +146,25 @@ torch::Tensor filter_pids(const torch::Tensor pids,
     auto offsets_a = offsets.data_ptr<int64_t>();
     auto idx_a = idx.data_ptr<bool>();
 
-    int filtered_pids[nfiltered_docs];
-    filter_pids_helper(ncentroids, nquery_vectors, npids, pids_a,
+    std::vector<int> filtered_pids = filter_pids_helper(ncentroids, nquery_vectors, npids, pids_a,
                        centroid_scores_a, codes_a, doclens_a, offsets_a, idx_a,
-                       nfiltered_docs, filtered_pids);
+                       nfiltered_docs);
 
     int nfinal_filtered_docs = (int)(nfiltered_docs / 4);
-    int final_filtered_pids[nfinal_filtered_docs];
     bool ones[ncentroids];
     for (int i = 0; i < ncentroids; i++) {
         ones[i] = true;
     }
-    filter_pids_helper(ncentroids, nquery_vectors, nfiltered_docs,
-                       filtered_pids, centroid_scores_a, codes_a, doclens_a,
-                       offsets_a, ones, nfinal_filtered_docs,
-                       final_filtered_pids);
+
+    int* filtered_pids_a = filtered_pids.data();
+    auto nfiltered_pids = filtered_pids.size();
+    std::vector<int> final_filtered_pids = filter_pids_helper(ncentroids, nquery_vectors, nfiltered_pids,
+                       filtered_pids_a, centroid_scores_a, codes_a, doclens_a,
+                       offsets_a, ones, nfinal_filtered_docs);
 
     auto options =
         torch::TensorOptions().dtype(torch::kInt32).requires_grad(false);
-    return torch::from_blob(final_filtered_pids, {nfinal_filtered_docs},
+    return torch::from_blob(final_filtered_pids.data(), {(int)final_filtered_pids.size()},
                             options)
         .clone();
 }
@@ -168,4 +172,3 @@ torch::Tensor filter_pids(const torch::Tensor pids,
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("filter_pids_cpp", &filter_pids, "Filter pids");
 }
-
