@@ -7,6 +7,7 @@ from colbert.utils.utils import torch_load_dnn
 from transformers import AutoTokenizer
 from colbert.modeling.hf_colbert import class_factory
 from colbert.infra.config import ColBERTConfig
+from colbert.parameters import DEVICE
 
 
 class BaseColBERT(torch.nn.Module):
@@ -33,6 +34,7 @@ class BaseColBERT(torch.nn.Module):
         # HF_ColBERT = class_factory(self.name)
         
         self.model = HF_ColBERT.from_pretrained(name_or_path, colbert_config=self.colbert_config)
+        self.model.to(DEVICE)
         self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
 
         self.eval()

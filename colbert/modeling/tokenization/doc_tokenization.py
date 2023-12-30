@@ -5,7 +5,7 @@ import torch
 from colbert.modeling.hf_colbert import class_factory
 from colbert.infra import ColBERTConfig
 from colbert.modeling.tokenization.utils import _split_into_batches, _sort_by_length
-
+from colbert.parameters import DEVICE
 
 class DocTokenizer():
     def __init__(self, config: ColBERTConfig):
@@ -22,7 +22,7 @@ class DocTokenizer():
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        tokens = [self.tok.tokenize(x, add_special_tokens=False) for x in batch_text]
+        tokens = [self.tok.tokenize(x, add_special_tokens=False).to(DEVICE) for x in batch_text]
 
         if not add_special_tokens:
             return tokens
@@ -35,7 +35,7 @@ class DocTokenizer():
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        ids = self.tok(batch_text, add_special_tokens=False)['input_ids']
+        ids = self.tok(batch_text, add_special_tokens=False).to(DEVICE)['input_ids']
 
         if not add_special_tokens:
             return ids
@@ -52,7 +52,7 @@ class DocTokenizer():
         batch_text = ['. ' + x for x in batch_text]
 
         obj = self.tok(batch_text, padding='longest', truncation='longest_first',
-                       return_tensors='pt', max_length=self.doc_maxlen)
+                       return_tensors='pt', max_length=self.doc_maxlen).to(DEVICE)
 
         ids, mask = obj['input_ids'], obj['attention_mask']
 
