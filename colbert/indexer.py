@@ -66,7 +66,7 @@ class Indexer:
         self.index_path = self.config.index_path_
         index_does_not_exist = (not os.path.exists(self.config.index_path_))
 
-        assert (overwrite in [True, 'reuse', 'resume']) or index_does_not_exist, self.config.index_path_
+        assert (overwrite in [True, 'reuse', 'resume', "force_silent_overwrite"]) or index_does_not_exist, self.config.index_path_
         create_directory(self.config.index_path_)
 
         if overwrite == 'force_silent_overwrite':
