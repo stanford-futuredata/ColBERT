@@ -20,7 +20,7 @@ TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
 
 
 class Searcher:
-    def __init__(self, index, checkpoint=None, collection=None, config=None, index_root=None, verbose:int=2):
+    def __init__(self, index, checkpoint=None, collection=None, config=None, index_root=None, verbose:int = 3):
         self.verbose = verbose
         if self.verbose > 1:
             print_memory_stats()
