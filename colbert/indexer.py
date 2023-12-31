@@ -13,12 +13,13 @@ from colbert.indexing.collection_indexer import encode
 
 
 class Indexer:
-    def __init__(self, checkpoint, config=None):
+    def __init__(self, checkpoint, config=None, verbose: int = 3):
         """
            Use Run().context() to choose the run's configuration. They are NOT extracted from `config`.
         """
 
         self.index_path = None
+        self.verbose = verbose
         self.checkpoint = checkpoint
         self.checkpoint_config = ColBERTConfig.load_from_checkpoint(checkpoint)
 
@@ -85,4 +86,4 @@ class Indexer:
 
         # Encodes collection into index using the CollectionIndexer class
         launcher = Launcher(encode)
-        launcher.launch(self.config, collection, shared_lists, shared_queues)
+        launcher.launch(self.config, collection, shared_lists, shared_queues, self.verbose)
