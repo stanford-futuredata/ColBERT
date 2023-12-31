@@ -31,7 +31,7 @@ class Indexer:
     def get_index(self):
         return self.index_path
 
-    def erase(self):
+    def erase(self, force_silent: bool = False):
         assert self.index_path is not None
         directory = self.index_path
         deleted = []
@@ -47,8 +47,9 @@ class Indexer:
                 deleted.append(filename)
         
         if len(deleted):
-            print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
-            time.sleep(20)
+            if not force_silent:
+                print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
+                time.sleep(20)
 
             for filename in deleted:
                 os.remove(filename)
@@ -56,7 +57,7 @@ class Indexer:
         return deleted
 
     def index(self, name, collection, overwrite=False):
-        assert overwrite in [True, False, 'reuse', 'resume']
+        assert overwrite in [True, False, 'reuse', 'resume', "force_silent_overwrite"]
 
         self.configure(collection=collection, index_name=name, resume=overwrite=='resume')
         self.configure(bsize=64, partitions=None)
@@ -67,7 +68,9 @@ class Indexer:
         assert (overwrite in [True, 'reuse', 'resume']) or index_does_not_exist, self.config.index_path_
         create_directory(self.config.index_path_)
 
-        if overwrite is True:
+        if overwrite == 'force_silent_overwrite':
+            self.erase(force_silent=True)
+        elif overwrite is True:
             self.erase()
 
         if index_does_not_exist or overwrite != 'reuse':
