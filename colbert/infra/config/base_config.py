@@ -66,7 +66,7 @@ class BaseConfig(CoreConfig):
             checkpoint_path = hf_hub_download(
                 repo_id=checkpoint_path, filename="artifact.metadata"
             ).split("artifact")[0]
-        except RepositoryNotFoundError:
+        except Exception:
             pass
         loaded_config_path = os.path.join(checkpoint_path, "artifact.metadata")
         if os.path.exists(loaded_config_path):
