@@ -8,9 +8,10 @@ from colbert.parameters import DEVICE
 
 
 class QueryTokenizer():
-    def __init__(self, config: ColBERTConfig):
+    def __init__(self, config: ColBERTConfig, verbose: int = 3):
         HF_ColBERT = class_factory(config.checkpoint)
         self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
+        self.verbose = verbose
 
         self.config = config
         self.query_maxlen = config.query_maxlen
@@ -102,13 +103,13 @@ class QueryTokenizer():
             self.used = True
 
             firstbg = (context is None) or context[0]
-
-            print()
-            print("#> QueryTokenizer.tensorize(batch_text[0], batch_background[0], bsize) ==")
-            print(f"#> Input: {batch_text[0]}, \t\t {firstbg}, \t\t {bsize}")
-            print(f"#> Output IDs: {ids[0].size()}, {ids[0]}")
-            print(f"#> Output Mask: {mask[0].size()}, {mask[0]}")
-            print()
+            if self.verbose > 1:
+                print()
+                print("#> QueryTokenizer.tensorize(batch_text[0], batch_background[0], bsize) ==")
+                print(f"#> Input: {batch_text[0]}, \t\t {firstbg}, \t\t {bsize}")
+                print(f"#> Output IDs: {ids[0].size()}, {ids[0]}")
+                print(f"#> Output Mask: {mask[0].size()}, {mask[0]}")
+                print()
 
         return ids, mask
 
