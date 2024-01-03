@@ -8,7 +8,7 @@ package_data = {
 }
 
 setuptools.setup(
-    name="colbert-ir",
+    name="colbert-ai",
     version="0.2.15",
     author="Omar Khattab",
     author_email="okhattab@stanford.edu",
