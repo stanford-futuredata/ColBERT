@@ -38,7 +38,6 @@ class Launcher:
         
         return_value_queue = mp.Queue()
         rng = random.Random(time.time())
-        
         port = str(12355 + rng.randint(0, 1000))  # randomize the port to avoid collision on launching several jobs.
         all_procs = []
         for new_rank in range(0, self.nranks):
