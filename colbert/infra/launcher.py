@@ -33,6 +33,13 @@ class Launcher:
         rng = random.Random(time.time())
         port = str(12355 + rng.randint(0, 1000))  # randomize the port to avoid collision on launching several jobs.
 
+        if self.nranks == 1:
+            assert isinstance(custom_config, BaseConfig)
+            assert isinstance(custom_config, RunSettings)
+            new_config = type(custom_config).from_existing(custom_config, self.run_config, RunConfig(rank=0))
+            return_val = run_process_without_mp(self.callee, new_config, *args)
+            return return_val
+        
         all_procs = []
         for new_rank in range(0, self.nranks):
             assert isinstance(custom_config, BaseConfig)
@@ -87,8 +94,14 @@ class Launcher:
         
         return return_values
 
+def run_process_without_mp(callee, config, *args):
+    with Run().context(config, inherit_config=False):
+        return_val = callee(config, *args)
+        torch.cuda.empty_cache()
+        return return_val
 
 def setup_new_process(callee, port, return_value_queue, config, *args):
+    print(f"config is {config}")
     print_memory_stats()
 
     random.seed(12345)
