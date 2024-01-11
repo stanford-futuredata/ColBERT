@@ -28,13 +28,13 @@ class Launcher:
         self.nranks = self.run_config.nranks
 
     def launch(self, custom_config, *args):
+        assert isinstance(custom_config, BaseConfig)
+        assert isinstance(custom_config, RunSettings)
+        
         return_value_queue = mp.Queue()
-
         rng = random.Random(time.time())
 
-        if self.nranks == 1:
-            assert isinstance(custom_config, BaseConfig)
-            assert isinstance(custom_config, RunSettings)
+        if self.nranks == 1 and self.run_config.use_rank1_fork:
             new_config = type(custom_config).from_existing(custom_config, self.run_config, RunConfig(rank=0))
             return_val = run_process_without_mp(self.callee, new_config, *args)
             return return_val
@@ -42,9 +42,6 @@ class Launcher:
         port = str(12355 + rng.randint(0, 1000))  # randomize the port to avoid collision on launching several jobs.
         all_procs = []
         for new_rank in range(0, self.nranks):
-            assert isinstance(custom_config, BaseConfig)
-            assert isinstance(custom_config, RunSettings)
-
             new_config = type(custom_config).from_existing(custom_config, self.run_config, RunConfig(rank=new_rank))
 
             args_ = (self.callee, port, return_value_queue, new_config, *args)
@@ -94,20 +91,26 @@ class Launcher:
         
         return return_values
 
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
 def run_process_without_mp(callee, config, *args):
+    set_seed(12345)
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config.gpus_[:config.nranks]))
+
     with Run().context(config, inherit_config=False):
         return_val = callee(config, *args)
         torch.cuda.empty_cache()
         return return_val
 
 def setup_new_process(callee, port, return_value_queue, config, *args):
-    print(f"config is {config}")
     print_memory_stats()
 
-    random.seed(12345)
-    np.random.seed(12345)
-    torch.manual_seed(12345)
-    torch.cuda.manual_seed_all(12345)
+    set_seed(12345)
 
     rank, nranks = config.rank, config.nranks
 
