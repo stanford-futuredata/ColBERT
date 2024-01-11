@@ -31,13 +31,13 @@ class Launcher:
         assert isinstance(custom_config, BaseConfig)
         assert isinstance(custom_config, RunSettings)
         
-        return_value_queue = mp.Queue()
-        rng = random.Random(time.time())
-
         if self.nranks == 1 and self.run_config.use_rank1_fork:
             new_config = type(custom_config).from_existing(custom_config, self.run_config, RunConfig(rank=0))
             return_val = run_process_without_mp(self.callee, new_config, *args)
             return return_val
+        
+        return_value_queue = mp.Queue()
+        rng = random.Random(time.time())
         
         port = str(12355 + rng.randint(0, 1000))  # randomize the port to avoid collision on launching several jobs.
         all_procs = []
