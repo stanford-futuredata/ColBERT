@@ -30,7 +30,7 @@ class RunSettings:
     total_visible_gpus = torch.cuda.device_count()
     gpus: int = DefaultVal(total_visible_gpus)
 
-    use_rank1_fork: bool = DefaultVal(False)
+    use_rank1_fork: bool = DefaultVal(True)
 
     @property
     def gpus_(self):
