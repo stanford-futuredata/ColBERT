@@ -137,15 +137,23 @@ class CollectionIndexer():
         local_sample_embs, doclens = self.encoder.encode_passages(local_sample)
 
         if torch.cuda.is_available():
-            self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
-            torch.distributed.all_reduce(self.num_sample_embs)
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
+                torch.distributed.all_reduce(self.num_sample_embs)
 
-            avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-            avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
-            torch.distributed.all_reduce(avg_doclen_est)
+                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+                avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
+                torch.distributed.all_reduce(avg_doclen_est)
 
-            nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
-            torch.distributed.all_reduce(nonzero_ranks)
+                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
+                torch.distributed.all_reduce(nonzero_ranks)
+            else:
+                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
+
+                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+                avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
+
+                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
         else:
             if torch.distributed.is_available() and torch.distributed.is_initialized():
                 self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
