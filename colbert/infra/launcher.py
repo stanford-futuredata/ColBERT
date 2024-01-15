@@ -1,10 +1,10 @@
 import os
-import time
-import torch
 import random
+import time
 
-import torch.multiprocessing as mp
 import numpy as np
+import torch
+import torch.multiprocessing as mp
 
 try:
     mp.set_start_method('spawn', force=True)
@@ -12,10 +12,8 @@ except RuntimeError:
     pass
 
 import colbert.utils.distributed as distributed
-
-from colbert.infra.run import Run
 from colbert.infra.config import BaseConfig, RunConfig, RunSettings
-
+from colbert.infra.run import Run
 from colbert.utils.utils import print_message
 
 
@@ -31,7 +29,7 @@ class Launcher:
         assert isinstance(custom_config, BaseConfig)
         assert isinstance(custom_config, RunSettings)
         
-        if self.nranks == 1 and self.run_config.avoid_fork_if_possible:
+        if self.nranks == 1 and (custom_config.avoid_fork_if_possible or self.run_config.avoid_fork_if_possible):
             new_config = type(custom_config).from_existing(custom_config, self.run_config, RunConfig(rank=0))
             return_val = run_process_without_mp(self.callee, new_config, *args)
             return return_val
