@@ -29,7 +29,7 @@ class Launcher:
         assert isinstance(custom_config, BaseConfig)
         assert isinstance(custom_config, RunSettings)
         
-        if self.nranks == 1 and custom_config.avoid_fork_if_possible:
+        if self.nranks == 1 and (custom_config.avoid_fork_if_possible or self.run_config.avoid_fork_if_possible):
             new_config = type(custom_config).from_existing(custom_config, self.run_config, RunConfig(rank=0))
             return_val = run_process_without_mp(self.callee, new_config, *args)
             return return_val
