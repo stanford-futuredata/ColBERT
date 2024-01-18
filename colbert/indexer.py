@@ -82,7 +82,9 @@ class Indexer:
     def __launch(self, collection):
         launcher = Launcher(encode)
         if self.config.nranks == 1 and self.config.avoid_fork_if_possible:
-            launcher.launch_without_fork(self.config, collection, self.verbose)
+            shared_queues = []
+            shared_lists = []
+            launcher.launch_without_fork(self.config, collection, shared_lists, shared_queues, self.verbose)
 
             return
 
