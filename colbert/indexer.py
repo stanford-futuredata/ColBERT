@@ -83,6 +83,7 @@ class Indexer:
         launcher = Launcher(encode)
         if self.config.nranks == 1 and self.config.avoid_fork_if_possible:
             launcher.launch_without_fork(self.config, collection, self.verbose)
+
             return
 
         manager = mp.Manager()
