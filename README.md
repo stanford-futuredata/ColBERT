@@ -26,6 +26,7 @@ These rich interactions allow ColBERT to surpass the quality of _single-vector_ 
 * [**Baleen: Robust Multi-Hop Reasoning at Scale via Condensed Retrieval**](https://arxiv.org/abs/2101.00436) (NeurIPS'21).
 * [**ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction**](https://arxiv.org/abs/2112.01488) (NAACL'22).
 * [**PLAID: An Efficient Engine for Late Interaction Retrieval**](https://arxiv.org/abs/2205.09707) (CIKM'22).
+* [**Moving Beyond Downstream Task Accuracy for Information Retrieval Benchmarking**](https://arxiv.org/abs/2212.01340) (ACL'23 Findings).
 * [**UDAPDR: Unsupervised Domain Adaptation via LLM Prompting and Distillation of Rerankers**](https://arxiv.org/abs/2303.00807) (EMNLP'23).
 
 ----
