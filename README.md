@@ -26,13 +26,15 @@ These rich interactions allow ColBERT to surpass the quality of _single-vector_ 
 * [**Baleen: Robust Multi-Hop Reasoning at Scale via Condensed Retrieval**](https://arxiv.org/abs/2101.00436) (NeurIPS'21).
 * [**ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction**](https://arxiv.org/abs/2112.01488) (NAACL'22).
 * [**PLAID: An Efficient Engine for Late Interaction Retrieval**](https://arxiv.org/abs/2205.09707) (CIKM'22).
+* [**UDAPDR: Unsupervised Domain Adaptation via LLM Prompting and Distillation of Rerankers**](https://arxiv.org/abs/2303.00807) (EMNLP'23).
 
 ----
 
 ## 🚨 **Announcements** 
 
+* (1/28/24) One of the easiest ways to use ColBERT in applications nowadays is the semi-official, fast-growing [RAGatouille](https://github.com/bclavie/ragatouille) library.
 * (1/29/23) We have merged a new index updater feature and support for additional Hugging Face models! These are in beta so please give us feedback as you try them out.
-* (1/24/23) If you're looking for the **DSP** framework for composing ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dsp
+* (1/24/23) If you're looking for the **DSPy** framework for composing retrievers like ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dspy
 
 ----
 
