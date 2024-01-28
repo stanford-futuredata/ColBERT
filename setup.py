@@ -26,7 +26,6 @@ setuptools.setup(
         "python-dotenv",
         "ninja",
         "scipy",
-        "spacy",
         "tqdm",
         "transformers",
         "ujson",

@@ -4,7 +4,6 @@
 """
 
 import string
-import spacy
 import regex
 import unicodedata
 

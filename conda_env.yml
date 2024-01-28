@@ -22,7 +22,6 @@ dependencies:
     - jupyterlab
     - ninja
     - scipy
-    - spacy
     - tqdm
     - transformers
     - ujson

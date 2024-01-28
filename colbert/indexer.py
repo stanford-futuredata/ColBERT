@@ -80,10 +80,17 @@ class Indexer:
         return self.index_path
 
     def __launch(self, collection):
+        launcher = Launcher(encode)
+        if self.config.nranks == 1 and self.config.avoid_fork_if_possible:
+            shared_queues = []
+            shared_lists = []
+            launcher.launch_without_fork(self.config, collection, shared_lists, shared_queues, self.verbose)
+
+            return
+
         manager = mp.Manager()
         shared_lists = [manager.list() for _ in range(self.config.nranks)]
         shared_queues = [manager.Queue(maxsize=1) for _ in range(self.config.nranks)]
 
         # Encodes collection into index using the CollectionIndexer class
-        launcher = Launcher(encode)
         launcher.launch(self.config, collection, shared_lists, shared_queues, self.verbose)
