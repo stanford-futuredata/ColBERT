@@ -46,6 +46,8 @@ The ColBERTv1 code from the SIGIR'20 paper is in the [`colbertv1` branch](https:
 
 ## Installation
 
+(Update: nowadays you can typically do `pip install colbert-ai[torch,faiss-gpu]` to get things up and running, but if you face issues conda is always more reliable for `faiss` and `torch`.)
+
 ColBERT requires Python 3.7+ and Pytorch 1.9+ and uses the [Hugging Face Transformers](https://github.com/huggingface/transformers) library.
 
 We strongly recommend creating a conda environment using the commands below. (If you don't have conda, follow the official [conda installation guide](https://docs.anaconda.com/anaconda/install/linux/#installation).)
