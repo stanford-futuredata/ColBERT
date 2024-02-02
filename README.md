@@ -189,7 +189,8 @@ from colbert import Trainer
 
 
 def train():
-    with Run().context(RunConfig(nranks=4, root="/future/u/okhattab/root/unit/experiments", experiment="2021.10", name='kldR2.nway64.ib')):
+    # use 4 gpus (e.g. four A100s, but you can use fewer by changing nway,accumsteps,bsize).
+    with Run().context(RunConfig(nranks=4)):
         triples = '/path/to/examples.64.json'  # `wget https://huggingface.co/colbert-ir/colbertv2.0_msmarco_64way/resolve/main/examples.json?download=true` (26GB)
         queries = '/path/to/MSMARCO/queries.train.tsv'
         collection = '/path/to/MSMARCO/collection.tsv'
