@@ -148,7 +148,7 @@ We can evaluate the MSMARCO rankings using the following command:
 python -m utility.evaluate.msmarco_passages --ranking "/path/to/msmarco.nbits=2.ranking.tsv" --qrels "/path/to/MSMARCO/qrels.dev.small.tsv"
 ```
 
-## Training
+## Basic Training (ColBERTv1-style)
 
 We provide a [pre-trained model checkpoint](https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/colbertv2.0.tar.gz), but we also detail how to train from scratch here.
 Note that this example demonstrates the ColBERTv1 style of training, but the provided checkpoint was trained with ColBERTv2.
@@ -179,6 +179,31 @@ if __name__=='__main__':
 
         print(f"Saved checkpoint to {checkpoint_path}...")
 ```
+
+## Advanced Training (ColBERTv2-style)
+
+```python
+from colbert.infra.run import Run
+from colbert.infra.config import ColBERTConfig, RunConfig
+from colbert import Trainer
+
+
+def train():
+    with Run().context(RunConfig(nranks=4, root="/future/u/okhattab/root/unit/experiments", experiment="2021.10", name='kldR2.nway64.ib')):
+        triples = '/path/to/examples.64.json'  # `wget https://huggingface.co/colbert-ir/colbertv2.0_msmarco_64way/resolve/main/examples.json?download=true` (26GB)
+        queries = '/path/to/MSMARCO/queries.train.tsv'
+        collection = '/path/to/MSMARCO/collection.tsv'
+
+        config = ColBERTConfig(bsize=32, lr=1e-05, warmup=20_000, doc_maxlen=180, dim=128, attend_to_mask_tokens=False, nway=64, accumsteps=1, similarity='cosine', use_ib_negatives=True)
+        trainer = Trainer(triples=triples, queries=queries, collection=collection, config=config)
+
+        trainer.train(checkpoint='colbert-ir/colbertv1.9')  # or start from scratch, like `bert-base-uncased`
+
+
+if __name__ == '__main__':
+    train()
+```
+
 
 ## Running a lightweight ColBERTv2 server
 We provide a script to run a lightweight server which serves k (upto 100) results in ranked order for a given search query, in JSON format. This script can be used to power DSP programs. 
