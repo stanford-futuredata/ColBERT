@@ -56,26 +56,39 @@ def find_class_names(model_type, class_type):
 
 
 def class_factory(name_or_path):
-    loadedConfig  = AutoConfig.from_pretrained(name_or_path)
-    model_type = loadedConfig.model_type
-    pretrained_class = find_class_names(model_type, 'pretrainedmodel')
-    model_class = find_class_names(model_type, 'model')
+    def class_factory(name_or_path):
+    loadedConfig  = AutoConfig.from_pretrained(name_or_path, trust_remote_code=True)
 
-    if pretrained_class is not None:
-        pretrained_class_object = getattr(transformers, pretrained_class)
-    elif model_type == 'xlm-roberta':
-        pretrained_class_object = XLMRobertaPreTrainedModel
-    elif base_class_mapping.get(name_or_path) is not None:
-        pretrained_class_object = base_class_mapping.get(name_or_path)
+    if getattr(loadedConfig, "auto_map", None) is not None:
+        assert "AutoModel" in loadedConfig.auto_map, "The custom model should have AutoModel class in the config.automap"
+        model_class = loadedConfig.auto_map["AutoModel"]
+        if "AutoPreTrainedModel" in loadedConfig.auto_map:
+            pretrained_class = loadedConfig.auto_map["AutoPreTrainedModel"]
+        else:
+            assert model_class.endswith("Model")
+            pretrained_class = model_class[:-5] + "PreTrainedModel"
+        model_class_object = get_class_from_dynamic_module(model_class, name_or_path)
+        pretrained_class_object = get_class_from_dynamic_module(pretrained_class, name_or_path)
     else:
-        raise ValueError("Could not find correct pretrained class for the model type {model_type} in transformers library")
+        model_type = loadedConfig.model_type
+        pretrained_class = find_class_names(model_type, 'pretrainedmodel')
+        model_class = find_class_names(model_type, 'model')
+        
+        if pretrained_class is not None:
+            pretrained_class_object = getattr(transformers, pretrained_class)
+        elif model_type == 'xlm-roberta':
+            pretrained_class_object = XLMRobertaPreTrainedModel
+        elif base_class_mapping.get(name_or_path) is not None:
+            pretrained_class_object = base_class_mapping.get(name_or_path)
+        else:
+            raise ValueError("Could not find correct pretrained class for the model type {model_type} in transformers library")
 
-    if model_class != None:
-        model_class_object = getattr(transformers, model_class)
-    elif model_object_mapping.get(name_or_path) is not None:
-        model_class_object = model_object_mapping.get(name_or_path)
-    else:
-        raise ValueError("Could not find correct model class for the model type {model_type} in transformers library")
+        if model_class != None:
+            model_class_object = getattr(transformers, model_class)
+        elif model_object_mapping.get(name_or_path) is not None:
+            model_class_object = model_object_mapping.get(name_or_path)
+        else:
+            raise ValueError("Could not find correct model class for the model type {model_type} in transformers library")
 
 
     class HF_ColBERT(pretrained_class_object):
