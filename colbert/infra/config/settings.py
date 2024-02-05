@@ -159,6 +159,8 @@ class TrainingSettings:
 class IndexingSettings:
     index_path: str = DefaultVal(None)
 
+    index_bsize: int = DefaultVal(64)
+
     nbits: int = DefaultVal(1)
 
     kmeans_niters: int = DefaultVal(4)
