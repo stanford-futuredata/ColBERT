@@ -26,13 +26,16 @@ These rich interactions allow ColBERT to surpass the quality of _single-vector_ 
 * [**Baleen: Robust Multi-Hop Reasoning at Scale via Condensed Retrieval**](https://arxiv.org/abs/2101.00436) (NeurIPS'21).
 * [**ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction**](https://arxiv.org/abs/2112.01488) (NAACL'22).
 * [**PLAID: An Efficient Engine for Late Interaction Retrieval**](https://arxiv.org/abs/2205.09707) (CIKM'22).
+* [**Moving Beyond Downstream Task Accuracy for Information Retrieval Benchmarking**](https://arxiv.org/abs/2212.01340) (ACL'23 Findings).
+* [**UDAPDR: Unsupervised Domain Adaptation via LLM Prompting and Distillation of Rerankers**](https://arxiv.org/abs/2303.00807) (EMNLP'23).
 
 ----
 
 ## 🚨 **Announcements** 
 
+* (1/28/24) One of the easiest ways to use ColBERT in applications nowadays is the semi-official, fast-growing [RAGatouille](https://github.com/bclavie/ragatouille) library.
 * (1/29/23) We have merged a new index updater feature and support for additional Hugging Face models! These are in beta so please give us feedback as you try them out.
-* (1/24/23) If you're looking for the **DSP** framework for composing ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dsp
+* (1/24/23) If you're looking for the **DSPy** framework for composing retrievers like ColBERTv2 and LLMs, it's at: https://github.com/stanfordnlp/dspy
 
 ----
 
@@ -42,6 +45,8 @@ The ColBERTv1 code from the SIGIR'20 paper is in the [`colbertv1` branch](https:
 
 
 ## Installation
+
+(Update: nowadays you can typically do `pip install colbert-ai[torch,faiss-gpu]` to get things up and running, but if you face issues conda is always more reliable for `faiss` and `torch`.)
 
 ColBERT requires Python 3.7+ and Pytorch 1.9+ and uses the [Hugging Face Transformers](https://github.com/huggingface/transformers) library.
 
@@ -100,7 +105,7 @@ For fast retrieval, indexing precomputes the ColBERT representations of passages
 
 Example usage:
 
-```
+```python
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Indexer
 
@@ -120,7 +125,7 @@ if __name__=='__main__':
 
 We typically recommend that you use ColBERT for **end-to-end** retrieval, where it directly finds its top-k passages from the full collection:
 
-```
+```python
 from colbert.data import Queries
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Searcher
@@ -145,7 +150,7 @@ We can evaluate the MSMARCO rankings using the following command:
 python -m utility.evaluate.msmarco_passages --ranking "/path/to/msmarco.nbits=2.ranking.tsv" --qrels "/path/to/MSMARCO/qrels.dev.small.tsv"
 ```
 
-## Training
+## Basic Training (ColBERTv1-style)
 
 We provide a [pre-trained model checkpoint](https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/colbertv2.0.tar.gz), but we also detail how to train from scratch here.
 Note that this example demonstrates the ColBERTv1 style of training, but the provided checkpoint was trained with ColBERTv2.
@@ -154,7 +159,7 @@ Training requires a JSONL triples file with a `[qid, pid+, pid-]` list per line.
 
 Example usage (training on 4 GPUs):
 
-```
+```python
 from colbert.infra import Run, RunConfig, ColBERTConfig
 from colbert import Trainer
 
@@ -176,6 +181,32 @@ if __name__=='__main__':
 
         print(f"Saved checkpoint to {checkpoint_path}...")
 ```
+
+## Advanced Training (ColBERTv2-style)
+
+```python
+from colbert.infra.run import Run
+from colbert.infra.config import ColBERTConfig, RunConfig
+from colbert import Trainer
+
+
+def train():
+    # use 4 gpus (e.g. four A100s, but you can use fewer by changing nway,accumsteps,bsize).
+    with Run().context(RunConfig(nranks=4)):
+        triples = '/path/to/examples.64.json'  # `wget https://huggingface.co/colbert-ir/colbertv2.0_msmarco_64way/resolve/main/examples.json?download=true` (26GB)
+        queries = '/path/to/MSMARCO/queries.train.tsv'
+        collection = '/path/to/MSMARCO/collection.tsv'
+
+        config = ColBERTConfig(bsize=32, lr=1e-05, warmup=20_000, doc_maxlen=180, dim=128, attend_to_mask_tokens=False, nway=64, accumsteps=1, similarity='cosine', use_ib_negatives=True)
+        trainer = Trainer(triples=triples, queries=queries, collection=collection, config=config)
+
+        trainer.train(checkpoint='colbert-ir/colbertv1.9')  # or start from scratch, like `bert-base-uncased`
+
+
+if __name__ == '__main__':
+    train()
+```
+
 
 ## Running a lightweight ColBERTv2 server
 We provide a script to run a lightweight server which serves k (upto 100) results in ranked order for a given search query, in JSON format. This script can be used to power DSP programs. 

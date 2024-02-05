@@ -28,8 +28,8 @@ from colbert.utils.utils import flatten, print_message
 from colbert.indexing.codecs.residual import ResidualCodec
 
 
-def encode(config, collection, shared_lists, shared_queues):
-    encoder = CollectionIndexer(config=config, collection=collection)
+def encode(config, collection, shared_lists, shared_queues, verbose: int = 3):
+    encoder = CollectionIndexer(config=config, collection=collection, verbose=verbose)
     encoder.run(shared_lists)
 
 
@@ -38,13 +38,14 @@ class CollectionIndexer():
     Given a collection and config, encode collection into index and
     stores the index on the disk in chunks.
     '''
-    def __init__(self, config: ColBERTConfig, collection):
+    def __init__(self, config: ColBERTConfig, collection, verbose=2):
+        self.verbose = verbose
         self.config = config
         self.rank, self.nranks = self.config.rank, self.config.nranks
 
         self.use_gpu = self.config.total_visible_gpus > 0
 
-        if self.config.rank == 0:
+        if self.config.rank == 0 and self.verbose > 1:
             self.config.help()
 
         self.collection = Collection.cast(collection)
@@ -85,11 +86,12 @@ class CollectionIndexer():
         '''
         if self.config.resume:
             if self._try_load_plan():
-                Run().print_main(f"#> Loaded plan from {self.plan_path}:")
-                Run().print_main(f"#> num_chunks = {self.num_chunks}")
-                Run().print_main(f"#> num_partitions = {self.num_chunks}")
-                Run().print_main(f"#> num_embeddings_est = {self.num_embeddings_est}")
-                Run().print_main(f"#> avg_doclen_est = {self.avg_doclen_est}")
+                if self.verbose > 1:
+                    Run().print_main(f"#> Loaded plan from {self.plan_path}:")
+                    Run().print_main(f"#> num_chunks = {self.num_chunks}")
+                    Run().print_main(f"#> num_partitions = {self.num_chunks}")
+                    Run().print_main(f"#> num_embeddings_est = {self.num_embeddings_est}")
+                    Run().print_main(f"#> avg_doclen_est = {self.avg_doclen_est}")
                 return
 
         self.num_chunks = int(np.ceil(len(self.collection) / self.collection.get_chunksize()))
@@ -103,8 +105,9 @@ class CollectionIndexer():
         self.num_embeddings_est = num_passages * avg_doclen_est
         self.num_partitions = int(2 ** np.floor(np.log2(16 * np.sqrt(self.num_embeddings_est))))
 
-        Run().print_main(f'Creating {self.num_partitions:,} partitions.')
-        Run().print_main(f'*Estimated* {int(self.num_embeddings_est):,} embeddings.')
+        if self.verbose > 0:
+            Run().print_main(f'Creating {self.num_partitions:,} partitions.')
+            Run().print_main(f'*Estimated* {int(self.num_embeddings_est):,} embeddings.')
 
         self._save_plan()
 
@@ -124,9 +127,8 @@ class CollectionIndexer():
         sampled_pids = min(1 + int(sampled_pids), num_passages)
 
         sampled_pids = random.sample(range(num_passages), sampled_pids)
-        Run().print_main(
-            f"# of sampled PIDs = {len(sampled_pids)} \t sampled_pids[:3] = {sampled_pids[:3]}"
-        )
+        if self.verbose > 1:
+            Run().print_main(f"# of sampled PIDs = {len(sampled_pids)} \t sampled_pids[:3] = {sampled_pids[:3]}")
 
         return set(sampled_pids)
 
@@ -137,15 +139,23 @@ class CollectionIndexer():
         local_sample_embs, doclens = self.encoder.encode_passages(local_sample)
 
         if torch.cuda.is_available():
-            self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
-            torch.distributed.all_reduce(self.num_sample_embs)
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
+                torch.distributed.all_reduce(self.num_sample_embs)
 
-            avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-            avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
-            torch.distributed.all_reduce(avg_doclen_est)
+                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+                avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
+                torch.distributed.all_reduce(avg_doclen_est)
 
-            nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
-            torch.distributed.all_reduce(nonzero_ranks)
+                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
+                torch.distributed.all_reduce(nonzero_ranks)
+            else:
+                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
+
+                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+                avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
+
+                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
         else:
             if torch.distributed.is_available() and torch.distributed.is_initialized():
                 self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
@@ -228,7 +238,8 @@ class CollectionIndexer():
 
         bucket_cutoffs, bucket_weights, avg_residual = self._compute_avg_residual(centroids, heldout)
 
-        print_message(f'avg_residual = {avg_residual}')
+        if self.verbose > 1:
+            print_message(f'avg_residual = {avg_residual}')
 
         # Compute and save codec into avg_residual.pt, buckets.pt and centroids.pt
         codec = ResidualCodec(config=self.config, centroids=centroids, avg_residual=avg_residual,
@@ -322,9 +333,10 @@ class CollectionIndexer():
         bucket_cutoffs = heldout_avg_residual.float().quantile(bucket_cutoffs_quantiles)
         bucket_weights = heldout_avg_residual.float().quantile(bucket_weights_quantiles)
 
-        print_message(
-            f"#> Got bucket_cutoffs_quantiles = {bucket_cutoffs_quantiles} and bucket_weights_quantiles = {bucket_weights_quantiles}")
-        print_message(f"#> Got bucket_cutoffs = {bucket_cutoffs} and bucket_weights = {bucket_weights}")
+        if self.verbose > 2:
+            print_message(
+                f"#> Got bucket_cutoffs_quantiles = {bucket_cutoffs_quantiles} and bucket_weights_quantiles = {bucket_weights_quantiles}")
+            print_message(f"#> Got bucket_cutoffs = {bucket_cutoffs} and bucket_weights = {bucket_weights}")
 
         return bucket_cutoffs, bucket_weights, avg_residual.mean()
 
@@ -348,7 +360,8 @@ class CollectionIndexer():
             batches = self.collection.enumerate_batches(rank=self.rank)
             for chunk_idx, offset, passages in tqdm.tqdm(batches, disable=self.rank > 0):
                 if self.config.resume and self.saver.check_chunk_exists(chunk_idx):
-                    Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
+                    if self.verbose > 2:
+                        Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
                     continue
                 # Encode passages into embeddings with the checkpoint model
                 embs, doclens = self.encoder.encode_passages(passages) 
@@ -357,9 +370,9 @@ class CollectionIndexer():
                 else:
                     assert embs.dtype == torch.float32
                     embs = embs.half()
-
-                Run().print_main(f"#> Saving chunk {chunk_idx}: \t {len(passages):,} passages "
-                                 f"and {embs.size(0):,} embeddings. From #{offset:,} onward.")
+                if self.verbose > 1:
+                    Run().print_main(f"#> Saving chunk {chunk_idx}: \t {len(passages):,} passages "
+                                    f"and {embs.size(0):,} embeddings. From #{offset:,} onward.")
 
                 self.saver.save_chunk(chunk_idx, offset, embs, doclens) # offset = first passage index in chunk
                 del embs, doclens
@@ -387,7 +400,8 @@ class CollectionIndexer():
         self._update_metadata()
 
     def _check_all_files_are_saved(self):
-        Run().print_main("#> Checking all files were saved...")
+        if self.verbose > 1:
+            Run().print_main("#> Checking all files were saved...")
         success = True
         for chunk_idx in range(self.num_chunks):
             if not self.saver.check_chunk_exists(chunk_idx):
@@ -395,7 +409,8 @@ class CollectionIndexer():
                 Run().print_main(f"#> ERROR: Could not find chunk {chunk_idx}!")
                 #TODO: Fail here?
         if success:
-            Run().print_main("Found all files!")
+            if self.verbose > 1:
+                Run().print_main("Found all files!")
 
     def _collect_embedding_id_offset(self):
         passage_offset = 0
@@ -430,12 +445,15 @@ class CollectionIndexer():
         # A loop seems nice if we can find a size that's large enough for speed yet small enough to fit on GPU!
         # Then it would help nicely for batching later: 1GB.
 
-        Run().print_main("#> Building IVF...")
+        if self.verbose > 1:
+            Run().print_main("#> Building IVF...")
 
         codes = torch.zeros(self.num_embeddings,).long()
-        print_memory_stats(f'RANK:{self.rank}')
+        if self.verbose > 1:
+            print_memory_stats(f'RANK:{self.rank}')
 
-        Run().print_main("#> Loading codes...")
+        if self.verbose > 1:
+            Run().print_main("#> Loading codes...")
 
         for chunk_idx in tqdm.tqdm(range(self.num_chunks)):
             offset = self.embedding_offsets[chunk_idx]
@@ -444,22 +462,24 @@ class CollectionIndexer():
             codes[offset:offset+chunk_codes.size(0)] = chunk_codes
 
         assert offset+chunk_codes.size(0) == codes.size(0), (offset, chunk_codes.size(0), codes.size())
+        if self.verbose > 1:
+            Run().print_main(f"Sorting codes...")
 
-        Run().print_main(f"Sorting codes...")
-
-        print_memory_stats(f'RANK:{self.rank}')
+            print_memory_stats(f'RANK:{self.rank}')
 
         codes = codes.sort()
         ivf, values = codes.indices, codes.values
 
-        print_memory_stats(f'RANK:{self.rank}')
+        if self.verbose > 1:
+            print_memory_stats(f'RANK:{self.rank}')
 
-        Run().print_main(f"Getting unique codes...")
+            Run().print_main(f"Getting unique codes...")
 
         ivf_lengths = torch.bincount(values, minlength=self.num_partitions)
         assert ivf_lengths.size(0) == self.num_partitions
 
-        print_memory_stats(f'RANK:{self.rank}')
+        if self.verbose > 1:
+            print_memory_stats(f'RANK:{self.rank}')
 
         # Transforms centroid->embedding ivf to centroid->passage ivf
         _, _ = optimize_ivf(ivf, ivf_lengths, self.config.index_path_)
@@ -467,7 +487,8 @@ class CollectionIndexer():
     def _update_metadata(self):
         config = self.config
         self.metadata_path = os.path.join(config.index_path_, 'metadata.json')
-        Run().print("#> Saving the indexing metadata to", self.metadata_path, "..")
+        if self.verbose > 1:
+            Run().print("#> Saving the indexing metadata to", self.metadata_path, "..")
 
         with open(self.metadata_path, 'w') as f:
             d = {'config': config.export()}
@@ -489,6 +510,7 @@ def compute_faiss_kmeans(dim, num_partitions, kmeans_niters, shared_lists, retur
     kmeans.train(sample)
 
     centroids = torch.from_numpy(kmeans.centroids)
+
 
     print_memory_stats(f'RANK:0*')
 

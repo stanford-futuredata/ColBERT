@@ -13,12 +13,13 @@ from colbert.indexing.collection_indexer import encode
 
 
 class Indexer:
-    def __init__(self, checkpoint, config=None):
+    def __init__(self, checkpoint, config=None, verbose: int = 3):
         """
            Use Run().context() to choose the run's configuration. They are NOT extracted from `config`.
         """
 
         self.index_path = None
+        self.verbose = verbose
         self.checkpoint = checkpoint
         self.checkpoint_config = ColBERTConfig.load_from_checkpoint(checkpoint)
 
@@ -31,7 +32,7 @@ class Indexer:
     def get_index(self):
         return self.index_path
 
-    def erase(self):
+    def erase(self, force_silent: bool = False):
         assert self.index_path is not None
         directory = self.index_path
         deleted = []
@@ -47,16 +48,17 @@ class Indexer:
                 deleted.append(filename)
         
         if len(deleted):
-            print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
-            time.sleep(20)
+            if not force_silent:
+                print_message(f"#> Will delete {len(deleted)} files already at {directory} in 20 seconds...")
+                time.sleep(20)
 
             for filename in deleted:
                 os.remove(filename)
 
         return deleted
 
-    def index(self, name, collection, collection_name=None, overwrite=False):
-        assert overwrite in [True, False, 'reuse', 'resume']
+    def index(self, name, collection, overwrite=False):
+        assert overwrite in [True, False, 'reuse', 'resume', "force_silent_overwrite"]
 
         self.configure(collection=collection_name or collection, index_name=name, resume=overwrite=='resume')
         self.configure(partitions=None)
@@ -64,10 +66,12 @@ class Indexer:
         self.index_path = self.config.index_path_
         index_does_not_exist = (not os.path.exists(self.config.index_path_))
 
-        assert (overwrite in [True, 'reuse', 'resume']) or index_does_not_exist, self.config.index_path_
+        assert (overwrite in [True, 'reuse', 'resume', "force_silent_overwrite"]) or index_does_not_exist, self.config.index_path_
         create_directory(self.config.index_path_)
 
-        if overwrite is True:
+        if overwrite == 'force_silent_overwrite':
+            self.erase(force_silent=True)
+        elif overwrite is True:
             self.erase()
 
         if index_does_not_exist or overwrite != 'reuse':
@@ -76,10 +80,17 @@ class Indexer:
         return self.index_path
 
     def __launch(self, collection):
+        launcher = Launcher(encode)
+        if self.config.nranks == 1 and self.config.avoid_fork_if_possible:
+            shared_queues = []
+            shared_lists = []
+            launcher.launch_without_fork(self.config, collection, shared_lists, shared_queues, self.verbose)
+
+            return
+
         manager = mp.Manager()
         shared_lists = [manager.list() for _ in range(self.config.nranks)]
         shared_queues = [manager.Queue(maxsize=1) for _ in range(self.config.nranks)]
 
         # Encodes collection into index using the CollectionIndexer class
-        launcher = Launcher(encode)
-        launcher.launch(self.config, collection, shared_lists, shared_queues)
+        launcher.launch(self.config, collection, shared_lists, shared_queues, self.verbose)

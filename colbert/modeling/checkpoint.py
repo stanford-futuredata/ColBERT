@@ -15,11 +15,13 @@ class Checkpoint(ColBERT):
         TODO: Add .cast() accepting [also] an object instance-of(Checkpoint) as first argument.
     """
 
-    def __init__(self, name, colbert_config=None):
+    def __init__(self, name, colbert_config=None, verbose:int = 3):
         super().__init__(name, colbert_config)
         assert self.training is False
 
-        self.query_tokenizer = QueryTokenizer(self.colbert_config)
+        self.verbose = verbose
+
+        self.query_tokenizer = QueryTokenizer(self.colbert_config, verbose=self.verbose)
         self.doc_tokenizer = DocTokenizer(self.colbert_config)
 
         self.amp_manager = MixedPrecisionManager(True)
