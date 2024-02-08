@@ -59,17 +59,7 @@ def find_class_names(model_type, class_type):
 def class_factory(name_or_path):
     loadedConfig  = AutoConfig.from_pretrained(name_or_path, trust_remote_code=True)
 
-    if getattr(loadedConfig, "auto_map", None) is not None:
-        assert "AutoModel" in loadedConfig.auto_map, "The custom model should have AutoModel class in the config.automap"
-        model_class = loadedConfig.auto_map["AutoModel"]
-        if "AutoPreTrainedModel" in loadedConfig.auto_map:
-            pretrained_class = loadedConfig.auto_map["AutoPreTrainedModel"]
-        else:
-            assert model_class.endswith("Model")
-            pretrained_class = model_class[:-5] + "PreTrainedModel"
-        model_class_object = get_class_from_dynamic_module(model_class, name_or_path)
-        pretrained_class_object = get_class_from_dynamic_module(pretrained_class, name_or_path)
-    else:
+    if getattr(loadedConfig, "auto_map", None) is None:
         model_type = loadedConfig.model_type
         pretrained_class = find_class_names(model_type, 'pretrainedmodel')
         model_class = find_class_names(model_type, 'model')
@@ -89,6 +79,13 @@ def class_factory(name_or_path):
             model_class_object = model_object_mapping.get(name_or_path)
         else:
             raise ValueError("Could not find correct model class for the model type {model_type} in transformers library")
+    else:
+        assert "AutoModel" in loadedConfig.auto_map, "The custom model should have AutoModel class in the config.automap"
+        model_class = loadedConfig.auto_map["AutoModel"]
+        assert model_class.endswith("Model")
+        pretrained_class = model_class.replace("Model", "PreTrainedModel")
+        model_class_object = get_class_from_dynamic_module(model_class, name_or_path)
+        pretrained_class_object = get_class_from_dynamic_module(pretrained_class, name_or_path)
 
 
     class HF_ColBERT(pretrained_class_object):
