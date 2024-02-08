@@ -61,6 +61,8 @@ class Indexer:
         assert overwrite in [True, False, 'reuse', 'resume', "force_silent_overwrite"]
 
         self.configure(collection=collection, index_name=name, resume=overwrite=='resume')
+        # Note: The bsize value set here is ignored internally. Users are encouraged
+        # to supply their own batch size for indexing by using the index_bsize parameter in the ColBERTConfig.
         self.configure(bsize=64, partitions=None)
 
         self.index_path = self.config.index_path_
