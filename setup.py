@@ -9,7 +9,7 @@ package_data = {
 
 setuptools.setup(
     name="colbert-ai",
-    version="0.2.18",
+    version="0.2.19",
     author="Omar Khattab",
     author_email="okhattab@stanford.edu",
     description="Efficient and Effective Passage Search via Contextualized Late Interaction over BERT",
