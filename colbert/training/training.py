@@ -52,9 +52,10 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     colbert = colbert.to(DEVICE)
     colbert.train()
 
-    colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
-                                                        output_device=config.rank,
-                                                        find_unused_parameters=True)
+    if torch.cuda.device_count() > 1:
+        colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
+                                                            output_device=config.rank,
+                                                            find_unused_parameters=True)
 
     optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=config.lr, eps=1e-8)
     optimizer.zero_grad()
