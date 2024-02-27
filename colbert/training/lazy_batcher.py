@@ -27,9 +27,9 @@ class LazyBatcher():
         self.triples = Examples.cast(triples, nway=self.nway).tolist(rank, nranks)
         self.queries = Queries.cast(queries)
         self.collection = Collection.cast(collection)
-        assert len(self.triples) > 0, f"Received no triples on which to train."
-        assert len(self.queries) > 0, f"Received no queries on which to train."
-        assert len(self.collection) > 0, f"Received no collection on which to train."
+        assert len(self.triples) > 0, "Received no triples on which to train."
+        assert len(self.queries) > 0, "Received no queries on which to train."
+        assert len(self.collection) > 0, "Received no collection on which to train."
 
     def __iter__(self):
         return self
