@@ -28,7 +28,7 @@ class ColBERT(BaseColBERT):
                              for symbol in string.punctuation
                              for w in [symbol, self.raw_tokenizer.encode(symbol, add_special_tokens=False)[0]]}
         self.pad_token = self.raw_tokenizer.pad_token_id
-
+        self.mask_token = self.raw_tokenizer.mask_token_id
 
     @classmethod
     def try_load_torch_extensions(cls, use_gpu):
@@ -122,7 +122,7 @@ class ColBERT(BaseColBERT):
         return colbert_score(Q, D_padded, D_mask, config=self.colbert_config)
 
     def mask(self, input_ids, skiplist):
-        mask = [[(x not in skiplist) and (x != self.pad_token) for x in d] for d in input_ids.cpu().tolist()]
+        mask = [[(x not in skiplist) and (x != self.pad_token) and (x != self.mask_token) for x in d] for d in input_ids.cpu().tolist()]
         return mask
 
 
