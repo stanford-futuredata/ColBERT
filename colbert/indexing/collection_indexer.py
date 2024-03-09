@@ -44,6 +44,12 @@ class CollectionIndexer():
         self.rank, self.nranks = self.config.rank, self.config.nranks
 
         self.use_gpu = self.config.total_visible_gpus > 0
+        self.use_mps = False
+        if torch.backends.mps.is_available() and self.config.use_mps_if_available:
+            if torch.backends.mps.is_built() :
+                self.use_mps = True
+            else:
+                print_message("MPS not available because the current PyTorch install was not built with MPS enabled.")      
 
         if self.config.rank == 0 and self.verbose > 1:
             self.config.help()
@@ -52,6 +58,10 @@ class CollectionIndexer():
         self.checkpoint = Checkpoint(self.config.checkpoint, colbert_config=self.config)
         if self.use_gpu:
             self.checkpoint = self.checkpoint.cuda()
+        elif self.use_mps:
+            print_message("Loading model to MPS")
+            mps_device = torch.device("mps")
+            self.checkpoint = self.checkpoint.to(mps_device)
 
         self.encoder = CollectionEncoder(config, self.checkpoint)
         self.saver = IndexSaver(config)
