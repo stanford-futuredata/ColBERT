@@ -45,16 +45,18 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         raise NotImplementedError()
 
     if not config.reranker:
-        colbert = ColBERT(name=config.checkpoint, colbert_config=config)
+        colbert = ColBERT(name=config.checkpoint, colbert_config=config, device_type=DEVICE.type)
     else:
         colbert = ElectraReranker.from_pretrained(config.checkpoint)
+        colbert.to(DEVICE)
 
-    colbert = colbert.to(DEVICE)
     colbert.train()
 
-    colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
+    if not (config.avoid_fork_if_possible and config.rank == 1):
+        colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
                                                         output_device=config.rank,
                                                         find_unused_parameters=True)
+    
 
     optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=config.lr, eps=1e-8)
     optimizer.zero_grad()
