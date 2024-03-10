@@ -165,7 +165,7 @@ def load_collection(collection_path):
 
             pid, passage, *rest = line.strip('\n\r ').split('\t')
             pid_list.append(pid)
-            assert pid == 'id' or int(pid) == line_idx, f"pid={pid}, line_idx={line_idx}"
+            # assert pid == 'id' or int(pid) == line_idx, f"pid={pid}, line_idx={line_idx}"
 
             if len(rest) >= 1:
                 title = rest[0]
