@@ -17,11 +17,10 @@ class ColBERT(BaseColBERT):
         This class handles the basic encoding and scoring operations in ColBERT. It is used for training.
     """
 
-    def __init__(self, name='bert-base-uncased', colbert_config=None):
-        super().__init__(name, colbert_config)
-        self.use_gpu = colbert_config.total_visible_gpus > 0
+    def __init__(self, name='bert-base-uncased', colbert_config=None, device_type=None):
+        super().__init__(name, colbert_config, device_type=device_type)
 
-        ColBERT.try_load_torch_extensions(self.use_gpu)
+        ColBERT.try_load_torch_extensions(self.device.type=="cuda")
 
         if self.colbert_config.mask_punctuation:
             self.skiplist = {w: True
@@ -102,7 +101,7 @@ class ColBERT(BaseColBERT):
         D = D * mask
 
         D = torch.nn.functional.normalize(D, p=2, dim=2)
-        if self.use_gpu:
+        if self.device.type in ["cuda", "mps"]:
             D = D.half()
 
         if keep_dims is False:
@@ -119,7 +118,7 @@ class ColBERT(BaseColBERT):
         if self.colbert_config.similarity == 'l2':
             assert self.colbert_config.interaction == 'colbert'
             return (-1.0 * ((Q.unsqueeze(2) - D_padded.unsqueeze(1))**2).sum(-1)).max(-1).values.sum(-1)
-        return colbert_score(Q, D_padded, D_mask, config=self.colbert_config)
+        return colbert_score(Q, D_padded, D_mask, config=self.colbert_config, torch_device=self.device)
 
     def mask(self, input_ids, skiplist):
         mask = [[(x not in skiplist) and (x != self.pad_token) for x in d] for d in input_ids.cpu().tolist()]
@@ -155,7 +154,7 @@ def colbert_score_reduce(scores_padded, D_mask, config: ColBERTConfig):
 
 
 # TODO: Wherever this is called, pass `config=`
-def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig()):
+def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig(), torch_device=None):
     """
         Supply sizes Q = (1 | num_docs, *, dim) and D = (num_docs, *, dim).
         If Q.size(0) is 1, the matrix will be compared with all passages.
@@ -164,9 +163,10 @@ def colbert_score(Q, D_padded, D_mask, config=ColBERTConfig()):
         EVENTUALLY: Consider masking with -inf for the maxsim (or enforcing a ReLU).
     """
 
-    use_gpu = config.total_visible_gpus > 0
-    if use_gpu:
-        Q, D_padded, D_mask = Q.cuda(), D_padded.cuda(), D_mask.cuda()
+    if torch_device is None:
+        torch_device = DEVICE
+    if torch_device.type in ["cuda", "mps"]:
+        Q, D_padded, D_mask = Q.to(torch_device), D_padded.to(torch_device), D_mask.to(torch_device)
 
     assert Q.dim() == 3, Q.size()
     assert D_padded.dim() == 3, D_padded.size()
