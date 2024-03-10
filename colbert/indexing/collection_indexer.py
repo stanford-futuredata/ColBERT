@@ -48,6 +48,7 @@ class CollectionIndexer():
         if torch.backends.mps.is_available() and self.config.use_mps_if_available:
             if torch.backends.mps.is_built() :
                 self.use_mps = True
+                os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
             else:
                 print_message("MPS not available because the current PyTorch install was not built with MPS enabled.")      
 
@@ -233,7 +234,7 @@ class CollectionIndexer():
 
         # Compute and save codec into avg_residual.pt, buckets.pt and centroids.pt
         codec = ResidualCodec(config=self.config, centroids=centroids, avg_residual=avg_residual,
-                              bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights, device_type=self.device.type)
+                              bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights, device=self.device)
         self.saver.save_codec(codec)
 
     def _concatenate_and_split_sample(self):
@@ -304,7 +305,7 @@ class CollectionIndexer():
         return centroids
 
     def _compute_avg_residual(self, centroids, heldout):
-        compressor = ResidualCodec(config=self.config, centroids=centroids, avg_residual=None, device_type=self.device.type)
+        compressor = ResidualCodec(config=self.config, centroids=centroids, avg_residual=None, device=self.device)
 
         heldout_reconstruct = compressor.compress_into_codes(heldout, out_device='cuda' if self.use_gpu else 'cpu')
         heldout_reconstruct = compressor.lookup_centroids(heldout_reconstruct, out_device='cuda' if self.use_gpu else 'cpu')

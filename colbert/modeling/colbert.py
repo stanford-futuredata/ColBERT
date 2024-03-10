@@ -17,10 +17,10 @@ class ColBERT(BaseColBERT):
         This class handles the basic encoding and scoring operations in ColBERT. It is used for training.
     """
 
-    def __init__(self, name='bert-base-uncased', colbert_config=None, device_type=None):
-        super().__init__(name, colbert_config, device_type=device_type)
+    def __init__(self, name='bert-base-uncased', colbert_config=None, device=None):
+        super().__init__(name, colbert_config, device=device)
 
-        ColBERT.try_load_torch_extensions(self.device.type=="cuda")
+        ColBERT.try_load_torch_extensions(self._device.type=="cuda")
 
         if self.colbert_config.mask_punctuation:
             self.skiplist = {w: True
@@ -82,11 +82,11 @@ class ColBERT(BaseColBERT):
         return torch.nn.CrossEntropyLoss()(scores, labels)
 
     def query(self, input_ids, attention_mask):
-        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
+        input_ids, attention_mask = input_ids.to(self._device), attention_mask.to(self._device)
         Q = self.bert(input_ids, attention_mask=attention_mask)[0]
         Q = self.linear(Q)
 
-        mask = torch.tensor(self.mask(input_ids, skiplist=[]), device=self.device).unsqueeze(2).float()
+        mask = torch.tensor(self.mask(input_ids, skiplist=[]), device=self._device).unsqueeze(2).float()
         Q = Q * mask
 
         return torch.nn.functional.normalize(Q, p=2, dim=2)
@@ -94,14 +94,14 @@ class ColBERT(BaseColBERT):
     def doc(self, input_ids, attention_mask, keep_dims=True):
         assert keep_dims in [True, False, 'return_mask']
 
-        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
+        input_ids, attention_mask = input_ids.to(self._device), attention_mask.to(self._device)
         D = self.bert(input_ids, attention_mask=attention_mask)[0]
         D = self.linear(D)
-        mask = torch.tensor(self.mask(input_ids, skiplist=self.skiplist), device=self.device).unsqueeze(2).float()
+        mask = torch.tensor(self.mask(input_ids, skiplist=self.skiplist), device=self._device).unsqueeze(2).float()
         D = D * mask
 
         D = torch.nn.functional.normalize(D, p=2, dim=2)
-        if self.device.type in ["cuda", "mps"]:
+        if self._device.type in ["cuda", "mps"]:
             D = D.half()
 
         if keep_dims is False:
@@ -118,7 +118,7 @@ class ColBERT(BaseColBERT):
         if self.colbert_config.similarity == 'l2':
             assert self.colbert_config.interaction == 'colbert'
             return (-1.0 * ((Q.unsqueeze(2) - D_padded.unsqueeze(1))**2).sum(-1)).max(-1).values.sum(-1)
-        return colbert_score(Q, D_padded, D_mask, config=self.colbert_config, torch_device=self.device)
+        return colbert_score(Q, D_padded, D_mask, config=self.colbert_config, torch_device=self._device)
 
     def mask(self, input_ids, skiplist):
         mask = [[(x not in skiplist) and (x != self.pad_token) for x in d] for d in input_ids.cpu().tolist()]

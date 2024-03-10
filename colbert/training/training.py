@@ -45,7 +45,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         raise NotImplementedError()
 
     if not config.reranker:
-        colbert = ColBERT(name=config.checkpoint, colbert_config=config, device_type=DEVICE.type)
+        colbert = ColBERT(name=config.checkpoint, colbert_config=config, device=DEVICE)
     else:
         colbert = ElectraReranker.from_pretrained(config.checkpoint)
         colbert.to(DEVICE)
