@@ -18,15 +18,13 @@ class BaseColBERT(torch.nn.Module):
     Like HF, evaluation mode is the default.
     """
 
-    def __init__(self, name_or_path, colbert_config=None, device_type=None):
+    def __init__(self, name_or_path, colbert_config=None, device=None):
         super().__init__()
-
-
         self.colbert_config = ColBERTConfig.from_existing(ColBERTConfig.load_from_checkpoint(name_or_path), colbert_config)
         self.name = self.colbert_config.model_name or name_or_path
-        if device_type is None:
-            device_type = DEVICE.type
-        self.device = torch.device(device_type)
+        if device is None:
+            device = DEVICE
+        self._device = device
 
         try:
             HF_ColBERT = class_factory(self.name)
@@ -38,7 +36,7 @@ class BaseColBERT(torch.nn.Module):
         # HF_ColBERT = class_factory(self.name)
         
         self.model = HF_ColBERT.from_pretrained(name_or_path, colbert_config=self.colbert_config)
-        self.model.to(self.device)
+        self.model.to(self._device)
         self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
 
         self.eval()
