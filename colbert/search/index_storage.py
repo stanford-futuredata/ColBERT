@@ -105,6 +105,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
 
             scores_sorter = scores.sort(descending=True)
             pids, scores = pids[scores_sorter.indices].tolist(), scores_sorter.values.tolist()
+            pids = [self.pids[pid] for pid in pids]
 
             return pids, scores
 

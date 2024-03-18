@@ -119,9 +119,11 @@ class CollectionIndexer():
         # So the formula is max(100% * min(total, 100k), 15% * min(total, 1M), ...)
         # Then we subsample the vectors to 100 * num_partitions
 
-        typical_doclen = 120  # let's keep sampling independent of the actual doc_maxlen
-        sampled_pids = 16 * np.sqrt(typical_doclen * num_passages)
-        # sampled_pids = int(2 ** np.floor(np.log2(1 + sampled_pids)))
+        # typical_doclen = 120  # let's keep sampling independent of the actual doc_maxlen
+        # sampled_pids = 16 * np.sqrt(typical_doclen * num_passages)
+        # # sampled_pids = int(2 ** np.floor(np.log2(1 + sampled_pids)))
+
+        sampled_pids = np.sqrt(self.config.doc_maxlen * num_passages)
         sampled_pids = min(1 + int(sampled_pids), num_passages)
 
         sampled_pids = random.sample(range(num_passages), sampled_pids)
@@ -390,6 +392,7 @@ class CollectionIndexer():
         if self.rank > 0:
             return
 
+        self.saver.save_pid_map(self.collection.pid_doc_map)
         self._check_all_files_are_saved()
         self._collect_embedding_id_offset()
 

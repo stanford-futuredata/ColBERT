@@ -17,6 +17,7 @@ class IndexLoader:
         self.load_index_with_mmap = load_index_with_mmap
 
         self._load_codec()
+        self._load_pid_map()
         self._load_ivf()
 
         self._load_doclens()
@@ -25,6 +26,12 @@ class IndexLoader:
     def _load_codec(self):
         print_message(f"#> Loading codec...")
         self.codec = ResidualCodec.load(self.index_path)
+    
+    def _load_pid_map(self):
+        pid_map_path = os.path.join(self.index_path, 'pid.map')
+        with open(pid_map_path) as input_pid_map:
+            pids = [line.strip() for line in input_pid_map]
+        self.pids = pids
 
     def _load_ivf(self):
         print_message(f"#> Loading IVF...")
