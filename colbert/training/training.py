@@ -26,7 +26,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     config.checkpoint = config.checkpoint or 'bert-base-uncased'
 
     if config.rank < 1:
-
+        config.help()
         wandb.login()
         run = wandb.init(
             # Set the project where this run will be logged
@@ -35,10 +35,6 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
             config=asdict(config),
             group="DDP",
         )
-
-
-    if config.rank < 1:
-        config.help()
 
     random.seed(12345)
     np.random.seed(12345)
@@ -138,9 +134,10 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     loss += ib_loss
 
                 loss = loss / config.accumsteps
-            wandb.log({'loss': loss, 'scores': scores})
+            
             if config.rank < 1:
                 print_progress(scores)
+                wandb.log({'loss': loss, 'scores': scores})
 
             amp.backward(loss)
 
