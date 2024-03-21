@@ -30,7 +30,8 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         # Set the project where this run will be logged
         project="jina-colbert",
         # Track hyperparameters and run metadata
-        config=asdict(config)
+        config=asdict(config),
+        group="DDP",
     )
 
 
