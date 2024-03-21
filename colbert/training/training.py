@@ -3,6 +3,8 @@ import torch
 import random
 import torch.nn as nn
 import numpy as np
+import wandb
+from dataclasses import asdict
 
 from transformers import AdamW, get_linear_schedule_with_warmup
 from colbert.infra import ColBERTConfig
@@ -22,6 +24,15 @@ from colbert.training.utils import print_progress, manage_checkpoints
 
 def train(config: ColBERTConfig, triples, queries=None, collection=None):
     config.checkpoint = config.checkpoint or 'bert-base-uncased'
+
+    wandb.login()
+    run = wandb.init(
+        # Set the project where this run will be logged
+        project="jina-colbert",
+        # Track hyperparameters and run metadata
+        config=asdict(config)
+    )
+
 
     if config.rank < 1:
         config.help()
@@ -124,7 +135,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     loss += ib_loss
 
                 loss = loss / config.accumsteps
-
+            wandb.log({'loss': loss, 'scores': scores)
             if config.rank < 1:
                 print_progress(scores)
 

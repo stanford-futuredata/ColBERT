@@ -1,7 +1,7 @@
 from colbert.infra.run import Run
-import os
 import ujson
-
+import os
+from tqdm import tqdm
 from colbert.utils.utils import print_message
 from colbert.infra.provenance import Provenance
 from utility.utils.save_metadata import get_metadata_only
@@ -24,10 +24,14 @@ class Examples:
         nway = self.nway + 1 if self.nway else self.nway
         examples = []
 
-        with open(path) as f:
-            for line in f:
-                example = ujson.loads(line)[:nway]
-                examples.append(example)
+        with tqdm(total=os.path.getsize(path)) as pbar:
+            with open(path) as f:
+                for idx, line in enumerate(f):
+                    if idx == 1_000_000:
+                        break
+                    example = ujson.loads(line)[:nway]
+                    examples.append(example)
+                    pbar.update(len(line))
 
         return examples
 
