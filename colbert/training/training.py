@@ -135,7 +135,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     loss += ib_loss
 
                 loss = loss / config.accumsteps
-            wandb.log({'loss': loss, 'scores': scores)
+            wandb.log({'loss': loss, 'scores': scores})
             if config.rank < 1:
                 print_progress(scores)
 
