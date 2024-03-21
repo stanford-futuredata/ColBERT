@@ -25,14 +25,16 @@ from colbert.training.utils import print_progress, manage_checkpoints
 def train(config: ColBERTConfig, triples, queries=None, collection=None):
     config.checkpoint = config.checkpoint or 'bert-base-uncased'
 
-    wandb.login()
-    run = wandb.init(
-        # Set the project where this run will be logged
-        project="jina-colbert",
-        # Track hyperparameters and run metadata
-        config=asdict(config),
-        group="DDP",
-    )
+    if config.rank < 1:
+
+        wandb.login()
+        run = wandb.init(
+            # Set the project where this run will be logged
+            project="jina-colbert",
+            # Track hyperparameters and run metadata
+            config=asdict(config),
+            group="DDP",
+        )
 
 
     if config.rank < 1:
