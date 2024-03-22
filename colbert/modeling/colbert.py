@@ -28,6 +28,9 @@ class ColBERT(BaseColBERT):
                              for symbol in string.punctuation
                              for w in [symbol, self.raw_tokenizer.encode(symbol, add_special_tokens=False)[0]]}
         self.pad_token = self.raw_tokenizer.pad_token_id
+        if colbert_config.mrl:
+            self.mrl_dims = colbert_config.mrl_dims
+            self.mrl_weights = colbert_config.mrl_weights
 
 
     @classmethod
@@ -66,6 +69,7 @@ class ColBERT(BaseColBERT):
 
     def compute_ib_loss(self, Q, D, D_mask):
         # TODO: Organize the code below! Quite messy.
+        loss = 0.0
         scores = (D.unsqueeze(0) @ Q.permute(0, 2, 1).unsqueeze(1)).flatten(0, 1)  # query-major unsqueeze
 
         scores = colbert_score_reduce(scores, D_mask.repeat(Q.size(0), 1, 1), self.colbert_config)
@@ -80,7 +84,15 @@ class ColBERT(BaseColBERT):
 
         labels = torch.arange(0, Q.size(0), device=scores.device) * (self.colbert_config.nway)
 
-        return torch.nn.CrossEntropyLoss()(scores, labels)
+        if self.mrl_dims and self.mrl_weights:
+            for dim, weight in zip(self.mrl_dims, self.mrl_weights):
+                current_scores = scores[:dim]
+                current_labels = labels[:dim]
+                current_ib_ce_loss = torch.nn.CrossEntropyLoss()(current_scores, current_labels) * weight
+                loss += current_ib_ce_loss
+        else:
+            loss = torch.nn.CrossEntropyLoss()(scores, labels)
+        return loss 
 
     def query(self, input_ids, attention_mask):
         input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)

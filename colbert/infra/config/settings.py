@@ -1,5 +1,6 @@
 import os
 import torch
+from typing import Iterable
 
 import __main__
 from dataclasses import dataclass
@@ -154,6 +155,12 @@ class TrainingSettings:
     ignore_scores: bool = DefaultVal(False)
 
     model_name: str = DefaultVal(None) # DefaultVal('bert-base-uncased')
+
+    mrl: bool = DefaultVal(False)
+
+    mrl_dims: Iterable[int] = (16, 32, 64, 128, 256, 512, 768)
+
+    mrl_weights = Iterable[int] = (1, 1, 1, 1, 1, 1, 1)
 
 @dataclass
 class IndexingSettings:

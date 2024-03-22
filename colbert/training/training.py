@@ -55,7 +55,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         raise NotImplementedError()
 
     if not config.reranker:
-        colbert = ColBERT(name=config.checkpoint, colbert_config=config)
+        colbert = ColBERT(name=config.checkpoint, colbert_config=config) # mrl ib loss in forward func
     else:
         colbert = ElectraReranker.from_pretrained(config.checkpoint)
 
@@ -82,7 +82,6 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     amp = MixedPrecisionManager(config.amp)
     labels = torch.zeros(config.bsize, dtype=torch.long, device=DEVICE)
 
-    start_time = time.time()
     train_loss = None
     train_loss_mu = 0.999
 
@@ -123,9 +122,24 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     target_scores = torch.nn.functional.log_softmax(target_scores, dim=-1)
 
                     log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
-                    loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
+                    if config.mrl:
+                        for dim, weight in zip(config.mrl_dims, mrl_weights):
+                            current_log_scores = log_scores[:dim]
+                            current_target_scores = target_scores[:dim]
+                            current_kl_loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(current_log_scores, current_target_scores) * weight
+                            loss += current_kl_loss
+                    else:
+                        loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
                 else:
-                    loss = nn.CrossEntropyLoss()(scores, labels[:scores.size(0)])
+                    label_scores = labels[:scores.size(0)]
+                    if config.mrl:
+                        for dim, weight in zip(config.mrl_dims, config.mrl_weights):
+                            current_scores = scores[:dim]
+                            current_labels = label_scores[:dim]
+                            current_ce_loss = nn.CrossEntropyLoss()(current_scores, current_labels) * weight
+                            loss += current_ce_loss
+                    else:
+                        loss = nn.CrossEntropyLoss()(scores, label_scores)
 
                 if config.use_ib_negatives:
                     if config.rank < 1:
