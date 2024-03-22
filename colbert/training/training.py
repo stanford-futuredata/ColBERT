@@ -123,7 +123,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
 
                     log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
                     if config.mrl:
-                        for dim, weight in zip(config.mrl_dims, mrl_weights):
+                        for dim, weight in zip(config.mrl_dims, config.mrl_weights):
                             current_log_scores = log_scores[:dim]
                             current_target_scores = target_scores[:dim]
                             current_kl_loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(current_log_scores, current_target_scores) * weight
