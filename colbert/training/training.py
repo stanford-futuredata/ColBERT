@@ -1,4 +1,3 @@
-import time
 import torch
 import random
 import torch.nn as nn
@@ -30,7 +29,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         wandb.login()
         run = wandb.init(
             # Set the project where this run will be logged
-            project="jina-colbert",
+            project=config.wandb_project,
             # Track hyperparameters and run metadata
             config=asdict(config),
             group="DDP",
@@ -55,7 +54,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         raise NotImplementedError()
 
     if not config.reranker:
-        colbert = ColBERT(name=config.checkpoint, colbert_config=config) # mrl ib loss in forward func
+        colbert = ColBERT(name=config.checkpoint, colbert_config=config) # ib loss in forward func
     else:
         colbert = ElectraReranker.from_pretrained(config.checkpoint)
 

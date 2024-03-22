@@ -162,6 +162,8 @@ class TrainingSettings:
 
     mrl_weights = Iterable[int] = (1, 1, 1, 1, 1, 1, 1)
 
+    wandb_project: str = DefaultVal('jina-colbert')
+
 @dataclass
 class IndexingSettings:
     index_path: str = DefaultVal(None)
