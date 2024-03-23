@@ -94,6 +94,9 @@ class Collection:
         if type(obj) is cls:
             return obj
 
+        if isinstance(obj, cls):
+            return obj
+
         assert False, f"obj has type {type(obj)} which is not compatible with cast()"
 
 
