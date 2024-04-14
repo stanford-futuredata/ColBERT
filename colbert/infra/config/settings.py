@@ -30,6 +30,8 @@ class RunSettings:
     total_visible_gpus = torch.cuda.device_count()
     gpus: int = DefaultVal(total_visible_gpus)
 
+    avoid_fork_if_possible: bool = DefaultVal(False)
+
     @property
     def gpus_(self):
         value = self.gpus
@@ -156,6 +158,8 @@ class TrainingSettings:
 @dataclass
 class IndexingSettings:
     index_path: str = DefaultVal(None)
+
+    index_bsize: int = DefaultVal(64)
 
     nbits: int = DefaultVal(1)
 

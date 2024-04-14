@@ -14,7 +14,6 @@ dependencies:
     - gitpython
     - ninja
     - scipy
-    - spacy
     - tqdm
     - transformers
     - ujson
