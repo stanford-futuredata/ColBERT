@@ -65,7 +65,7 @@ async def run(args):
     tasks = []
     t = time.time()
 
-    for i in range(len(qvals)):
+    for i in range(2000):
         print(i, channels[i % nodes])
         request = server_pb2.Query(query=qvals[i][1], qid=qvals[i][0], k=100)
         tasks.append(asyncio.ensure_future(run_request(stubs[i % nodes], request,  args.experiment)))
@@ -112,13 +112,12 @@ if __name__ == '__main__':
         print("Starting process", node)
         arg_str = f"-w {args.num_workers} -i {args.index}" 
         if args.skip_encoding: arg_str += " -s"
-        print("taskset -c " + str(node) + f" python eval_server.py {arg_str}")
-        processes.append(Popen(f"python eval_server_async.py {arg_str}".split(" ")))
+        processes.append(Popen(["python", "eval_server.py"] + f"{arg_str}".split(" ")))
 
         times = 10
         for i in range(times):
             try:
-                connection = Client(('localhost', 50040 + node), authkey=b'password')
+                connection = Client(('localhost', 50040), authkey=b'password')
                 assert connection.recv() == "Done"
                 connection.close()
                 break
