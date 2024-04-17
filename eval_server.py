@@ -97,7 +97,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         for pid, rank, score in zip(pids_, range(len(pids_)), scores_):
             top_k.append({'pid': pid, 'rank': rank + 1, 'score': score})
 
-        return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
+        return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k[:k]})
 
     def api_search_query(self, query, qid, k=100):
         t2 = time.time()
