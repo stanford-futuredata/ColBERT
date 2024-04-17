@@ -27,7 +27,7 @@ class SpladeServer(splade_pb2_grpc.SpladeServicer):
         return self.gen_query(request.query, request.multiplier)
 
 def serve_Splade_server():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(futures.ThreadPoolExecutor())
     splade_pb2_grpc.add_SpladeServicer_to_server(SpladeServer(), server)
     listen_addr = '[::]:50060'
     server.add_insecure_port(listen_addr)

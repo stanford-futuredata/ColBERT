@@ -114,7 +114,7 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
 
         return self.convert_dict_to_protobuf({"qid": qid, "topk": top_k})
 
-    def api_rerank_query(self, query, qid, k=100):
+    def api_pisa_query(self, query, qid, k=100):
         t2 = time.time()
         splade_q = self.splade_stub.GenerateQuery(splade_pb2.QueryStr(query=query, multiplier=self.multiplier))
         # print("Splade time", time.time()-t2)
@@ -151,13 +151,13 @@ class ColBERTServer(server_pb2_grpc.ServerServicer):
         torch.set_num_threads(self.threads)
         return self.api_serve_query(request.query, request.qid, request.k)
 
-    def Rerank(self, request, context):
+    def Pisa(self, request, context):
         torch.set_num_threads(self.threads)
-        return self.api_rerank_query(request.query, request.qid, request.k)
+        return self.api_pisa_query(request.query, request.qid, request.k)
 
 
 def serve_ColBERT_server(args):
-    connection = Listener(('localhost', 50040, authkey=b'password').accept()
+    connection = Listener(('localhost', 50040), authkey=b'password').accept()
     server = grpc.server(futures.ThreadPoolExecutor())
     server_pb2_grpc.add_ServerServicer_to_server(ColBERTServer(args.num_workers, args.index, args.skip_encoding), server)
     listen_addr = '[::]:50050'
@@ -176,7 +176,7 @@ if __name__ == '__main__':
                        help='Number of worker threads per server')
     parser.add_argument('-s', '--skip_encoding', action='store_true',
                         help='Use precomputed encoding')
-    parser.add_argument('-i', '--index', type=str, default="search", choices=["wiki", "lifestyle"],
+    parser.add_argument('-i', '--index', type=str, choices=["wiki", "lifestyle"],
                         required=True, help='Index to run')
 
     args = parser.parse_args()

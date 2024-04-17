@@ -28,8 +28,8 @@ async def run_request(stub, request, experiment):
     t = time.time()
     if experiment == "search":
         out = await stub.Search(request)
-    elif experiment == "rerank":
-        out = await stub.Rerank(request)
+    elif experiment == "pisa":
+        out = await stub.Pisa(request)
     else:
         out = await stub.Serve(request)
 
@@ -96,9 +96,9 @@ if __name__ == '__main__':
                         help='Input file for inter request wait times')
     parser.add_argument('-s', '--skip_encoding', action='store_true',
                         help='Use precomputed encoding')
-    parser.add_argument('-e', '--experiment', type=str, default="search", choices=["search", "rerank", "serve"],
-                        help='search or rerank or serve (pisa + rerank)')
-    parser.add_argument('-i', '--index', type=str, default="search", choices=["wiki", "lifestyle"],
+    parser.add_argument('-e', '--experiment', type=str, default="search", choices=["search", "pisa", "serve"],
+                        help='search or pisa or serve (pisa + rerank)')
+    parser.add_argument('-i', '--index', type=str, choices=["wiki", "lifestyle"],
                         required=True, help='Index to run')
 
     processes = []
