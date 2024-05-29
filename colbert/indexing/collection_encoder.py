@@ -4,7 +4,7 @@ from colbert.infra.run import Run
 from colbert.utils.utils import print_message, batch
 
 
-class CollectionEncoder():
+class CollectionEncoder:
     def __init__(self, config, checkpoint):
         self.config = config
         self.checkpoint = checkpoint
@@ -23,8 +23,15 @@ class CollectionEncoder():
             # Storing on the GPU helps with speed of masking, etc.
             # But ideally this batching happens internally inside docFromText.
             for passages_batch in batch(passages, self.config.index_bsize * 50):
-                embs_, doclens_ = self.checkpoint.docFromText(passages_batch, bsize=self.config.index_bsize,
-                                                              keep_dims='flatten', showprogress=(not self.use_gpu))
+                embs_, doclens_ = self.checkpoint.docFromText(
+                    passages_batch,
+                    bsize=self.config.index_bsize,
+                    keep_dims="flatten",
+                    showprogress=(not self.use_gpu),
+                    pool_factor=self.config.POOL_FACTOR,
+                    clustering_mode=self.config.clustering_mode,
+                    protected_tokens=self.config.protected_tokens,
+                )
                 embs.append(embs_)
                 doclens.extend(doclens_)
 
