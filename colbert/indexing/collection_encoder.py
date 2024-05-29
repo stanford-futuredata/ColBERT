@@ -28,7 +28,7 @@ class CollectionEncoder:
                     bsize=self.config.index_bsize,
                     keep_dims="flatten",
                     showprogress=(not self.use_gpu),
-                    pool_factor=self.config.POOL_FACTOR,
+                    pool_factor=self.config.pool_factor,
                     clustering_mode=self.config.clustering_mode,
                     protected_tokens=self.config.protected_tokens,
                 )
