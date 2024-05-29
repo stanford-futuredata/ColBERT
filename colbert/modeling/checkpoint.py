@@ -15,6 +15,7 @@ def pool_embeddings_hierarchical(
     protected_tokens: int = 0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    p_embeddings = p_embeddings.to(device)
     pooled_embeddings = []
     pooled_token_lengths = []
     start_idx = 0
@@ -22,52 +23,43 @@ def pool_embeddings_hierarchical(
     for token_length in tqdm(token_lengths, desc="Pooling tokens"):
         passage_embeddings = p_embeddings[start_idx : start_idx + token_length]
 
-        if pool_similar:
-            torch.manual_seed(42)  # For reproducibility in shuffling
-            shuffled_indices = torch.randperm(token_length, device=device)
-            passage_embeddings = passage_embeddings[shuffled_indices]
+        torch.manual_seed(42)  # For reproducibility in shuffling
+        shuffled_indices = torch.randperm(token_length, device=device)
+        passage_embeddings = passage_embeddings[shuffled_indices]
 
-            # Remove the tokens at protected_tokens indices
-            protected_embeddings = passage_embeddings[:protected_tokens]
-            passage_embeddings = passage_embeddings[protected_tokens:]
+        # Remove the tokens at protected_tokens indices
+        protected_embeddings = passage_embeddings[:protected_tokens]
+        passage_embeddings = passage_embeddings[protected_tokens:]
 
-            # Efficient cosine similarity computation
-            norms = passage_embeddings.norm(dim=1, keepdim=True)
-            similarities = torch.mm(
-                passage_embeddings, passage_embeddings.t()
-            ) / torch.mm(norms, norms.t())
+        # Cosine similarity computation (vector are already normalized)
+        similarities = torch.mm(passage_embeddings, passage_embeddings.t())
 
-            # Convert similarities to a distance for better ward compatibility
-            similarities = 1 - similarities.cpu().numpy()
+        # Convert similarities to a distance for better ward compatibility
+        similarities = 1 - similarities.cpu().numpy()
 
-            # Create hierarchical clusters using ward's method
-            Z = linkage(similarities, metric="euclidean", method="ward")
-            max_clusters = (
-                token_length // pool_factor if token_length // pool_factor > 0 else 1
-            )
-            cluster_labels = fcluster(Z, t=max_clusters, criterion="maxclust")
+        # Create hierarchical clusters using ward's method
+        Z = linkage(similarities, metric="euclidean", method="ward")
+        max_clusters = (
+            token_length // pool_factor if token_length // pool_factor > 0 else 1
+        )
+        cluster_labels = fcluster(Z, t=max_clusters, criterion="maxclust")
 
-            # Pool embeddings within each cluster
-            for cluster_id in range(1, max_clusters + 1):
-                cluster_indices = torch.where(
-                    torch.tensor(cluster_labels == cluster_id, device=device)
-                )[0]
-                if cluster_indices.numel() > 0:
-                    pooled_embedding = passage_embeddings[cluster_indices].mean(dim=0)
-                    pooled_embeddings.append(pooled_embedding)
+        # Pool embeddings within each cluster
+        for cluster_id in range(1, max_clusters + 1):
+            cluster_indices = torch.where(
+                torch.tensor(cluster_labels == cluster_id, device=device)
+            )[0]
+            if cluster_indices.numel() > 0:
+                pooled_embedding = passage_embeddings[cluster_indices].mean(dim=0)
+                pooled_embeddings.append(pooled_embedding)
 
-            # Re-add the protected tokens to pooled_embeddings
-            pooled_embeddings.extend(protected_embeddings)
+        # Re-add the protected tokens to pooled_embeddings
+        pooled_embeddings.extend(protected_embeddings)
 
         pooled_token_lengths.append(len(pooled_embeddings) - sum(pooled_token_lengths))
         start_idx += token_length
 
-    # Normalize the pooled embeddings
     pooled_embeddings = torch.stack(pooled_embeddings)
-    # pooled_embeddings = torch.nn.functional.normalize(pooled_embeddings, p=2, dim=1)
-    pooled_embeddings = pooled_embeddings.cpu().numpy()
-
-    # pooled_embeddings = torch.stack(pooled_embeddings).cpu().numpy()
     return pooled_embeddings, pooled_token_lengths
 
 
