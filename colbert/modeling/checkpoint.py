@@ -21,6 +21,7 @@ def pool_embeddings_hierarchical(
     start_idx = 0
 
     for token_length in tqdm(token_lengths, desc="Pooling tokens"):
+        # Get the embeddings for the current passage
         passage_embeddings = p_embeddings[start_idx : start_idx + token_length]
 
         # Remove the tokens at protected_tokens indices
@@ -35,6 +36,7 @@ def pool_embeddings_hierarchical(
 
         # Create hierarchical clusters using ward's method
         Z = linkage(similarities, metric="euclidean", method="ward")
+        # Determine the number of clusters we want in the end based on the pool factor
         max_clusters = (
             token_length // pool_factor if token_length // pool_factor > 0 else 1
         )
@@ -52,6 +54,7 @@ def pool_embeddings_hierarchical(
         # Re-add the protected tokens to pooled_embeddings
         pooled_embeddings.extend(protected_embeddings)
 
+        # Store the length of the pooled tokens (number of total tokens - number of tokens from previous passages)
         pooled_token_lengths.append(len(pooled_embeddings) - sum(pooled_token_lengths))
         start_idx += token_length
 
