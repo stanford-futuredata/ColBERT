@@ -11,7 +11,7 @@ from colbert.modeling.colbert import ColBERT
 def pool_embeddings_hierarchical(
     p_embeddings,
     token_lengths,
-    pool_factor: int = 2,
+    pool_factor,
     protected_tokens: int = 0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
