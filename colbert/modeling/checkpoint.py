@@ -23,10 +23,6 @@ def pool_embeddings_hierarchical(
     for token_length in tqdm(token_lengths, desc="Pooling tokens"):
         passage_embeddings = p_embeddings[start_idx : start_idx + token_length]
 
-        torch.manual_seed(42)  # For reproducibility in shuffling
-        shuffled_indices = torch.randperm(token_length, device=device)
-        passage_embeddings = passage_embeddings[shuffled_indices]
-
         # Remove the tokens at protected_tokens indices
         protected_embeddings = passage_embeddings[:protected_tokens]
         passage_embeddings = passage_embeddings[protected_tokens:]
