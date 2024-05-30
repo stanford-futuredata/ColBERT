@@ -10,6 +10,7 @@ from itertools import product
 from colbert.infra.config import ColBERTConfig
 from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
 from colbert.utils.utils import print_message
+from colbert.parameters import DEVICE
 
 import pathlib
 from torch.utils.cpp_extension import load
@@ -18,33 +19,35 @@ from torch.utils.cpp_extension import load
 class ResidualCodec:
     Embeddings = ResidualEmbeddings
 
-    def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None):
-        self.use_gpu = config.total_visible_gpus > 0
+    def __init__(self, config, centroids, avg_residual=None, bucket_cutoffs=None, bucket_weights=None, device=None):
+        if device is None:
+            device = DEVICE
+        self.device = device
 
         ResidualCodec.try_load_torch_extensions(self.use_gpu)
 
-        if self.use_gpu > 0:
-            self.centroids = centroids.cuda().half()
+        if self.device.type in ["cuda", "mps"]:
+            self.centroids = self.centroids.to(self.device).half()
         else:
             self.centroids = centroids.float()
         self.dim, self.nbits = config.dim, config.nbits
         self.avg_residual = avg_residual
 
         if torch.is_tensor(self.avg_residual):
-            if self.use_gpu:
-                self.avg_residual = self.avg_residual.cuda().half()
+            if self.device.type in ["cuda", "mps"]:
+                self.avg_residual = self.avg_residual.to(self.device).half()
 
         if torch.is_tensor(bucket_cutoffs):
-            if self.use_gpu:
-                bucket_cutoffs = bucket_cutoffs.cuda()
-                bucket_weights = bucket_weights.half().cuda()
+            if self.device.type in ["cuda", "mps"]:
+                bucket_cutoffs = bucket_cutoffs.to(self.device)
+                bucket_weights = bucket_weights.to(self.device)
 
         self.bucket_cutoffs = bucket_cutoffs
         self.bucket_weights = bucket_weights
         if not self.use_gpu and self.bucket_weights is not None:
             self.bucket_weights = self.bucket_weights.to(torch.float32)
 
-        self.arange_bits = torch.arange(0, self.nbits, device='cuda' if self.use_gpu else 'cpu', dtype=torch.uint8)
+        self.arange_bits = torch.arange(0, self.nbits, device=self.device.type, dtype=torch.uint8)
 
         self.rank = config.rank
 
@@ -89,10 +92,10 @@ class ResidualCodec:
             )
         else:
             self.decompression_lookup_table = None
-        if self.use_gpu:
-            self.reversed_bit_map = self.reversed_bit_map.cuda()
+        if self.device.type in ["cuda", "mps"]:
+            self.reversed_bit_map = self.reversed_bit_map.to(self.device).half()
             if self.decompression_lookup_table is not None:
-                self.decompression_lookup_table = self.decompression_lookup_table.cuda()
+                self.decompression_lookup_table = self.decompression_lookup_table.to(self.device)
 
     @classmethod
     def try_load_torch_extensions(cls, use_gpu):
@@ -168,8 +171,8 @@ class ResidualCodec:
         codes, residuals = [], []
 
         for batch in embs.split(1 << 18):
-            if self.use_gpu:
-                batch = batch.cuda().half()
+            if self.device.type in ["cuda", "mps"]:
+                batch = batch.to(self.device).half()
             codes_ = self.compress_into_codes(batch, out_device=batch.device)
             centroids_ = self.lookup_centroids(codes_, out_device=batch.device)
 
@@ -211,15 +214,15 @@ class ResidualCodec:
 
         bsize = (1 << 29) // self.centroids.size(0)
         for batch in embs.split(bsize):
-            if self.use_gpu:
-                indices = (self.centroids @ batch.T.cuda().half()).max(dim=0).indices.to(device=out_device)
+            if self.device.type in ["cuda", "mps"]:
+                indices = (self.centroids @ batch.T.to(self.device).half()).max(dim=0).indices.to(self.device)
             else:
-                indices = (self.centroids @ batch.T.cpu().float()).max(dim=0).indices.to(device=out_device)
+                indices = (self.centroids @ batch.T.to(self.device).float()).max(dim=0).indices
             codes.append(indices)
 
         return torch.cat(codes)
 
-    def lookup_centroids(self, codes, out_device):
+    def lookup_centroids(self, codes):
         """
             Handles multi-dimensional codes too.
 
@@ -228,11 +231,9 @@ class ResidualCodec:
 
         centroids = []
 
+
         for batch in codes.split(1 << 20):
-            if self.use_gpu:
-                centroids.append(self.centroids[batch.cuda().long()].to(device=out_device))
-            else:
-                centroids.append(self.centroids[batch.long()].to(device=out_device))
+            centroids.append(self.centroids[batch.to(self.device).long()].to(self.device))
 
         return torch.cat(centroids)
 
@@ -246,8 +247,8 @@ class ResidualCodec:
 
         D = []
         for codes_, residuals_ in zip(codes.split(1 << 15), residuals.split(1 << 15)):
-            if self.use_gpu:
-                codes_, residuals_ = codes_.cuda(), residuals_.cuda()
+            if self.device.type in ["cuda", "mps"]:
+                codes_, residuals_ = codes_.to(self.device), residuals_.to(self.device)
                 centroids_ = ResidualCodec.decompress_residuals(
                     residuals_,
                     self.bucket_weights,
@@ -257,17 +258,17 @@ class ResidualCodec:
                     self.centroids,
                     self.dim,
                     self.nbits,
-                ).cuda()
+                ).to(self.device)
             else:
                 # TODO: Remove dead code
-                centroids_ = self.lookup_centroids(codes_, out_device='cpu')
+                centroids_ = self.lookup_centroids(codes_)
                 residuals_ = self.reversed_bit_map[residuals_.long()]
                 residuals_ = self.decompression_lookup_table[residuals_.long()]
                 residuals_ = residuals_.reshape(residuals_.shape[0], -1)
                 residuals_ = self.bucket_weights[residuals_.long()]
                 centroids_.add_(residuals_)
 
-            if self.use_gpu:
+            if self.device.type in ["cuda", "mps"]:
                 D_ = torch.nn.functional.normalize(centroids_, p=2, dim=-1).half()
             else:
                 D_ = torch.nn.functional.normalize(centroids_.to(torch.float32), p=2, dim=-1)
