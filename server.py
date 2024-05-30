@@ -13,7 +13,7 @@ INDEX_NAME = os.getenv("INDEX_NAME")
 INDEX_ROOT = os.getenv("INDEX_ROOT")
 app = Flask(__name__)
 
-searcher = Searcher(index=f"{INDEX_ROOT}/{INDEX_NAME}")
+searcher = Searcher(index=INDEX_NAME, index_root=INDEX_ROOT)
 counter = {"api" : 0}
 
 @lru_cache(maxsize=1000000)

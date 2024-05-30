@@ -20,13 +20,16 @@ TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
 
 
 class Searcher:
-    def __init__(self, index, checkpoint=None, collection=None, config=None):
-        print_memory_stats()
+    def __init__(self, index, checkpoint=None, collection=None, config=None, index_root=None, verbose:int = 3):
+        self.verbose = verbose
+        if self.verbose > 1:
+            print_memory_stats()
 
         initial_config = ColBERTConfig.from_existing(Run().config, config)
 
         default_index_root = initial_config.index_root_
-        self.index = os.path.join(default_index_root, index)
+        index_root = index_root if index_root else default_index_root
+        self.index = os.path.join(index_root, index)
         self.index_config = ColBERTConfig.load_from_index(self.index)
 
         self.checkpoint = checkpoint or self.index_config.checkpoint
@@ -36,8 +39,9 @@ class Searcher:
         self.collection = Collection.cast(collection or self.config.collection, load_collection_with_mmap=config.load_collection_with_mmap)
         self.configure(checkpoint=self.checkpoint)
 
-        self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config)
-        use_gpu = self.config.gpus > 0
+        self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config, verbose=self.verbose)
+        use_gpu = self.config.total_visible_gpus > 0
+
         if use_gpu:
             self.checkpoint = self.checkpoint.cuda()
         load_index_with_mmap = self.config.load_index_with_mmap

@@ -156,5 +156,5 @@ torch::Tensor decompress_residuals(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("decompress_residuals_cpp", &decompress_residuals,
-          "Decompress residuals");
+          "Decompress residuals", py::call_guard<py::gil_scoped_release>());
 }
