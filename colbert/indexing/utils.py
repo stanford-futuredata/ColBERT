@@ -44,6 +44,15 @@ def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path, verbose:int=3):
         offset += length
     ivf = torch.cat(unique_pids_per_centroid)
     ivf_lengths = torch.tensor(ivf_lengths)
+    
+    max_stride = ivf_lengths.max().item()
+    zero = torch.zeros(1, dtype=torch.long, device=ivf_lengths.device)
+    offsets = torch.cat((zero, torch.cumsum(ivf_lengths, dim=0)))
+    inner_dims = ivf.size()[1:]
+
+    if offsets[-2] + max_stride > ivf.size(0):
+        padding = torch.zeros(max_stride, *inner_dims, dtype=ivf.dtype, device=ivf.device)
+        ivf = torch.cat((ivf, padding))
 
     max_stride = ivf_lengths.max().item()
     zero = torch.zeros(1, dtype=torch.long, device=ivf_lengths.device)
