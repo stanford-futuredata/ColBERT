@@ -17,6 +17,12 @@ class IndexSaver():
     def save_codec(self, codec):
         codec.save(index_path=self.config.index_path_)
 
+    def save_pid_map(self, pids):
+        pid_map_path = os.path.join(self.config.index_path_, 'pid.map')
+        with open(pid_map_path, 'w') as output_pid_map:
+            for pid in pids:
+                output_pid_map.write(f'{pid}\n')
+    
     def load_codec(self):
         return ResidualCodec.load(index_path=self.config.index_path_)
 

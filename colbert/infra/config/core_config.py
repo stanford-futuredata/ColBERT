@@ -14,7 +14,7 @@ from utility.utils.save_metadata import get_metadata_only
 @dataclass
 class DefaultVal:
     val: Any
-    
+
     def __hash__(self):
         return hash(repr(self.val))
 
@@ -28,17 +28,22 @@ class CoreConfig:
         Source: https://stackoverflow.com/a/58081120/1493011
         """
 
-        self.assigned = {}
-
         for field in fields(self):
             field_val = getattr(self, field.name)
 
             if isinstance(field_val, DefaultVal) or field_val is None:
                 setattr(self, field.name, field.default.val)
 
+    @property
+    def assigned(self):
+        assigned = {}
+
+        for field in fields(self):
+            field_val = getattr(self, field.name)
             if not isinstance(field_val, DefaultVal):
-                self.assigned[field.name] = True
-    
+                assigned[field.name] = True
+        return assigned
+
     def assign_defaults(self):
         for field in fields(self):
             setattr(self, field.name, field.default.val)

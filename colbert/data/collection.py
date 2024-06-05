@@ -14,7 +14,13 @@ from colbert.infra.run import Run
 class Collection:
     def __init__(self, path=None, data=None):
         self.path = path
-        self.data = data or self._load_file(path)
+        data = data or self._load_file(path)
+        if isinstance(data, dict):
+            self.data = list(data.values())
+            self.pid_doc_map = data
+        else:
+            self.pid_doc_map = {pid: doc for pid, doc in enumerate(data)}
+            self.data = data
 
     def __iter__(self):
         # TODO: If __data isn't there, stream from disk!
@@ -22,7 +28,7 @@ class Collection:
 
     def __getitem__(self, item):
         # TODO: Load from disk the first time this is called. Unless self.data is already not None.
-        return self.data[item]
+        return self.pid_doc_map[item]
 
     def __len__(self):
         # TODO: Load here too. Basically, let's make data a property function and, on first call, either load or get __data.
@@ -88,7 +94,7 @@ class Collection:
         if type(obj) is str:
             return cls(path=obj)
 
-        if type(obj) is list:
+        if isinstance(obj, dict) or isinstance(obj, list):
             return cls(data=obj)
 
         if type(obj) is cls:
