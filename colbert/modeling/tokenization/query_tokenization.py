@@ -53,8 +53,10 @@ class QueryTokenizer():
     def tensorize(self, batch_text, bsize=None, context=None, full_length_search=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        # add placehold for the [Q] marker
-        batch_text = ['. ' + x for x in batch_text]
+        # Convert the marker token ID to its corresponding token
+        query_marker = self.tok.convert_ids_to_tokens(self.D_marker_token_id)
+        # Prepend the query marker directly
+        batch_text = [query_marker + ' ' + x for x in batch_text] 
 
         # Full length search is only available for single inference (for now)
         # Batched full length search requires far deeper changes to the code base
