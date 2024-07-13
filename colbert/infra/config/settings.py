@@ -160,6 +160,23 @@ class TrainingSettings:
 
     schedule_free: bool = DefaultVal(False)
 
+    kldiv_loss: bool = DefaultVal(True)
+
+    marginse_loss: bool = DefaultVal(False)
+
+    kldiv_weight: float = DefaultVal(1.0)
+
+    marginse_weight: float = DefaultVal(0.05)
+
+    ib_loss_weight: float = DefaultVal(1.0)
+
+    normalise_training_scores: bool = DefaultVal(False)
+
+    # Can be 'minmax', 'querylen'
+    normalization_method: str = DefaultVal("minmax")
+
+    # TODO
+
     quant_aware: bool = DefaultVal(False)
 
     highest_quant_level: int = DefaultVal(8)

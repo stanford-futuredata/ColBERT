@@ -145,22 +145,55 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
 
                 if config.use_ib_negatives:
                     scores, ib_loss = scores
+                    ib_loss = ib_loss * config.ib_loss_weight
 
                 scores = scores.view(-1, config.nway)
+                if config.normalise_training_scores:
+                    if config.normalization_method == "minmax":
+                        scores = (scores - scores.min(dim=-1, keepdim=True)[0]) / (
+                            scores.max(dim=-1, keepdim=True)[0]
+                            - scores.min(dim=-1, keepdim=True)[0]
+                            + 1e-8
+                        )
+                    elif config.normalization_method == "querylen":
+                        scores = scores / (
+                            queries.shape[1] + 1e-8
+                        )  # Divide by the number of tokens in the queries
 
                 if len(target_scores) and not config.ignore_scores:
                     target_scores = (
                         torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
                     )
                     target_scores = target_scores * config.distillation_alpha
-                    target_scores = torch.nn.functional.log_softmax(
-                        target_scores, dim=-1
-                    )
 
-                    log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
-                    loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)(
-                        log_scores, target_scores
-                    )
+                    if config.kldiv_loss:
+                        target_scores = torch.nn.functional.log_softmax(
+                            target_scores, dim=-1
+                        )
+
+                        log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
+                        kldivloss = torch.nn.KLDivLoss(
+                            reduction="batchmean", log_target=True
+                        )(log_scores, target_scores)
+
+                    if config.marginmse_loss:
+                        margin = scores[:, 0] - scores[:, 1:]
+                        target_margin = target_scores[:, 0] - target_scores[:, 1:]
+                        marginmse_loss = torch.nn.MSELoss()(margin, target_margin)
+
+                    if config.kldiv_loss and config.marginmse_loss:
+                        loss = (
+                            kldivloss * config.kldiv_weight
+                            + marginmse_loss * config.marginmse_weight
+                        )
+                    elif config.kldiv_loss:
+                        loss = kldivloss
+                    elif config.marginmse_loss:
+                        loss = marginmse_loss
+                    else:
+                        raise ValueError(
+                            "One or both of config.kldiv_loss and config.marginmse_loss must be True if distillation is enabled!"
+                        )
                 else:
                     loss = nn.CrossEntropyLoss()(scores, labels[: scores.size(0)])
 
