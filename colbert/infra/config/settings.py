@@ -156,6 +156,16 @@ class TrainingSettings:
 
     model_name: str = DefaultVal(None)  # DefaultVal('bert-base-uncased')
 
+    # V2.5
+
+    schedule_free: bool = DefaultVal(False)
+
+    quant_aware: bool = DefaultVal(False)
+
+    highest_quant_level: int = DefaultVal(8)
+
+    lowest_quant_level: int = DefaultVal(2)
+
 
 @dataclass
 class IndexingSettings:

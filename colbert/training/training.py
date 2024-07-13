@@ -19,9 +19,8 @@ from colbert.utils.utils import print_message
 from colbert.training.utils import print_progress, manage_checkpoints
 
 
-
 def train(config: ColBERTConfig, triples, queries=None, collection=None):
-    config.checkpoint = config.checkpoint or 'bert-base-uncased'
+    config.checkpoint = config.checkpoint or "bert-base-uncased"
 
     if config.rank < 1:
         config.help()
@@ -34,13 +33,32 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     assert config.bsize % config.nranks == 0, (config.bsize, config.nranks)
     config.bsize = config.bsize // config.nranks
 
-    print("Using config.bsize =", config.bsize, "(per process) and config.accumsteps =", config.accumsteps)
+    print(
+        "Using config.bsize =",
+        config.bsize,
+        "(per process) and config.accumsteps =",
+        config.accumsteps,
+    )
 
     if collection is not None:
         if config.reranker:
-            reader = RerankBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
+            reader = RerankBatcher(
+                config,
+                triples,
+                queries,
+                collection,
+                (0 if config.rank == -1 else config.rank),
+                config.nranks,
+            )
         else:
-            reader = LazyBatcher(config, triples, queries, collection, (0 if config.rank == -1 else config.rank), config.nranks)
+            reader = LazyBatcher(
+                config,
+                triples,
+                queries,
+                collection,
+                (0 if config.rank == -1 else config.rank),
+                config.nranks,
+            )
     else:
         raise NotImplementedError()
 
@@ -52,18 +70,38 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     colbert = colbert.to(DEVICE)
     colbert.train()
 
-    colbert = torch.nn.parallel.DistributedDataParallel(colbert, device_ids=[config.rank],
-                                                        output_device=config.rank,
-                                                        find_unused_parameters=True)
+    colbert = torch.nn.parallel.DistributedDataParallel(
+        colbert,
+        device_ids=[config.rank],
+        output_device=config.rank,
+        find_unused_parameters=True,
+    )
 
-    optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=config.lr, eps=1e-8)
+    if not config.schedule_free:
+        optimizer = AdamW(
+            filter(lambda p: p.requires_grad, colbert.parameters()),
+            lr=config.lr,
+            eps=1e-8,
+        )
+    else:
+        optimizer = AdamWScheduleFree(
+            filter(lambda p: p.requires_grad, colbert.parameters()),
+            lr=config.lr,
+            warmup_steps=config.warmup,
+        )
+    optimizer.train()
     optimizer.zero_grad()
 
     scheduler = None
     if config.warmup is not None:
-        print(f"#> LR will use {config.warmup} warmup steps and linear decay over {config.maxsteps} steps.")
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=config.warmup,
-                                                    num_training_steps=config.maxsteps)
+        print(
+            f"#> LR will use {config.warmup} warmup steps and linear decay over {config.maxsteps} steps."
+        )
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=config.warmup,
+            num_training_steps=config.maxsteps,
+        )
 
     warmup_bert = config.warmup_bert
     if warmup_bert is not None:
@@ -100,7 +138,10 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                     encoding, target_scores = batch
                     encoding = [encoding.to(DEVICE)]
 
-                scores = colbert(*encoding)
+                if not config.quant_aware:
+                    scores = colbert(*encoding)
+                else:
+                    raise NotImplementedError
 
                 if config.use_ib_negatives:
                     scores, ib_loss = scores
@@ -108,18 +149,24 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                 scores = scores.view(-1, config.nway)
 
                 if len(target_scores) and not config.ignore_scores:
-                    target_scores = torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
+                    target_scores = (
+                        torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
+                    )
                     target_scores = target_scores * config.distillation_alpha
-                    target_scores = torch.nn.functional.log_softmax(target_scores, dim=-1)
+                    target_scores = torch.nn.functional.log_softmax(
+                        target_scores, dim=-1
+                    )
 
                     log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
-                    loss = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)(log_scores, target_scores)
+                    loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)(
+                        log_scores, target_scores
+                    )
                 else:
-                    loss = nn.CrossEntropyLoss()(scores, labels[:scores.size(0)])
+                    loss = nn.CrossEntropyLoss()(scores, labels[: scores.size(0)])
 
                 if config.use_ib_negatives:
                     if config.rank < 1:
-                        print('\t\t\t\t', loss.item(), ib_loss.item())
+                        print("\t\t\t\t", loss.item(), ib_loss.item())
 
                     loss += ib_loss
 
@@ -139,14 +186,20 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
 
         if config.rank < 1:
             print_message(batch_idx, train_loss)
-            manage_checkpoints(config, colbert, optimizer, batch_idx+1, savepath=None)
+            manage_checkpoints(config, colbert, optimizer, batch_idx + 1, savepath=None)
 
     if config.rank < 1:
         print_message("#> Done with all triples!")
-        ckpt_path = manage_checkpoints(config, colbert, optimizer, batch_idx+1, savepath=None, consumed_all_triples=True)
+        ckpt_path = manage_checkpoints(
+            config,
+            colbert,
+            optimizer,
+            batch_idx + 1,
+            savepath=None,
+            consumed_all_triples=True,
+        )
 
         return ckpt_path  # TODO: This should validate and return the best checkpoint, not just the last one.
-
 
 
 def set_bert_grad(colbert, value):
