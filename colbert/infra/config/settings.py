@@ -119,6 +119,10 @@ class QuerySettings:
     query_maxlen: int = DefaultVal(32)
     attend_to_mask_tokens: bool = DefaultVal(False)
     interaction: str = DefaultVal("colbert")
+    # V2.5
+    cap_padding: int = DefaultVal(0)
+    dynamic_query_maxlen: bool = DefaultVal(False)
+    dynamic_querylen_multiples: int = DefaultVal(32)
 
 
 @dataclass
@@ -160,13 +164,15 @@ class TrainingSettings:
 
     schedule_free: bool = DefaultVal(False)
 
+    schedule_free_wd: float = DefaultVal(0.0)
+
     kldiv_loss: bool = DefaultVal(True)
 
-    marginse_loss: bool = DefaultVal(False)
+    marginmse_loss: bool = DefaultVal(False)
 
     kldiv_weight: float = DefaultVal(1.0)
 
-    marginse_weight: float = DefaultVal(0.05)
+    marginmse_weight: float = DefaultVal(0.05)
 
     ib_loss_weight: float = DefaultVal(1.0)
 

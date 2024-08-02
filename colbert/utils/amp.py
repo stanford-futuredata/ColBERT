@@ -23,12 +23,14 @@ class MixedPrecisionManager():
     def step(self, colbert, optimizer, scheduler=None):
         if self.activated:
             self.scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(colbert.parameters(), 2.0, error_if_nonfinite=False)
+            if scheduler is not None:
+                torch.nn.utils.clip_grad_norm_(colbert.parameters(), 2.0, error_if_nonfinite=False)
 
             self.scaler.step(optimizer)
             self.scaler.update()
         else:
-            torch.nn.utils.clip_grad_norm_(colbert.parameters(), 2.0)
+            if scheduler is not None:
+                torch.nn.utils.clip_grad_norm_(colbert.parameters(), 2.0)
             optimizer.step()
         
         if scheduler is not None:

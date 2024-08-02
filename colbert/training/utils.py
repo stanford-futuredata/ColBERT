@@ -18,7 +18,7 @@ def print_progress(scores):
 
 
 def manage_checkpoints(
-    args, colbert, optimizer, batch_idx, savepath=None, consumed_all_triples=False
+    args, colbert, optimizer, batch_idx, savepath=None, consumed_all_triples=False, is_schedule_free=False
 ):
     # arguments = dict(args)
 
@@ -41,13 +41,15 @@ def manage_checkpoints(
         # name = os.path.join(path, "colbert.dnn")
         # save_checkpoint(name, 0, batch_idx, colbert, optimizer, arguments)
         path_save = os.path.join(checkpoints_path, "colbert")
-        optimizer.eval()
+        if is_schedule_free:
+            optimizer.eval()
 
     if batch_idx in SAVED_CHECKPOINTS:
         # name = os.path.join(path, "colbert-{}.dnn".format(batch_idx))
         # save_checkpoint(name, 0, batch_idx, colbert, optimizer, arguments)
         path_save = os.path.join(checkpoints_path, f"colbert-{batch_idx}")
-        optimizer.eval()
+        if is_schedule_free:
+            optimizer.eval()
 
     if path_save:
         print(f"#> Saving a checkpoint to {path_save} ..")
@@ -61,7 +63,7 @@ def manage_checkpoints(
 
         save(path_save)
 
-        if not consumed_all_triples:
+        if not consumed_all_triples and is_schedule_free:
             optimizer.train()
 
     return path_save

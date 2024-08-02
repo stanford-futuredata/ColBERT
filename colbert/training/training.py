@@ -18,6 +18,8 @@ from colbert.modeling.reranker.electra import ElectraReranker
 from colbert.utils.utils import print_message
 from colbert.training.utils import print_progress, manage_checkpoints
 
+from schedulefree import AdamWScheduleFree
+
 
 def train(config: ColBERTConfig, triples, queries=None, collection=None):
     config.checkpoint = config.checkpoint or "bert-base-uncased"
@@ -77,23 +79,30 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         find_unused_parameters=True,
     )
 
-    if not config.schedule_free:
+    if config.schedule_free is False:
         optimizer = AdamW(
             filter(lambda p: p.requires_grad, colbert.parameters()),
             lr=config.lr,
             eps=1e-8,
         )
     else:
+        print("WARNING, USING SCHEDULE FREE")
+        print("WARNING, USING SCHEDULE FREE")
+        print("WARNING, USING SCHEDULE FREE")
+        print("WARNING, USING SCHEDULE FREE")
+        print("WARNING, USING SCHEDULE FREE")
         optimizer = AdamWScheduleFree(
             filter(lambda p: p.requires_grad, colbert.parameters()),
             lr=config.lr,
             warmup_steps=config.warmup,
+            weight_decay=config.schedule_free_wd,
         )
-    optimizer.train()
+    if config.schedule_free:
+        optimizer.train()
     optimizer.zero_grad()
 
     scheduler = None
-    if config.warmup is not None:
+    if config.warmup is not None and config.schedule_free is False:
         print(
             f"#> LR will use {config.warmup} warmup steps and linear decay over {config.maxsteps} steps."
         )
@@ -150,6 +159,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                 scores = scores.view(-1, config.nway)
                 if config.normalise_training_scores:
                     if config.normalization_method == "minmax":
+                        print('norm')
                         scores = (scores - scores.min(dim=-1, keepdim=True)[0]) / (
                             scores.max(dim=-1, keepdim=True)[0]
                             - scores.min(dim=-1, keepdim=True)[0]
@@ -157,7 +167,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                         )
                     elif config.normalization_method == "querylen":
                         scores = scores / (
-                            queries.shape[1] + 1e-8
+                            config.query_maxlen + 1e-8
                         )  # Divide by the number of tokens in the queries
 
                 if len(target_scores) and not config.ignore_scores:
@@ -177,14 +187,16 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                         )(log_scores, target_scores)
 
                     if config.marginmse_loss:
-                        margin = scores[:, 0] - scores[:, 1:]
-                        target_margin = target_scores[:, 0] - target_scores[:, 1:]
+                        margin = scores[:, 0].unsqueeze(1) - scores[:, 1:]
+                        target_margin = target_scores[:, 0].unsqueeze(1) - target_scores[:, 1:]
                         marginmse_loss = torch.nn.MSELoss()(margin, target_margin)
 
                     if config.kldiv_loss and config.marginmse_loss:
+                        weighted_kldiv = kldivloss * config.kldiv_weight
+                        weighted_marginmse = marginmse_loss * config.marginmse_weight
                         loss = (
-                            kldivloss * config.kldiv_weight
-                            + marginmse_loss * config.marginmse_weight
+                            weighted_kldiv
+                            + weighted_marginmse
                         )
                     elif config.kldiv_loss:
                         loss = kldivloss
@@ -195,12 +207,14 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                             "One or both of config.kldiv_loss and config.marginmse_loss must be True if distillation is enabled!"
                         )
                 else:
+                    raise ValueError("crossentropy loss shouldn't be used here")
                     loss = nn.CrossEntropyLoss()(scores, labels[: scores.size(0)])
 
                 if config.use_ib_negatives:
                     if config.rank < 1:
                         print("\t\t\t\t", loss.item(), ib_loss.item())
 
+                    og_loss = loss
                     loss += ib_loss
 
                 loss = loss / config.accumsteps
@@ -215,9 +229,22 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
         train_loss = this_batch_loss if train_loss is None else train_loss
         train_loss = train_loss_mu * train_loss + (1 - train_loss_mu) * this_batch_loss
 
+        if config.schedule_free:
+            assert scheduler is None
+
         amp.step(colbert, optimizer, scheduler)
 
         if config.rank < 1:
+            if config.use_ib_negatives:
+                print_message(f"IB Loss: {ib_loss}")
+                print_message(f"KL-D loss: {og_loss}")
+            if config.kldiv_loss and config.marginmse_loss:
+                TOTAL = weighted_kldiv + weighted_marginmse
+                kldiv_proportion = weighted_kldiv / TOTAL
+                marginmse_proportion = weighted_marginmse / TOTAL
+                print_message(f"Weighted KL-D loss: {weighted_kldiv:.4f}")
+                print_message(f"Weighted MarginMSE loss: {weighted_marginmse:.4f}")
+                print_message(f"Respective proportions: KL-D {kldiv_proportion:.2%}, MarginMSE {marginmse_proportion:.2%}")
             print_message(batch_idx, train_loss)
             manage_checkpoints(config, colbert, optimizer, batch_idx + 1, savepath=None)
 
@@ -230,6 +257,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
             batch_idx + 1,
             savepath=None,
             consumed_all_triples=True,
+            is_schedule_free=config.schedule_free,
         )
 
         return ckpt_path  # TODO: This should validate and return the best checkpoint, not just the last one.
