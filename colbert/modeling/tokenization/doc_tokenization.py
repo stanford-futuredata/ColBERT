@@ -4,7 +4,7 @@ import torch
 
 from colbert.modeling.hf_colbert import class_factory
 from colbert.infra import ColBERTConfig
-from colbert.modeling.tokenization.utils import _split_into_batches, _sort_by_length
+from colbert.modeling.tokenization.utils import _split_into_batches, _sort_by_length, _insert_prefix_token
 from colbert.parameters import DEVICE
 
 class DocTokenizer():
@@ -44,20 +44,15 @@ class DocTokenizer():
         ids = [prefix + lst + suffix for lst in ids]
 
         return ids
-
+        
     def tensorize(self, batch_text, bsize=None):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        # add placehold for the [D] marker
-        batch_text = ['. ' + x for x in batch_text]
-
         obj = self.tok(batch_text, padding='longest', truncation='longest_first',
-                       return_tensors='pt', max_length=self.doc_maxlen).to(DEVICE)
+                       return_tensors='pt', max_length=(self.doc_maxlen - 1)).to(DEVICE)
 
-        ids, mask = obj['input_ids'], obj['attention_mask']
-
-        # postprocess for the [D] marker
-        ids[:, 1] = self.D_marker_token_id
+        ids = _insert_prefix_token(obj['input_ids'], self.D_marker_token_id)
+        mask = _insert_prefix_token(obj['attention_mask'], 1)
 
         if bsize:
             ids, mask, reverse_indices = _sort_by_length(ids, mask, bsize)
