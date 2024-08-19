@@ -119,6 +119,10 @@ class QuerySettings:
     query_maxlen: int = DefaultVal(32)
     attend_to_mask_tokens: bool = DefaultVal(False)
     interaction: str = DefaultVal("colbert")
+    # V2.5
+    cap_padding: int = DefaultVal(0)
+    dynamic_query_maxlen: bool = DefaultVal(False)
+    dynamic_querylen_multiples: int = DefaultVal(32)
 
 
 @dataclass
@@ -155,6 +159,35 @@ class TrainingSettings:
     ignore_scores: bool = DefaultVal(False)
 
     model_name: str = DefaultVal(None)  # DefaultVal('bert-base-uncased')
+
+    # V2.5
+
+    schedule_free: bool = DefaultVal(False)
+
+    schedule_free_wd: float = DefaultVal(0.0)
+
+    kldiv_loss: bool = DefaultVal(True)
+
+    marginmse_loss: bool = DefaultVal(False)
+
+    kldiv_weight: float = DefaultVal(1.0)
+
+    marginmse_weight: float = DefaultVal(0.05)
+
+    ib_loss_weight: float = DefaultVal(1.0)
+
+    normalise_training_scores: bool = DefaultVal(False)
+
+    # Can be 'minmax', 'querylen'
+    normalization_method: str = DefaultVal("minmax")
+
+    # TODO
+
+    quant_aware: bool = DefaultVal(False)
+
+    highest_quant_level: int = DefaultVal(8)
+
+    lowest_quant_level: int = DefaultVal(2)
 
 
 @dataclass

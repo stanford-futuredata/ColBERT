@@ -55,7 +55,7 @@ class Searcher:
 
     def encode(self, text: TextQueries, full_length_search=False):
         queries = text if type(text) is list else [text]
-        bsize = 128 if len(queries) > 128 else None
+        bsize = 512 if len(queries) > 512 else None
 
         self.checkpoint.query_tokenizer.query_maxlen = self.config.query_maxlen
         Q = self.checkpoint.queryFromText(queries, bsize=bsize, to_cpu=True, full_length_search=full_length_search)
