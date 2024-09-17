@@ -20,7 +20,8 @@ def pool_embeddings_hierarchical(
     pooled_token_lengths = []
     start_idx = 0
 
-    for token_length in tqdm(token_lengths, desc="Pooling tokens"):
+    T = token_lengths if len(token_lengths) == 1 else tqdm(token_lengths, desc="Pooling tokens")
+    for token_length in T:
         # Get the embeddings for the current passage
         passage_embeddings = p_embeddings[start_idx : start_idx + token_length]
 
