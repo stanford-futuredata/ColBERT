@@ -22,7 +22,7 @@ def load_doclens(directory, flatten=True):
     doclens_filenames = {}
 
     for filename in os.listdir(directory):
-        match = re.match("doclens.(\d+).json", filename)
+        match = re.match(r"doclens.(\d+).json", filename)
 
         if match is not None:
             doclens_filenames[int(match.group(1))] = filename
