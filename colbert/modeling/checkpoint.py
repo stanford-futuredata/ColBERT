@@ -13,6 +13,7 @@ def pool_embeddings_hierarchical(
     token_lengths,
     pool_factor,
     protected_tokens: int = 0,
+    showprogress: bool = False,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     p_embeddings = p_embeddings.to(device)
@@ -20,7 +21,8 @@ def pool_embeddings_hierarchical(
     pooled_token_lengths = []
     start_idx = 0
 
-    for token_length in tqdm(token_lengths, desc="Pooling tokens"):
+    T = tqdm(token_lengths, desc="Pooling tokens") if showprogress else token_lengths
+    for token_length in T:
         # Get the embeddings for the current passage
         passage_embeddings = p_embeddings[start_idx : start_idx + token_length]
 
@@ -179,6 +181,7 @@ class Checkpoint(ColBERT):
                         doclens,
                         pool_factor=pool_factor,
                         protected_tokens=protected_tokens,
+                        showprogress=showprogress,
                     )
 
                 return (D, doclens, *returned_text)
