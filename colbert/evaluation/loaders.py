@@ -157,7 +157,7 @@ def load_collection(collection_path):
 
     collection = []
 
-    with open(collection_path) as f:
+    with open(collection_path, encoding="utf-8") as f:
         for line_idx, line in enumerate(f):
             if line_idx % (1000*1000) == 0:
                 print(f'{line_idx // 1000 // 1000}M', end=' ', flush=True)
