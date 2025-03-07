@@ -22,7 +22,7 @@ setuptools.setup(
         "bitarray",
         "datasets",
         "flask",
-        "git-python",
+        "GitPython",
         "python-dotenv",
         "ninja",
         "scipy",
