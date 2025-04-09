@@ -8,7 +8,7 @@ from colbert.modeling.tokenization.utils import _split_into_batches, _sort_by_le
 from colbert.parameters import DEVICE
 
 class DocTokenizer():
-    def __init__(self, config: ColBERTConfig):
+    def __init__(self, config: ColBERTConfig, device=None):
         HF_ColBERT = class_factory(config.checkpoint)
         self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
 
@@ -19,10 +19,14 @@ class DocTokenizer():
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
 
+        if device is None:
+            device = DEVICE
+        self.device = device
+
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        tokens = [self.tok.tokenize(x, add_special_tokens=False).to(DEVICE) for x in batch_text]
+        tokens = [self.tok.tokenize(x, add_special_tokens=False).to(self.device) for x in batch_text]
 
         if not add_special_tokens:
             return tokens
@@ -35,7 +39,7 @@ class DocTokenizer():
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
 
-        ids = self.tok(batch_text, add_special_tokens=False).to(DEVICE)['input_ids']
+        ids = self.tok(batch_text, add_special_tokens=False).to(self.device)['input_ids']
 
         if not add_special_tokens:
             return ids
