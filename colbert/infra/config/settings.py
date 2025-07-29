@@ -32,6 +32,8 @@ class RunSettings:
 
     avoid_fork_if_possible: bool = DefaultVal(False)
 
+    use_mps_if_available: bool = DefaultVal(True)
+
     @property
     def gpus_(self):
         value = self.gpus
