@@ -33,7 +33,9 @@ class Collection:
         return self._load_tsv(path) if path.endswith('.tsv') else self._load_jsonl(path)
 
     def _load_tsv(self, path):
-        return load_collection(path)
+        collection, pid_list = load_collection(path)
+        self.pid_list = pid_list
+        return collection
 
     def _load_jsonl(self, path):
         raise NotImplementedError()
