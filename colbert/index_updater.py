@@ -199,7 +199,7 @@ class IndexUpdater:
         if curr_num_chunks == 1:
             avg_chunksize = DEFAULT_CHUNKSIZE
         else:
-            avg_chunksize = last_chunk_metadata["passage_offset"] / (
+            avg_chunksize = last_chunk_metadata["passage_offset"] // (
                 curr_num_chunks - 1
             )
         print_message(f"#> Current average chunksize is: {avg_chunksize}.")
