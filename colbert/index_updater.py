@@ -415,7 +415,7 @@ class IndexUpdater:
                 new_ivf_lengths[-1] += 1
                 partitions_runner += 1
 
-        assert ivf_runner == len(old_ivf)
+        assert ivf_runner == len(old_ivf) or sum(old_ivf[ivf_runner:])==0
         assert sum(new_ivf_lengths) == len(new_ivf)
 
         return new_ivf, new_ivf_lengths
