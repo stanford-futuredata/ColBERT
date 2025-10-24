@@ -44,14 +44,26 @@ class CollectionIndexer():
         self.rank, self.nranks = self.config.rank, self.config.nranks
 
         self.use_gpu = self.config.total_visible_gpus > 0
+        self.use_mps = False
+        if torch.backends.mps.is_available() and self.config.use_mps_if_available:
+            if torch.backends.mps.is_built() :
+                self.use_mps = True
+                os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+            else:
+                print_message("MPS not available because the current PyTorch install was not built with MPS enabled.")      
 
         if self.config.rank == 0 and self.verbose > 1:
             self.config.help()
 
         self.collection = Collection.cast(collection)
         self.checkpoint = Checkpoint(self.config.checkpoint, colbert_config=self.config)
+        self.device = torch.device("cpu")
         if self.use_gpu:
-            self.checkpoint = self.checkpoint.cuda()
+            self.device = torch.device("cuda")
+        elif self.use_mps:
+            print_message("Loading model to MPS")
+            self.device = torch.device("mps")
+        self.checkpoint = self.checkpoint.to(self.device)
 
         self.encoder = CollectionEncoder(config, self.checkpoint)
         self.saver = IndexSaver(config)
@@ -136,42 +148,23 @@ class CollectionIndexer():
 
         local_sample_embs, doclens = self.encoder.encode_passages(local_sample)
 
-        if torch.cuda.is_available():
-            if torch.distributed.is_available() and torch.distributed.is_initialized():
-                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
-                torch.distributed.all_reduce(self.num_sample_embs)
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).to(self.device)
+            torch.distributed.all_reduce(self.num_sample_embs)
 
-                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-                avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
-                torch.distributed.all_reduce(avg_doclen_est)
+            avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+            avg_doclen_est = torch.tensor([avg_doclen_est]).to(self.device)
+            torch.distributed.all_reduce(avg_doclen_est)
 
-                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
-                torch.distributed.all_reduce(nonzero_ranks)
-            else:
-                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cuda()
-
-                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-                avg_doclen_est = torch.tensor([avg_doclen_est]).cuda()
-
-                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cuda()
+            nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).to(self.device)
+            torch.distributed.all_reduce(nonzero_ranks)
         else:
-            if torch.distributed.is_available() and torch.distributed.is_initialized():
-                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
-                torch.distributed.all_reduce(self.num_sample_embs)
+            self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).to(self.device)
 
-                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-                avg_doclen_est = torch.tensor([avg_doclen_est]).cpu()
-                torch.distributed.all_reduce(avg_doclen_est)
+            avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
+            avg_doclen_est = torch.tensor([avg_doclen_est]).to(self.device)
 
-                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cpu()
-                torch.distributed.all_reduce(nonzero_ranks)
-            else:
-                self.num_sample_embs = torch.tensor([local_sample_embs.size(0)]).cpu()
-
-                avg_doclen_est = sum(doclens) / len(doclens) if doclens else 0
-                avg_doclen_est = torch.tensor([avg_doclen_est]).cpu()
-
-                nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).cpu()
+            nonzero_ranks = torch.tensor([float(len(local_sample) > 0)]).to(self.device)
 
         avg_doclen_est = avg_doclen_est.item() / nonzero_ranks.item()
         self.avg_doclen_est = avg_doclen_est
@@ -241,7 +234,7 @@ class CollectionIndexer():
 
         # Compute and save codec into avg_residual.pt, buckets.pt and centroids.pt
         codec = ResidualCodec(config=self.config, centroids=centroids, avg_residual=avg_residual,
-                              bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights)
+                              bucket_cutoffs=bucket_cutoffs, bucket_weights=bucket_weights, device=self.device)
         self.saver.save_codec(codec)
 
     def _concatenate_and_split_sample(self):
@@ -304,7 +297,7 @@ class CollectionIndexer():
             centroids = compute_faiss_kmeans(*args_)
 
         centroids = torch.nn.functional.normalize(centroids, dim=-1)
-        if self.use_gpu:
+        if self.device.type in ["cuda", "mps"]:
             centroids = centroids.half()
         else:
             centroids = centroids.float()
@@ -312,14 +305,12 @@ class CollectionIndexer():
         return centroids
 
     def _compute_avg_residual(self, centroids, heldout):
-        compressor = ResidualCodec(config=self.config, centroids=centroids, avg_residual=None)
+        compressor = ResidualCodec(config=self.config, centroids=centroids, avg_residual=None, device=self.device)
 
         heldout_reconstruct = compressor.compress_into_codes(heldout, out_device='cuda' if self.use_gpu else 'cpu')
         heldout_reconstruct = compressor.lookup_centroids(heldout_reconstruct, out_device='cuda' if self.use_gpu else 'cpu')
-        if self.use_gpu:
-            heldout_avg_residual = heldout.cuda() - heldout_reconstruct
-        else:
-            heldout_avg_residual = heldout - heldout_reconstruct
+
+        heldout_avg_residual = heldout.to(self.device) - heldout_reconstruct
 
         avg_residual = torch.abs(heldout_avg_residual).mean(dim=0).cpu()
         print([round(x, 3) for x in avg_residual.squeeze().tolist()])
