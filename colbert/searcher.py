@@ -37,6 +37,7 @@ class Searcher:
         self.config = ColBERTConfig.from_existing(self.checkpoint_config, self.index_config, initial_config)
 
         self.collection = Collection.cast(collection or self.config.collection)
+        self.pid_list = self.idx2pid(self.config.collection)
         self.configure(checkpoint=self.checkpoint, collection=self.collection)
 
         self.checkpoint = Checkpoint(self.checkpoint, colbert_config=self.config, verbose=self.verbose)
@@ -49,6 +50,14 @@ class Searcher:
         self.ranker = IndexScorer(self.index, use_gpu, load_index_with_mmap)
 
         print_memory_stats()
+        
+    def idx2pid(self, collection_path):
+        pid_list = []
+        with open(collection_path) as f:
+            for line_idx, line in enumerate(f):
+                pid, passage, *rest = line.strip('\n\r ').split('\t')
+                pid_list.append(pid)
+        return pid_list
 
     def configure(self, **kw_args):
         self.config.configure(**kw_args)

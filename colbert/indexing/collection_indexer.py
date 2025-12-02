@@ -435,6 +435,35 @@ class CollectionIndexer():
         self.num_embeddings = embedding_offset
         assert len(self.embedding_offsets) == self.num_chunks
 
+    
+    def _get_ivf(self, codes):
+        ivf_dict = {}
+        Run().print_main(f"Code size {codes.shape[0]}")
+        Run().print_main(f"Creating empty ivf dict")
+        for p_id in range(self.num_partitions):
+            ivf_dict[p_id] = []
+
+        Run().print_main(f"Populating ivf dict")
+        for c_idx in range(codes.shape[0]):
+            if (c_idx%10_000_000 == 0):
+                Run().print_main(f"{c_idx}")
+            p_id = codes[c_idx].item()
+            ivf_dict[p_id].append(c_idx)
+
+        ivf = []
+        ivf_lengths = torch.zeros(self.num_partitions).long()
+
+        Run().print_main(f"Get ivf lengths")
+        for p_id in range(self.num_partitions):
+            if (p_id %100 == 0):
+                Run().print_main(f"{p_id}")
+            ivf_lengths[p_id] = len(ivf_dict[p_id])
+            ivf.extend(ivf_dict[p_id])
+        ivf = torch.tensor(ivf)
+        ivf_lengths = torch.tensor(ivf_lengths)
+
+        return ivf, ivf_lengths
+    
     def _build_ivf(self):
         # Maybe we should several small IVFs? Every 250M embeddings, so that's every 1 GB.
         # It would save *memory* here and *disk space* regarding the int64.
@@ -464,15 +493,12 @@ class CollectionIndexer():
 
             print_memory_stats(f'RANK:{self.rank}')
 
-        codes = codes.sort()
-        ivf, values = codes.indices, codes.values
-
         if self.verbose > 1:
             print_memory_stats(f'RANK:{self.rank}')
 
             Run().print_main(f"Getting unique codes...")
 
-        ivf_lengths = torch.bincount(values, minlength=self.num_partitions)
+        ivf, ivf_lengths = self._get_ivf(codes)
         assert ivf_lengths.size(0) == self.num_partitions
 
         if self.verbose > 1:
