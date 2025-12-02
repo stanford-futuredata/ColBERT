@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "colbert"
+version = "0.1.0"
+description = ""
+authors = ["leo-gan <leo.gan.57@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python=">=3.8,<3.12"
+faiss-gpu="^1.7"
+torch="^1.13"
+torchaudio="^0.13"
+torchvision="^0.14"
+#cudatoolkit="^11.3"
+#gcc="^9.4"
+#gxx="^9.4"
+bitarray="^2.7"
+datasets="^2.12"
+gitpython="^3.1"
+jupyter="^1.0"
+jupyterlab="^4.0"
+ninja="^1.11"
+scipy="^1.10"
+spacy="^3.5"
+tqdm="^4.65"
+transformers="^4.29"
+ujson="^5.7"
+flask="^2.3"
+python-dotenv="^1.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
