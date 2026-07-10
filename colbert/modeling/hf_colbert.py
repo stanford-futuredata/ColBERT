@@ -107,7 +107,16 @@ def class_factory(name_or_path):
             # if colbert_config.relu:
             #     self.score_scaler = nn.Linear(1, 1)
 
-            self.init_weights()
+            # post_init() calls init_weights() and additionally registers model
+            # metadata that transformers >= 5.0 requires during from_pretrained
+            # (e.g. `all_tied_weights_keys`); calling init_weights() directly
+            # leaves that metadata unset and loading crashes with
+            # AttributeError: 'HF_ColBERT' object has no attribute 'all_tied_weights_keys'.
+            # post_init() exists since transformers 4.16; fall back for older versions.
+            if hasattr(self, "post_init"):
+                self.post_init()
+            else:
+                self.init_weights()
 
             # if colbert_config.relu:
             #     self.score_scaler.weight.data.fill_(1.0)
